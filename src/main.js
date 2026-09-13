@@ -68,12 +68,16 @@ const touch = new TouchControls({
 });
 
 const btnLock = document.querySelector("#btnLock");
-btnLock?.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
+const btnSwitch = document.querySelector("#btnSwitch");
+function switchTarget(e) {
+  e?.preventDefault();
+  e?.stopPropagation();
+  audio.ensure();
   const p = game.player();
-  if (p) game.cycleLock(p);
-});
+  if (p && game.state === "playing") game.cycleLock(p);
+}
+btnLock?.addEventListener("pointerdown", switchTarget);
+btnSwitch?.addEventListener("pointerdown", switchTarget);
 
 function startGame(mode, difficulty) {
   audio.ensure();
@@ -187,7 +191,11 @@ function applyInput() {
   if (touch.enabled !== wantTouch) touch.setEnabled(wantTouch);
   // auto-lock camera (no manual aim) + split-screen layout
   renderer.lockCamera = true;
-  if (btnLock) btnLock.style.display = touch.enabled && game.enemyList(p1).length >= 2 ? "" : "none";
+  // target buttons: visible whenever there is at least one enemy to aim at
+  const hasTarget = Boolean(p1 && game.enemyList(p1).length);
+  const targetBtnDisplay = touch.enabled && hasTarget ? "" : "none";
+  if (btnLock) btnLock.style.display = targetBtnDisplay;
+  if (btnSwitch) btnSwitch.style.display = targetBtnDisplay;
   document.body.classList.toggle("split-mode", game.mode === "dual" && inBattle && !touch.enabled);
 
   if (p1 && inBattle) {

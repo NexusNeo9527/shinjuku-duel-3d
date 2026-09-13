@@ -77,7 +77,6 @@ export class UI3D {
       dialogueRText: document.querySelector("#dialogueRText"),
       hint: document.querySelector("#hint"),
       modeStatus: document.querySelector("#modeStatus"),
-      rotateHint: document.querySelector("#rotateHint"),
       practicePanel: document.querySelector("#practicePanel"),
       splitUI: document.querySelector("#splitUI"),
       practiceChars: [...document.querySelectorAll("[data-pchar]")],
@@ -179,7 +178,7 @@ export class UI3D {
     for (let i = 0; i < panel.slots.length; i += 1) {
       const sl = panel.slots[i];
       const cd = ent.cooldowns[i] || 0;
-      sl.cd.style.setProperty("--cd", String(Math.min(1, cd / (sl.ability.cooldown || 1))));
+      sl.cd.style.setProperty("--cd", String(this.slotShade(sl.ability, ent, game, cd)));
       const needCharge = sl.ability.needsCharge && ent.charge < 100 && !game.practice;
       const needDomain = sl.ability.needsDomain && ent.domainCharge < 100 && !game.practice;
       sl.el.classList.toggle("locked", Boolean(needCharge || needDomain));
@@ -350,18 +349,24 @@ export class UI3D {
     const modeLabel = game.mode === "single" ? `单人对决 · ${DIFFICULTY[game.difficulty].label}`
       : game.mode === "dual" ? "双人同屏" : "练习终端";
     this.dom.modeStatus.textContent = modeLabel;
+  }
 
-    const blocked = window.innerWidth < window.innerHeight && window.innerWidth <= 620;
-    this.dom.rotateHint.classList.toggle("hidden", !blocked);
+  // gauge-gated skills fill up with 奥义/领域 instead of running a separate cooldown
+  slotShade(ab, ent, game, cd) {
+    if (!game.practice) {
+      if (ab.needsCharge) return Math.max(0, Math.min(1, 1 - ent.charge / 100));
+      if (ab.needsDomain) return Math.max(0, Math.min(1, 1 - ent.domainCharge / 100));
+    }
+    const max = ab.cooldown || 0;
+    return max > 0 ? Math.max(0, Math.min(1, cd / max)) : 0;
   }
 
   updateSlots(player, game) {
     for (let i = 0; i < this.slots.length; i += 1) {
       const slot = this.slots[i];
       const ab = slot.ability;
-      const cdMax = ab.cooldown || 1;
       const cd = player.cooldowns[i] || 0;
-      slot.cd.style.setProperty("--cd", String(Math.min(1, cd / cdMax)));
+      slot.cd.style.setProperty("--cd", String(this.slotShade(ab, player, game, cd)));
       const needCharge = ab.needsCharge && player.charge < 100 && !game.practice;
       const needDomain = ab.needsDomain && player.domainCharge < 100 && !game.practice;
       slot.el.classList.toggle("locked", Boolean(needCharge || needDomain));

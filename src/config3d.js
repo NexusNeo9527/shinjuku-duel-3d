@@ -119,13 +119,13 @@ export const CHARACTERS = {
       },
       {
         id: "purple", label: "茈", type: "beam", shape: "beam",
-        damage: 34, power: 3, length: 46, width: 1.9, cooldown: 6.5, life: 0.5,
+        damage: 34, power: 3, length: 46, width: 1.9, cooldown: 0, life: 0.5,
         color: "#b05cff", core: "#ffffff", knock: 22, needsCharge: true,
         desc: "虚式，贯穿光柱"
       },
       {
         id: "void", label: "无量空处", type: "domain", shape: "domain",
-        damage: 4, tick: 0.45, radius: 17, cooldown: 22, life: 5,
+        damage: 4, tick: 0.45, radius: 17, cooldown: 0, life: 5,
         color: "#7a5cff", core: "#d9ccff", needsDomain: true,
         desc: "领域，持续压制与减速"
       }
@@ -161,13 +161,13 @@ export const CHARACTERS = {
       },
       {
         id: "flame", label: "开", type: "beam", shape: "beam",
-        damage: 34, power: 3, length: 44, width: 2.0, cooldown: 6.5, life: 0.5,
+        damage: 34, power: 3, length: 44, width: 2.0, cooldown: 0, life: 0.5,
         color: "#ffb23f", core: "#fff6d2", knock: 22, needsCharge: true,
         desc: "火焰，贯穿光柱"
       },
       {
         id: "shrine", label: "伏魔御厨子", type: "domain", shape: "domain",
-        damage: 5, tick: 0.4, radius: 16, cooldown: 22, life: 5,
+        damage: 5, tick: 0.4, radius: 16, cooldown: 0, life: 5,
         color: "#ff2f4d", core: "#ffd2d8", needsDomain: true,
         desc: "领域，无差别斩击"
       },

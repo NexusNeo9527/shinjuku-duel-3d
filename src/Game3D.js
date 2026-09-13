@@ -132,7 +132,7 @@ export class Game3D {
       });
     }
     this.clearDialogue();
-    if (this.mode !== "practice") this.queueDialogue("gojo", "我的学生都在看着呢，再让我刷会帅吧。", 3.3, 2);
+    if (this.mode !== "practice") this.queueDialogue("gojo", "我的学生都在看着呢，再让我耍会儿帅吧。", 3.3, 2);
     this.emit("sfx", { kind: "countdown" });
     if (this.mode === "single" && DIFFICULTY[this.difficulty].gojoRegen) {
       this.announce("反转术式 · 持续恢复", "#b9f5ff", 1.5);

@@ -382,6 +382,7 @@ body { transition: background 0.25s ease; }
 }
 .touch-btn.small:active { border-color: var(--accent); }
 .touch-btn.small.on { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 14px -5px var(--accent); }
+.touch-btn.switch { pointer-events: auto; color: var(--gauge-domain); border-color: var(--gauge-domain); }
 .touch-btn.lock {
   pointer-events: auto; min-width: 118px; height: 40px; border-radius: 12px; cursor: pointer;
   font-size: 12px; letter-spacing: 0.06em; color: var(--accent);
@@ -565,13 +566,6 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
 }
 .action-button:hover { box-shadow: 0 0 30px -8px var(--accent); transform: translateY(-1px); }
 
-.rotate-hint {
-  position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; gap: 8px;
-  align-items: center; justify-content: center; background: var(--ov-b);
-}
-.rotate-hint strong { font-size: 22px; color: var(--accent); }
-.rotate-hint span { color: var(--muted); font-size: 13px; }
-
 .statusbar {
   display: flex; align-items: center; justify-content: center; padding: 6px 14px;
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em; color: var(--muted);
@@ -585,4 +579,82 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
   .ability-slot { width: 58px; height: 58px; }
   .ability-slot .slot-icon { width: 24px; height: 24px; }
   .controls-note { font-size: 11px; }
+}
+
+/* ---------- mobile ----------
+   portrait is allowed now, and landscape gets a compact HUD so the short
+   viewport does not get swamped by the interface */
+
+/* phone landscape: shrink every HUD block */
+@media (orientation: landscape) and (max-height: 560px) {
+  .duel-hud { top: 5px; width: 96%; gap: 4px; }
+  .duel-side { font-size: 12px; gap: 6px; }
+  .hp-num { font-size: 13px; }
+  .duel-bars { height: 9px; }
+  .bar-half { height: 100%; }
+  .side-tag { font-size: 8px; padding: 1px 4px; }
+
+  .operator-card { left: 8px; bottom: 8px; padding: 5px 10px 5px 8px; gap: 8px; border-radius: 11px; }
+  .portrait { width: 46px; height: 46px; }
+  .portrait-sigil { inset: 6px; font-size: 15px; }
+  .portrait-hp { font-size: 10px; }
+  .op-gauges { min-width: 96px; gap: 4px; }
+  .gauge-name { font-size: 9px; width: 22px; }
+  .gauge-val { font-size: 9px; width: 28px; }
+  .alt-readout b { font-size: 13px; }
+  .alt-readout span, .alt-readout em { font-size: 7px; }
+
+  .ability-bar { bottom: 8px; gap: 6px; }
+  .ability-slot { width: 46px; height: 46px; border-radius: 11px; }
+  .ability-slot .slot-icon { width: 19px; height: 19px; }
+  .ability-slot .slot-glyph { font-size: 9px; }
+  .ability-slot .slot-key { font-size: 7px; top: 2px; left: 4px; }
+
+  .hint { display: none; }
+  .announce { font-size: 18px; }
+
+  /* touch controls */
+  body.touch-mode .operator-card { bottom: 8px; }
+  .touch-right { right: 8px; bottom: 8px; gap: 6px; }
+  .vt-btn { width: 52px; height: 42px; border-radius: 11px; font-size: 12px; }
+  .vt-btn i { font-size: 8px; }
+  .touch-ability { width: 46px; height: 46px; border-radius: 11px; }
+  .touch-ability svg { width: 19px; height: 19px; }
+  .touch-ability b { font-size: 9px; }
+  .touch-btn.small { min-width: 48px; height: 34px; font-size: 11px; border-radius: 10px; }
+  .touch-btn.lock { min-width: 92px; height: 30px; font-size: 11px; }
+  .look-zone { padding-bottom: 130px; }
+  .look-hint { display: none; }
+  .stick-base { width: 108px; height: 108px; margin: -54px 0 0 -54px; }
+  .stick-knob { width: 46px; height: 46px; margin: -23px 0 0 -23px; }
+
+  /* dual split panels */
+  .split-panel { bottom: 8px; width: calc(50% - 14px); gap: 5px; }
+  .split-panel .ability-slot { width: 46px; height: 46px; }
+  .split-panel .sp-name { font-size: 13px; }
+  .split-panel .sp-hpnum { font-size: 13px; }
+  .sp-gauge span { font-size: 9px; }
+  body.dual-hud.touch-mode .split-panel { bottom: 108px; }
+
+  .practice-panel { right: 8px; top: 8px; padding: 8px 10px; }
+  .practice-panel .pp-row { font-size: 11px; }
+}
+
+/* phone portrait: keep the HUD clear of the touch controls */
+@media (orientation: portrait) and (max-width: 620px) {
+  .duel-hud { top: 8px; width: 96%; }
+  /* the bottom half is taken by the thumb controls — park the card up top */
+  .operator-card, body.touch-mode .operator-card { left: 8px; right: auto; top: 96px; bottom: auto; padding: 6px 10px; gap: 8px; }
+  .op-gauges { min-width: 100px; }
+  .ability-slot { width: 52px; height: 52px; }
+  .ability-slot .slot-icon { width: 22px; height: 22px; }
+  .touch-right { right: 10px; bottom: 10px; }
+  .touch-ability { width: 52px; height: 52px; }
+  .look-zone { padding-bottom: 250px; }
+  .look-hint { display: none; }
+  .hint { display: none; }
+  .split-panel { bottom: 10px; width: calc(50% - 12px); gap: 4px; }
+  .split-panel .ability-slot { width: 44px; height: 44px; }
+  .split-panel .sp-name { font-size: 12px; }
+  .sp-gauges { display: none; }
 }

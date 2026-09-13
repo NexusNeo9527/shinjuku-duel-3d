@@ -520,19 +520,36 @@ export class Renderer3D {
   }
 
   syncAimArrows(game) {
+    const active = new Set();
     for (const e of game.entities) {
       if (!e.isPlayer) continue;
       const arrow = this.ensureAimArrow(e.id, e.color);
       if (!e.alive || game.state !== "playing") { arrow.group.visible = false; continue; }
+      arrow.group.visible = true;
+      active.add(e.id);
+    }
+    // hide arrows whose owner no longer exists (e.g. after switching practice character),
+    // otherwise the stale arrow stays frozen in the scene forever
+    for (const id of Object.keys(this.aimArrows)) {
+      if (!active.has(id)) this.aimArrows[id].group.visible = false;
+    }
+    this.orientAimArrows(game, this.camera);
+  }
+
+  // billboard every visible arrow toward a specific camera (dual mode renders two views)
+  orientAimArrows(game, cam) {
+    for (const e of game.entities) {
+      if (!e.isPlayer) continue;
+      const arrow = this.aimArrows[e.id];
+      if (!arrow || !arrow.group.visible) continue;
       const dir = game.fireDir(e);
       const origin = this._arrowOrigin || (this._arrowOrigin = new THREE.Vector3());
       origin.set(e.x, e.y + 1.0, e.z);
-      const cam = this.camera.position;
       const xA = this._ax || (this._ax = new THREE.Vector3());
       const zA = this._az || (this._az = new THREE.Vector3());
       const yA = this._ay || (this._ay = new THREE.Vector3());
       xA.set(dir.x, dir.y, dir.z).normalize();
-      zA.set(cam.x - origin.x, cam.y - origin.y, cam.z - origin.z).normalize();
+      zA.set(cam.position.x - origin.x, cam.position.y - origin.y, cam.position.z - origin.z).normalize();
       zA.crossVectors(xA, zA);
       if (zA.lengthSq() < 1e-6) zA.set(0, 1, 0);
       zA.normalize();
@@ -544,7 +561,6 @@ export class Renderer3D {
       const range = 12;
       arrow.group.scale.set(range, range * 0.42, 1);
       arrow.mat.uniforms.uTime.value = game.elapsed;
-      arrow.group.visible = true;
     }
   }
 
@@ -830,7 +846,13 @@ export class Renderer3D {
     this._lookAt.lerp(look, 1);
     this.camera.lookAt(this._lookAt);
 
-    const wantFov = 55 + this.speedFactor * 9;
+    // aspect-aware fov: widen the vertical fov on narrow screens (phones in
+    // portrait) so the horizontal field of view stays usable
+    const baseFov = 55 + this.speedFactor * 9;
+    const aspect = this.camera.aspect || (16 / 9);
+    const baseHFov = 2 * Math.atan(Math.tan(((baseFov * Math.PI) / 180) / 2) * (16 / 9));
+    const wideFov = (2 * Math.atan(Math.tan(baseHFov / 2) / Math.max(0.35, aspect)) * 180) / Math.PI;
+    const wantFov = Math.max(baseFov, Math.min(92, wideFov));
     this.camera.fov = lerp(this.camera.fov, wantFov, Math.min(1, dt * 6));
     this.camera.updateProjectionMatrix();
     void ls;
@@ -844,6 +866,7 @@ export class Renderer3D {
   }
 
   sync(game, dt) {
+    this._game = game;
     this._flash = game.flash || 0;
     this._mode = game.mode;
     const p = game.player();
@@ -897,10 +920,13 @@ export class Renderer3D {
     gl.setScissorTest(true);
     gl.setViewport(0, 0, half, h);
     gl.setScissor(0, 0, half, h);
+    // the arrow is a billboard: re-face it for whichever camera renders next
+    if (this._game) this.orientAimArrows(this._game, this.camera);
     gl.render(this.scene, this.camera);
 
     gl.setViewport(half, 0, w - half, h);
     gl.setScissor(half, 0, w - half, h);
+    if (this._game) this.orientAimArrows(this._game, this.camera2);
     gl.render(this.scene, this.camera2);
 
     gl.setScissorTest(false);
