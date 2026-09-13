@@ -122,6 +122,12 @@ export class Game3D {
       const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
       if (ai) { ai.maxHp = hp; ai.hp = hp; }
     }
+    // 无间: Sukuna opens the fight with Mahoraga already on the field
+    if (this.mode === "single" && DIFFICULTY[this.difficulty].mahoragaStart) {
+      const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
+      const summonAbility = CHARACTERS[ai?.charId]?.abilities?.find((a) => a.type === "summon");
+      if (ai && summonAbility) this.castSummon(ai, summonAbility);
+    }
     // opening flash: "会赢的" cut-in when the player brings Gojo
     if (this.entities.some((e) => e.isPlayer && e.charId === "gojo")) {
       this.triggerCutIn("gojo-win.jpg", 0.55, 0.8, 2.2, {
@@ -543,6 +549,9 @@ export class Game3D {
   castSummon(entity, ability) {
     const existing = this.entities.find((e) => e.summon && e.ownerId === entity.id && e.alive);
     if (existing) existing.life = 0;
+    // the difficulty decides how strong Mahoraga is
+    const maha = (DIFFICULTY[this.difficulty] || DIFFICULTY.normal).mahoraga || {};
+    const hp = maha.hp ?? ability.hp ?? 72;
     const m = {
       id: `mahoraga_${entity.id}`,
       charId: "mahoraga",
@@ -553,7 +562,7 @@ export class Game3D {
       summon: true,
       ownerId: entity.id,
       adapt: {},
-      life: ability.life || 24,
+      life: maha.life ?? ability.life ?? 24,
       contactAt: -10,
       shotAt: -10,
       isPlayer: false,
@@ -562,11 +571,12 @@ export class Game3D {
       y: entity.y,
       vy: 0,
       yaw: 0,
-      hp: ability.hp || 72,
-      maxHp: ability.hp || 72,
+      hp,
+      maxHp: hp,
+      damageScale: maha.dmg ?? 1,
       vx: 0,
       vz: 0,
-      speed: ability.speed || 6.6,
+      speed: maha.speed ?? ability.speed ?? 6.6,
       alive: true,
       moving: true,
       sprinting: false,
@@ -624,9 +634,10 @@ export class Game3D {
       m.moving = Math.hypot(mx, mz) > 0.05;
 
       const d3 = Math.hypot(dx, dy, dz);
+      const mDmg = m.damageScale || 1;
       if (d3 < ENTITY_RADIUS * 2 + 0.35 && this.elapsed - m.contactAt > 1.1) {
         m.contactAt = this.elapsed;
-        this.damage(target, 6, m, "mahoragaContact");
+        this.damage(target, 6 * mDmg, m, "mahoragaContact");
         this.burst(target.x, target.y + CHEST, target.z, "#e4c866", 12, 5);
       }
       if (this.elapsed - m.shotAt > 1.3 && dist < 28) {
@@ -644,7 +655,7 @@ export class Game3D {
           vy: d.y * 30,
           vz: d.z * 30,
           radius: 0.5,
-          damage: 9,
+          damage: 9 * mDmg,
           power: 2,
           knock: 6,
           life: 1.5,

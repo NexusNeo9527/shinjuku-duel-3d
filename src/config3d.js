@@ -19,6 +19,7 @@ export const DIFFICULTY = {
   easy: {
     label: "轻松",
     enemyHp: 85,
+    mahoraga: { hp: 55, speed: 5.8, life: 20, dmg: 0.75 },
     aimError: 0.32,
     aimMin: 0.5,
     aimMax: 0.76,
@@ -36,6 +37,7 @@ export const DIFFICULTY = {
   normal: {
     label: "标准",
     enemyHp: 100,
+    mahoraga: { hp: 72, speed: 6.6, life: 26, dmg: 1 },
     aimError: 0.16,
     aimMin: 0.25,
     aimMax: 0.55,
@@ -53,6 +55,7 @@ export const DIFFICULTY = {
   shura: {
     label: "修罗",
     enemyHp: 125,
+    mahoraga: { hp: 100, speed: 7.4, life: 34, dmg: 1.3 },
     aimError: 0.07,
     aimMin: 0.03,
     aimMax: 0.24,
@@ -70,6 +73,8 @@ export const DIFFICULTY = {
   abyss: {
     label: "无间",
     enemyHp: 150,
+    mahoraga: { hp: 140, speed: 8.4, life: 42, dmg: 1.6 },
+    mahoragaStart: true,
     aimError: 0.03,
     aimMin: 0.03,
     aimMax: 0.24,

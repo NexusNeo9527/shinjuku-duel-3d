@@ -447,7 +447,9 @@ export class Renderer3D {
   }
 
   syncFighter(game, dt) {
+    const seen = new Set();
     for (const e of game.entities) {
+      seen.add(e.charId);
       const entry = this.ensureFighter(e);
       if (!e.alive) { entry.group.visible = false; continue; }
       entry.group.visible = true;
@@ -467,6 +469,11 @@ export class Renderer3D {
       const light = e.charId === "gojo" ? this.gojoLight : this.sukunaLight;
       light.intensity = 14;
       light.position.set(e.x, e.y + 1.6, e.z);
+    }
+    // hide fighters whose entity is gone (e.g. a dismissed summon), otherwise the
+    // mesh lingers in the scene and reappears in the next match
+    for (const key of Object.keys(this.fighters)) {
+      if (!seen.has(key)) this.fighters[key].group.visible = false;
     }
   }
 
