@@ -447,19 +447,60 @@ body.split-mode #crosshair { left: 25%; }
   position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%);
   background: linear-gradient(180deg, transparent, var(--line-strong) 18%, var(--line-strong) 82%, transparent);
 }
-.split-label { position: absolute; top: 58px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.3em; }
-.split-label.left { left: 18px; color: var(--cyan); text-shadow: 0 0 10px var(--cyan); }
-.split-label.right { right: 18px; color: var(--red); text-shadow: 0 0 10px var(--red); }
-.p2-bar { position: absolute; right: 16px; bottom: 18px; display: flex; gap: 8px; }
-.p2-slot {
-  position: relative; width: 56px; height: 56px; border-radius: 12px; overflow: hidden;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  background: linear-gradient(160deg, var(--slot-a), var(--slot-b)); border: 1px solid var(--line-strong);
+
+/* one mirrored panel per half — identical width & tile size on both sides */
+.split-panel {
+  position: absolute; bottom: 16px;
+  width: calc(50% - 40px); max-width: 560px;
+  display: flex; flex-direction: column; gap: 7px;
 }
-.p2-slot svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.p2-slot b { font-size: 9px; font-weight: 800; }
-.p2-slot .p2-key { position: absolute; top: 2px; left: 4px; font-family: var(--font-mono); font-size: 8px; color: var(--muted); }
-.p2-slot .p2-cd { position: absolute; inset: 0; background: conic-gradient(rgba(0, 0, 0, 0.72) calc(var(--cd, 0) * 1turn), transparent 0); }
+.split-panel.left { left: 20px; }
+.split-panel.right { right: 20px; align-items: flex-end; }
+.split-panel.char-gojo { --char: var(--cyan); --char-2: var(--cyan-deep); }
+.split-panel.char-sukuna { --char: var(--red); --char-2: var(--red-deep); }
+
+.sp-head { display: flex; align-items: center; gap: 8px; width: 100%; }
+.split-panel.right .sp-head { flex-direction: row-reverse; }
+.sp-sigil {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 13px; font-weight: 800; color: var(--char);
+  border: 1px solid var(--char); background: rgba(255, 255, 255, 0.06);
+}
+.sp-name { font-size: 15px; font-weight: 800; letter-spacing: 0.08em; color: var(--char); }
+.sp-tag {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em;
+  padding: 2px 6px; border-radius: 4px; border: 1px solid currentColor; color: var(--char); opacity: 0.75;
+}
+.sp-hpnum { margin-left: auto; font-family: var(--font-mono); font-size: 16px; font-weight: 800; color: var(--char); }
+.split-panel.right .sp-hpnum { margin-left: 0; margin-right: auto; }
+
+.sp-bar { width: 100%; height: 11px; border-radius: 3px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); overflow: hidden; }
+.sp-fill {
+  height: 100%; width: 100%; transform-origin: left center;
+  background: linear-gradient(90deg, var(--char-2), var(--char)); box-shadow: 0 0 12px -3px var(--char);
+}
+.split-panel.right .sp-fill { transform-origin: right center; background: linear-gradient(270deg, var(--char-2), var(--char)); }
+
+.sp-gauges { display: flex; gap: 14px; width: 100%; }
+.split-panel.right .sp-gauges { flex-direction: row-reverse; }
+.sp-gauge { flex: 1; display: flex; align-items: center; gap: 7px; }
+.sp-gauge span { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.sp-track { flex: 1; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.sp-gfill { height: 100%; width: 100%; transform-origin: left center; transform: scaleX(0); transition: transform 0.1s linear; }
+.split-panel.right .sp-gfill { transform-origin: right center; }
+.sp-charge { background: linear-gradient(90deg, rgba(140, 120, 56, 1), var(--gold-fixed)); box-shadow: 0 0 10px -2px var(--gold-fixed); }
+.sp-domain { background: linear-gradient(90deg, rgba(90, 60, 140, 1), var(--gauge-domain)); box-shadow: 0 0 10px -2px var(--gauge-domain); }
+
+.sp-slots { display: flex; gap: 9px; }
+.split-panel.right .sp-slots { flex-direction: row-reverse; }
+
+/* dual mode: the per-half panels replace the shared bottom HUD */
+body.dual-hud .ability-bar,
+body.dual-hud .operator-card,
+body.dual-hud .duel-head,
+body.dual-hud .duel-bars { display: none; }
+body.dual-hud .duel-hud { top: 6px; }
+body.dual-hud.touch-mode .split-panel { bottom: 150px; }
 
 /* ---------- overlays ---------- */
 .overlay {

@@ -80,7 +80,6 @@ export class UI3D {
       rotateHint: document.querySelector("#rotateHint"),
       practicePanel: document.querySelector("#practicePanel"),
       splitUI: document.querySelector("#splitUI"),
-      p2Bar: document.querySelector("#p2Bar"),
       practiceChars: [...document.querySelectorAll("[data-pchar]")],
       practiceToggles: [...document.querySelectorAll("[data-ptoggle]")],
       themeChips: [...document.querySelectorAll("[data-theme]")],
@@ -112,6 +111,80 @@ export class UI3D {
       const current = key === "infinite" ? g.practiceInfinite : key === "invincible" ? g.practiceInvincible : g.practiceDummy;
       h.onPracticeOption(key, !current);
     }));
+
+    // dual mode: one mirrored HUD panel per half (built here so both are identical)
+    this.splitP1 = this.buildSplitPanel("left", "P1", SLOT_KEYS);
+    this.splitP2 = this.buildSplitPanel("right", "P2", P2_KEYS);
+  }
+
+  buildSplitPanel(side, tag, keys) {
+    const el = document.createElement("div");
+    el.className = `split-panel ${side}`;
+    el.innerHTML = `
+      <div class="sp-head">
+        <span class="sp-sigil"></span>
+        <b class="sp-name"></b>
+        <span class="sp-tag">${tag}</span>
+        <b class="sp-hpnum"></b>
+      </div>
+      <div class="sp-bar"><div class="sp-fill"></div></div>
+      <div class="sp-gauges">
+        <div class="sp-gauge"><span>奥义</span><div class="sp-track"><div class="sp-gfill sp-charge"></div></div></div>
+        <div class="sp-gauge"><span>领域</span><div class="sp-track"><div class="sp-gfill sp-domain"></div></div></div>
+      </div>
+      <div class="sp-slots"></div>`;
+    this.dom.splitUI.appendChild(el);
+    return {
+      el,
+      sigil: el.querySelector(".sp-sigil"),
+      name: el.querySelector(".sp-name"),
+      hpNum: el.querySelector(".sp-hpnum"),
+      hp: el.querySelector(".sp-fill"),
+      charge: el.querySelector(".sp-charge"),
+      domain: el.querySelector(".sp-domain"),
+      slotHost: el.querySelector(".sp-slots"),
+      keys,
+      charId: null,
+      slots: []
+    };
+  }
+
+  rebuildSplitSlots(panel, charId) {
+    const char = CHARACTERS[charId] || CHARACTERS.gojo;
+    panel.slotHost.innerHTML = "";
+    panel.charId = charId;
+    panel.slots = char.abilities.map((ab, i) => {
+      const el = document.createElement("div");
+      el.className = "ability-slot";
+      el.style.color = ab.color;
+      el.innerHTML = `
+        <span class="slot-key">${panel.keys[i] || ""}</span>
+        <svg class="slot-icon" viewBox="0 0 24 24">${ICONS[ab.id] || ICONS.blue}</svg>
+        <span class="slot-glyph">${ab.label}</span>
+        <span class="slot-cd"></span>`;
+      panel.slotHost.appendChild(el);
+      return { el, cd: el.querySelector(".slot-cd"), ability: ab };
+    });
+  }
+
+  updateSplitPanel(panel, ent, game) {
+    this.applyCharColor(panel.el, ent.charId);
+    panel.sigil.textContent = ent.charId === "gojo" ? "五" : "宿";
+    panel.name.textContent = ent.name;
+    panel.hpNum.textContent = Math.ceil(Math.max(0, ent.hp));
+    panel.hp.style.transform = `scaleX(${Math.max(0, ent.hp / ent.maxHp)})`;
+    panel.charge.style.transform = `scaleX(${ent.charge / 100})`;
+    panel.domain.style.transform = `scaleX(${ent.domainCharge / 100})`;
+    if (panel.charId !== ent.charId) this.rebuildSplitSlots(panel, ent.charId);
+    for (let i = 0; i < panel.slots.length; i += 1) {
+      const sl = panel.slots[i];
+      const cd = ent.cooldowns[i] || 0;
+      sl.cd.style.setProperty("--cd", String(Math.min(1, cd / (sl.ability.cooldown || 1))));
+      const needCharge = sl.ability.needsCharge && ent.charge < 100 && !game.practice;
+      const needDomain = sl.ability.needsDomain && ent.domainCharge < 100 && !game.practice;
+      sl.el.classList.toggle("locked", Boolean(needCharge || needDomain));
+      sl.el.classList.toggle("ready", cd <= 0.001 && !needCharge && !needDomain);
+    }
   }
 
   updateCutIn(game) {
@@ -192,19 +265,6 @@ export class UI3D {
     this.dom.ppCombo.textContent = `连招：${comboText}`;
   }
 
-  rebuildP2Bar(charId) {
-    const char = CHARACTERS[charId] || CHARACTERS.sukuna;
-    this.dom.p2Bar.innerHTML = "";
-    this.p2Slots = char.abilities.map((ab, i) => {
-      const el = document.createElement("div");
-      el.className = "p2-slot";
-      el.style.color = ab.color;
-      el.innerHTML = `<span class="p2-key">${P2_KEYS[i] || ""}</span><svg viewBox="0 0 24 24">${ICONS[ab.id] || ICONS.blue}</svg><b>${ab.label}</b><span class="p2-cd"></span>`;
-      this.dom.p2Bar.appendChild(el);
-      return { el, cd: el.querySelector(".p2-cd"), ability: ab };
-    });
-  }
-
   update(game) {
     const s = game.state;
     this.updateHitBorder(game);
@@ -269,19 +329,15 @@ export class UI3D {
     this.dom.practicePanel.classList.toggle("hidden", !(game.practice && (s === "playing" || s === "ended")));
     if (game.practice) this.updatePracticePanel(game);
 
-    // split-screen P2 bar (dual)
+    // split-screen: both halves get the same HUD (HP + gauges + cooldowns)
     const p2 = game.entities.find((e) => e.isPlayer && e !== player);
     const dual = game.mode === "dual";
-    this.dom.splitUI.classList.toggle("hidden", !(dual && (s === "playing" || s === "paused" || s === "ended")));
-    if (dual && p2) {
-      if (this._p2Char !== p2.charId) { this._p2Char = p2.charId; this.rebuildP2Bar(p2.charId); }
-      if (this.p2Slots) {
-        for (let i = 0; i < this.p2Slots.length; i += 1) {
-          const sl = this.p2Slots[i];
-          const cd = p2.cooldowns[i] || 0;
-          sl.cd.style.setProperty("--cd", String(Math.min(1, cd / (sl.ability.cooldown || 1))));
-        }
-      }
+    const dualOn = Boolean(dual && (s === "playing" || s === "paused" || s === "ended"));
+    this.dom.splitUI.classList.toggle("hidden", !dualOn);
+    document.body.classList.toggle("dual-hud", dualOn);
+    if (dualOn && player && p2) {
+      this.updateSplitPanel(this.splitP1, player, game);
+      this.updateSplitPanel(this.splitP2, p2, game);
     }
 
     this.updateAnnounce(game);
