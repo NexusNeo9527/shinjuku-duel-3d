@@ -51,6 +51,8 @@ export class UI3D {
       playerHp: document.querySelector("#playerHp"),
       playerHpText: document.querySelector("#playerHpText"),
       enemyHp: document.querySelector("#enemyHp"),
+      sideP1: document.querySelector(".duel-side.p1"),
+      sideP2: document.querySelector(".duel-side.p2"),
       chargeFill: document.querySelector("#chargeFill"),
       domainFill: document.querySelector("#domainFill"),
       chargeLabel: document.querySelector("#chargeLabel"),
@@ -142,6 +144,16 @@ export class UI3D {
     el.style.transform = `translate(${(Math.random() - 0.5) * j}px, ${(Math.random() - 0.5) * j}px)`;
   }
 
+  // HP colour follows the character (五条悟 = blue, 宿傩 = red), not the player slot
+  applyCharColor(el, charId) {
+    if (!el) return;
+    const cls = charId === "sukuna" ? "char-sukuna" : "char-gojo";
+    if (el.dataset.char === cls) return;
+    el.dataset.char = cls;
+    el.classList.remove("char-gojo", "char-sukuna");
+    el.classList.add(cls);
+  }
+
   setThemeChip(charId) {
     for (const b of this.dom.themeChips) b.classList.toggle("active", b.dataset.theme === charId);
   }
@@ -212,6 +224,8 @@ export class UI3D {
       }
       this.dom.playerName.textContent = player.name;
       this.dom.playerSigil.textContent = player.charId === "gojo" ? "五" : "宿";
+      this.applyCharColor(this.dom.sideP1, player.charId);
+      this.applyCharColor(this.dom.playerHp, player.charId);
       this.dom.playerHp.style.transform = `scaleX(${Math.max(0, player.hp / player.maxHp)})`;
       this.dom.playerHpText.textContent = Math.ceil(Math.max(0, player.hp));
       this.dom.chargeFill.style.transform = `scaleX(${player.charge / 100})`;
@@ -230,11 +244,15 @@ export class UI3D {
     if (enemy) {
       this.dom.enemyName.textContent = enemy.name;
       this.dom.enemyTag.textContent = game.mode === "dual" ? "P2" : "AI";
+      this.applyCharColor(this.dom.sideP2, enemy.charId);
+      this.applyCharColor(this.dom.enemyHp, enemy.charId);
       this.dom.enemyHp.style.transform = `scaleX(${Math.max(0, enemy.hp / enemy.maxHp)})`;
       this.dom.enemyHpNum.textContent = Math.ceil(Math.max(0, enemy.hp));
     } else {
       this.dom.enemyName.textContent = "无对手";
       this.dom.enemyTag.textContent = "——";
+      this.applyCharColor(this.dom.sideP2, "sukuna");
+      this.applyCharColor(this.dom.enemyHp, "sukuna");
       this.dom.enemyHp.style.transform = "scaleX(1)";
       this.dom.enemyHpNum.textContent = "—";
     }
@@ -341,6 +359,7 @@ export class UI3D {
     this.dom.dialogueL.classList.toggle("hidden", !left);
     this.dom.dialogueR.classList.toggle("hidden", !d || left);
     if (!d) return;
+    this.applyCharColor(left ? this.dom.dialogueL : this.dom.dialogueR, d.speaker);
     if (left) {
       this.dom.dialogueLSigil.textContent = d.sigil;
       this.dom.dialogueLName.textContent = d.name;
