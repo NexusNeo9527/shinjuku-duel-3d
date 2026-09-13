@@ -157,6 +157,18 @@ npm run build
 npm run preview
 ```
 
+## 部署（Netlify）
+
+仓库已内置 `netlify.toml`，在 Netlify 中 **Import from GitHub** 选择本仓库后即可直接部署，无需手动填写构建配置：
+
+| 设置项 | 值 |
+| --- | --- |
+| Build command | `npm run build` |
+| Publish directory | `dist` |
+| Node version | `20` |
+
+每次推送到 `main` 分支都会自动重新部署。
+
 ## 技术栈
 
 - [Three.js](https://threejs.org/) — 场景、模型、粒子与后处理

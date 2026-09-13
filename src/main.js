@@ -201,10 +201,13 @@ function applyInput() {
     if (keys.has("KeyS")) { mx -= fwd.x; mz -= fwd.z; }
     if (keys.has("KeyD")) { mx += right.x; mz += right.z; }
     if (keys.has("KeyA")) { mx -= right.x; mz -= right.z; }
-    if (keys.has("KeyZ")) my += 1;
-    if (keys.has("KeyX")) my -= 1;
+    // vertical: descend wins over ascend so the two can never cancel out
+    let up = 0;
+    if (keys.has("KeyZ")) up = 1;
     // hold Space to fly up (a quick tap switches target instead)
-    if (keys.has("Space") && spaceDownAt && performance.now() - spaceDownAt > 260) my += 1;
+    if (keys.has("Space") && spaceDownAt && performance.now() - spaceDownAt > 260) up = 1;
+    const down = keys.has("KeyX") || keys.has("KeyC");
+    my = down ? -1 : up;
     let sprint = keys.has("ShiftLeft");
 
     if (touch.enabled) {
@@ -238,8 +241,8 @@ function applyInput() {
     if (keys.has("KeyL")) { mx += right.x; mz += right.z; }
     if (keys.has("KeyJ")) { mx -= right.x; mz -= right.z; }
     let my = 0;
-    if (keys.has("KeyN")) my += 1;
-    if (keys.has("KeyM")) my -= 1;
+    if (keys.has("KeyM")) my = -1;
+    else if (keys.has("KeyN")) my = 1;
     p2.sprinting = keys.has("ShiftRight");
     game.setMove(p2, mx, mz, my);
     const enemy = game.entities.find((e) => e.id !== p2.id && e.alive);
