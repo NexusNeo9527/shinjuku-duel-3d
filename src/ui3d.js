@@ -196,7 +196,10 @@ export class UI3D {
     }
     if (this._cutArt !== c.art) {
       this._cutArt = c.art;
-      this.dom.cutInImg.src = `/assets/${c.art}.png`;
+      this.dom.cutInImg.src = c.art.includes(".") ? `/assets/${c.art}` : `/assets/${c.art}.png`;
+      this.dom.cutIn.classList.toggle("contain", c.fit === "contain");
+      this.dom.cutIn.style.setProperty("--cut-tint", c.tint || "rgba(176, 92, 255, 0.32)");
+      this.dom.cutIn.style.setProperty("--cut-shadow", c.shadow || "rgba(120, 60, 220, 0.5)");
     }
     const p = 1 - c.life / c.maxLife;
     const alpha = Math.min(1, p / 0.14) * Math.min(1, c.life / 0.3);

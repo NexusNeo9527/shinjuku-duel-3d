@@ -122,6 +122,15 @@ export class Game3D {
       const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
       if (ai) { ai.maxHp = hp; ai.hp = hp; }
     }
+    // opening flash: "会赢的" cut-in when the player brings Gojo
+    if (this.entities.some((e) => e.isPlayer && e.charId === "gojo")) {
+      this.triggerCutIn("gojo-win.jpg", 0.55, 0.8, 2.2, {
+        life: 1.15,
+        tint: "rgba(68, 217, 255, 0.30)",
+        shadow: "rgba(40, 130, 230, 0.55)",
+        fit: "contain"
+      });
+    }
     this.clearDialogue();
     if (this.mode !== "practice") this.queueDialogue("gojo", "我的学生都在看着呢，再让我刷会帅吧。", 3.3, 2);
     this.emit("sfx", { kind: "countdown" });
@@ -474,8 +483,16 @@ export class Game3D {
   }
 
   // ---- cinematic cut-in (time-stop + full-screen manga art) ----
-  triggerCutIn(art, stop = 0.4, flash = 0.6, shake = 2.0) {
-    this.cutIn = { art, life: 1.0, maxLife: 1.0 };
+  triggerCutIn(art, stop = 0.4, flash = 0.6, shake = 2.0, opts = {}) {
+    const life = opts.life || 1.0;
+    this.cutIn = {
+      art,
+      life,
+      maxLife: life,
+      tint: opts.tint || null,
+      shadow: opts.shadow || null,
+      fit: opts.fit || "cover"
+    };
     this.timeStop = Math.max(this.timeStop, stop);
     this.flash = Math.max(this.flash, flash);
     this.screenShake = Math.max(this.screenShake, shake);
