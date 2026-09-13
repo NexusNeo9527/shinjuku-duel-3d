@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#05060c" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>✦</text></svg>" />
+  <title>新宿决战 · 3D 术式对决</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <main class="game-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">✦</span>
+        <div class="brand-text">
+          <strong>新宿决战</strong>
+          <span>SHINJUKU / CURSED ARENA</span>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button id="soundBtn" class="ghost-button" type="button" aria-label="开关声音">♪</button>
+        <button id="homeBtn" class="ghost-button" type="button" aria-label="返回">⏻</button>
+      </div>
+    </header>
+
+    <div id="arena" class="arena">
+      <canvas id="gameCanvas" aria-label="游戏画面"></canvas>
+      <div id="hitBorder" class="hit-border"></div>
+      <div id="crosshair" class="crosshair hidden">
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <circle class="cx-ring" cx="20" cy="20" r="10" />
+          <path class="cx-arm" d="M20 2v7M20 31v7M2 20h7M31 20h7" />
+          <circle class="cx-dot" cx="20" cy="20" r="2" />
+        </svg>
+      </div>
+      <div id="crosshair2" class="crosshair right hidden">
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <circle class="cx-ring" cx="20" cy="20" r="10" />
+          <path class="cx-arm" d="M20 2v7M20 31v7M2 20h7M31 20h7" />
+          <circle class="cx-dot" cx="20" cy="20" r="2" />
+        </svg>
+      </div>
+      <div id="lockHint" class="lock-hint hidden">点击画面锁定鼠标视角</div>
+
+      <div id="hud" class="hud hidden">
+        <!-- top: versus header + mirrored HP -->
+        <div class="duel-hud">
+          <div class="duel-head">
+            <div class="duel-side p1"><span class="side-tag">P1</span><b id="playerName">五条悟</b></div>
+            <div class="duel-vs">VS</div>
+            <div class="duel-side p2"><b id="enemyHpNum" class="hp-num">100</b><b id="enemyName">宿傩</b><span class="side-tag" id="enemyTag">P2</span></div>
+          </div>
+          <div class="duel-bars">
+            <div class="bar-half"><div id="playerHp" class="bar-fill player"></div></div>
+            <div class="bar-core"></div>
+            <div class="bar-half"><div id="enemyHp" class="bar-fill enemy"></div></div>
+          </div>
+          <div id="summonRow" class="summon-row hidden">
+            <span class="summon-tag">魔虚罗</span>
+            <div class="summon-track"><div id="summonHp" class="summon-fill"></div></div>
+            <b id="summonHpText">72</b>
+          </div>
+          <div class="duel-lines">
+            <div id="dialogueL" class="duel-line left hidden">
+              <span id="dialogueLSigil" class="dl-sigil">五</span>
+              <div class="dl-copy"><strong id="dialogueLName">五条悟</strong><p id="dialogueLText"></p></div>
+            </div>
+            <div id="dialogueR" class="duel-line right hidden">
+              <span id="dialogueRSigil" class="dl-sigil">宿</span>
+              <div class="dl-copy"><strong id="dialogueRName">宿傩</strong><p id="dialogueRText"></p></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- bottom-left: operator card -->
+        <div class="operator-card">
+          <div class="portrait">
+            <svg class="portrait-ring" viewBox="0 0 100 100">
+              <circle class="ring-track" cx="50" cy="50" r="44"></circle>
+              <circle id="domainRing" class="ring-fill" cx="50" cy="50" r="44"></circle>
+            </svg>
+            <span id="playerSigil" class="portrait-sigil">五</span>
+            <span id="playerHpText" class="portrait-hp">100</span>
+          </div>
+          <div class="op-gauges">
+            <div class="gauge-row"><span class="gauge-name">奥义</span>
+              <div class="gauge-track"><div id="chargeFill" class="gauge-fill charge"></div></div>
+              <span class="gauge-val" id="chargeLabel">0%</span></div>
+            <div class="gauge-row"><span class="gauge-name">领域</span>
+              <div class="gauge-track"><div id="domainFill" class="gauge-fill domain"></div></div>
+              <span class="gauge-val" id="domainLabel">0%</span></div>
+          </div>
+          <span id="chargeGain" class="gain-label g-charge"></span>
+          <span id="domainGain" class="gain-label g-domain"></span>
+          <div class="alt-readout"><span>ALT</span><b id="altLabel">0</b><em>m</em></div>
+        </div>
+
+        <!-- bottom-center: ability tiles -->
+        <div id="abilityBar" class="ability-bar"></div>
+      </div>
+
+      <div id="cutIn" class="cut-in hidden">
+        <img id="cutInImg" src="/assets/gojo-murasaki.png" alt="" />
+      </div>
+
+      <div id="splitUI" class="split-ui hidden">
+        <div class="split-divider"></div>
+        <div class="split-label left">P1</div>
+        <div class="split-label right">P2</div>
+        <div id="p2Bar" class="p2-bar"></div>
+      </div>
+
+      <div id="announce" class="announce"></div>
+
+      <div id="touchUI" class="touch-ui hidden">
+        <div id="stickBase" class="stick-base hidden"><div id="stickRing"></div><div id="stickKnob" class="stick-knob"></div></div>
+        <div id="lookZone" class="look-zone">
+          <span class="look-hint">拖动转视角 · 自动瞄准</span>
+        </div>
+        <div class="touch-right">
+          <button id="btnLock" class="touch-btn lock" type="button">锁定 · 宿傩</button>
+          <div class="vt-stack">
+            <button id="btnRise" class="vt-btn" type="button">▲<i>升空</i></button>
+            <button id="btnFall" class="vt-btn" type="button">▼<i>下降</i></button>
+          </div>
+          <div id="touchAbilities" class="touch-abilities"></div>
+          <div class="touch-slot">
+            <button id="btnSprint" class="touch-btn small" type="button">疾跑</button>
+            <button id="btnDash" class="touch-btn small" type="button">冲刺</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="hint" class="hint hidden">WASD 移动 · Shift 疾跑 · 空格 轻按切目标 / 长按升空 · Z 升空 / X 下降 · 左键攻击 · 自动锁定无需瞄准 · 滚轮缩放</div>
+
+      <div id="practicePanel" class="practice-panel hidden">
+        <div class="pp-head">练习终端</div>
+        <div class="pp-row"><span>角色</span>
+          <div class="pp-btns">
+            <button data-pchar="gojo" type="button">五条悟</button>
+            <button data-pchar="sukuna" type="button">宿傩</button>
+          </div>
+        </div>
+        <div class="pp-row"><span>无限术式</span><button data-ptoggle="infinite" class="pp-toggle" type="button">开</button></div>
+        <div class="pp-row"><span>无敌</span><button data-ptoggle="invincible" class="pp-toggle" type="button">开</button></div>
+        <div class="pp-row"><span>木桩靶子</span><button data-ptoggle="dummy" class="pp-toggle" type="button">关</button></div>
+        <div class="pp-hint" id="ppCombo"></div>
+      </div>
+
+      <div id="menu" class="overlay menu-overlay">
+        <div class="menu-bg" aria-hidden="true">
+          <div class="mb-glow"></div>
+          <div class="mb-ring"></div>
+          <div class="mb-streaks"></div>
+          <div class="mb-verticals"></div>
+          <div class="mb-sigil">呪</div>
+          <div class="mb-grid"></div>
+        </div>
+        <div class="overlay-panel">
+          <div class="kicker">THIRD-PERSON CURSED TECHNIQUE ARENA</div>
+          <h1><span>新宿</span>决战</h1>
+          <p>在立体战场上自由移动、升空缠斗，用术式与领域击溃对手。</p>
+          <div class="mode-grid">
+            <button class="mode-card" data-mode="single" type="button">
+              <span class="mode-no">01</span><span class="mode-label">单人对决</span><small>五条悟 VS 电脑宿傩</small>
+            </button>
+            <button class="mode-card" data-mode="dual" type="button">
+              <span class="mode-no">02</span><span class="mode-label">双人同屏</span><small>本地对战 · 共用镜头</small>
+            </button>
+            <button class="mode-card" data-mode="practice" type="button">
+              <span class="mode-no">03</span><span class="mode-label">练习终端</span><small>无限术式 · 随意试验</small>
+            </button>
+          </div>
+          <div class="theme-switch">
+            <span class="ts-label">主题配色</span>
+            <button class="ts-chip" data-theme="gojo" type="button"><i></i>五条悟 · 苍蓝</button>
+            <button class="ts-chip" data-theme="sukuna" type="button"><i></i>宿傩 · 血咒</button>
+          </div>
+          <div class="controls-note">
+            <b>操作已简化 · 无需瞄准</b>：攻击会自动锁定并飞向目标，单屏视角自动对准目标，双人为左右分屏。
+            <br /><b>玩家1（五条悟）</b>：WASD 移动 · Shift 疾跑 · <b>空格长按 升空</b> / Z 升空 / X 下降 · <b>空格轻按 切换目标</b> · 左键/1 苍 · Q/2 赫 · E/3 茈 · R/4 领域 · T/5 魔虚罗 · F 冲刺 · 滚轮缩放
+            <br /><b>玩家2（宿傩）</b>：IJKL 移动 · 右Shift 疾跑 · N 升空 / M 下降 · U 解 · O 捌 · P 开 · [ 领域 · ] 魔虚罗 · B 冲刺
+            <br /><b>连招</b>：苍→苍→苍 / 苍→赫 / 赫→茈（宿傩：解→解 / 解→捌 / 捌→开），1.3 秒内按顺序<b>命中</b>才触发强化
+          </div>
+        </div>
+      </div>
+
+      <div id="difficultyMenu" class="overlay hidden">
+        <div class="overlay-panel">
+          <div class="kicker">SINGLE PLAYER</div>
+          <h2>选择难度</h2>
+          <p>难度会改变宿傩的瞄准精度、反应速度、伤害、减伤与机动。</p>
+          <div class="difficulty-grid">
+            <button class="difficulty-card" data-difficulty="easy" type="button"><span>01</span><strong>轻松</strong><small>耐久 85 · 出招较慢 · 伤害较低</small></button>
+            <button class="difficulty-card selected" data-difficulty="normal" type="button"><span>02</span><strong>标准</strong><small>耐久 100 · 预判移动 · 减伤</small></button>
+            <button class="difficulty-card" data-difficulty="shura" type="button"><span>03</span><strong>修罗</strong><small>耐久 125 · 魔虚罗70血入场 · 反转术式</small></button>
+            <button class="difficulty-card" data-difficulty="abyss" type="button"><span>04</span><strong>无间</strong><small>耐久 150 · 未削弱宿傩 · 魔虚罗开场</small></button>
+          </div>
+          <button id="difficultyBackBtn" class="text-button" type="button">← 返回</button>
+        </div>
+      </div>
+
+      <div id="result" class="overlay hidden">
+        <div class="overlay-panel result-panel">
+          <div class="kicker" id="resultKicker">BATTLE COMPLETE</div>
+          <h2 id="resultTitle">五条悟 胜</h2>
+          <p id="resultReason">宿傩 退场</p>
+          <div class="result-actions">
+            <button id="againBtn" class="action-button" type="button">再战一局</button>
+            <button id="modeBtn" class="text-button" type="button">返回模式选择</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="pauseMenu" class="overlay pause-overlay hidden">
+        <div class="pause-bg" aria-hidden="true"></div>
+        <div class="overlay-panel pause-panel">
+          <div class="kicker">PAUSED</div>
+          <h2>战斗暂停</h2>
+          <p>按 Esc 继续战斗</p>
+          <div class="pause-actions">
+            <button id="resumeBtn" class="action-button" type="button">继续战斗</button>
+            <button id="restartBtn" class="text-button" type="button">重新开始</button>
+            <button id="pauseHomeBtn" class="text-button" type="button">返回主菜单</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="rotateHint" class="rotate-hint hidden" role="status">
+        <strong>请旋转到横屏</strong><span>3D 动作玩法建议横屏以获得更宽视野</span>
+      </div>
+    </div>
+
+    <div class="statusbar"><span id="modeStatus">选择对战模式</span></div>
+  </main>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

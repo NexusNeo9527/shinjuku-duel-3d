@@ -1,0 +1,281 @@
+import { Game3D } from "./Game3D.js";
+import { Renderer3D } from "./three/Renderer3D.js";
+import { AudioEngine } from "./audio.js";
+import { UI3D } from "./ui3d.js";
+import { TouchControls } from "./touch.js";
+
+const canvas = document.querySelector("#gameCanvas");
+const arena = document.querySelector("#arena");
+
+const game = new Game3D();
+const renderer = new Renderer3D(canvas);
+const audio = new AudioEngine();
+const isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0;
+const coarseTouch = isTouchDevice && Boolean(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+let touchUsed = false;
+window.addEventListener("pointerdown", (e) => { if (e.pointerType === "touch") touchUsed = true; }, { capture: true, passive: true });
+
+const keys = new Set();
+let spaceDownAt = 0;
+
+const ui = new UI3D(game, {
+  onMode: (mode) => {
+    audio.ensure();
+    if (mode === "single") { game.state = "difficulty"; return; }
+    startGame(mode, "normal");
+  },
+  onDifficulty: (d) => startGame("single", d),
+  onBack: () => { game.state = "menu"; },
+  onHome: () => {
+    game.state = "menu";
+    renderer.reset();
+  },
+  onAgain: () => startGame(game.mode, game.difficulty),
+  onResume: () => { if (game.state === "paused") game.state = "playing"; },
+  onRestart: () => startGame(game.mode, game.difficulty),
+  onPracticeChar: (c) => {
+    game.practiceChar = c === "sukuna" ? "sukuna" : "gojo";
+    applyTheme(game.practiceChar);
+    startGame("practice", "normal");
+  },
+  onTheme: (c) => {
+    game.practiceChar = c === "sukuna" ? "sukuna" : "gojo";
+    applyTheme(game.practiceChar);
+  },
+  onPracticeOption: (key, value) => {
+    game.setPracticeOption(key, value);
+  },
+  onSound: (btn) => {
+    const muted = !audio.muted;
+    audio.setMuted(muted);
+    btn.textContent = muted ? "×" : "♪";
+    if (!muted) audio.ensure();
+  }
+});
+
+function applyTheme(charId) {
+  const id = charId === "sukuna" ? "sukuna" : "gojo";
+  document.body.classList.toggle("theme-gojo", id === "gojo");
+  document.body.classList.toggle("theme-sukuna", id === "sukuna");
+  ui.setThemeChip(id);
+}
+
+const touch = new TouchControls({
+  game,
+  renderer,
+  onCast: (i) => { audio.ensure(); const p = game.player(); if (p && game.state === "playing") game.tryCast(p, i); },
+  onDash: () => { const p = game.player(); if (p && game.state === "playing") game.tryDash(p, p.moveInput.x, p.moveInput.y, p.moveInput.z); }
+});
+
+const btnLock = document.querySelector("#btnLock");
+btnLock?.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const p = game.player();
+  if (p) game.cycleLock(p);
+});
+
+function startGame(mode, difficulty) {
+  audio.ensure();
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  game.start(mode, difficulty);
+  renderer.reset();
+  renderer.dualZoom = 0;
+  renderer.lastManualOrbit = 0;
+  applyTheme(game.player()?.charId);
+  const p = game.player();
+  if (mode === "dual") {
+    const players = game.entities.filter((e) => e.isPlayer);
+    const a = players[0];
+    const b = players[1];
+    if (a && b) {
+      const dx = b.x - a.x;
+      const dz = b.z - a.z;
+      renderer.setOrbit(Math.atan2(dx, dz), 0.16, 11);
+      renderer.cam2Yaw = Math.atan2(-dx, -dz);
+      game.setAim(p, b.x, b.z);
+    }
+  } else {
+    const enemy = game.entities.find((e) => !e.isPlayer && e.alive);
+    if (p && enemy) {
+      const dx = enemy.x - p.x;
+      const dz = enemy.z - p.z;
+      const len = Math.hypot(dx, dz) || 1;
+      renderer.setOrbit(Math.atan2(dx / len, dz / len), renderer.camPitch, 11);
+      game.setAim(p, enemy.x, enemy.z);
+    } else {
+      renderer.setOrbit(renderer.camYaw, renderer.camPitch, 13);
+    }
+  }
+}
+
+// ---- input ----
+window.addEventListener("keydown", (event) => {
+  if (event.code === "Escape") {
+    if (game.state === "playing") { game.state = "paused"; }
+    else if (game.state === "paused") { game.state = "playing"; }
+    else if (game.state === "difficulty") { game.state = "menu"; }
+    return;
+  }
+  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) {
+    event.preventDefault();
+  }
+  if (event.repeat) return;
+  keys.add(event.code);
+  const p1 = game.player();
+  const p2 = game.entities.find((e) => e.isPlayer && e !== p1);
+  const c = game.state === "playing";
+  if (c && p1) {
+    if (event.code === "Digit1") game.tryCast(p1, 0);
+    if (event.code === "KeyQ" || event.code === "Digit2") game.tryCast(p1, 1);
+    if (event.code === "KeyE" || event.code === "Digit3") game.tryCast(p1, 2);
+    if (event.code === "KeyR" || event.code === "Digit4") game.tryCast(p1, 3);
+    if (event.code === "KeyT" || event.code === "Digit5") game.tryCast(p1, 4);
+    if (event.code === "Space") spaceDownAt = performance.now();
+    if (event.code === "KeyF") {
+      game.tryDash(p1, p1.moveInput.x, p1.moveInput.y, p1.moveInput.z);
+    }
+  }
+  if (c && p2) {
+    if (event.code === "KeyU") game.tryCast(p2, 0);
+    if (event.code === "KeyO") game.tryCast(p2, 1);
+    if (event.code === "KeyP") game.tryCast(p2, 2);
+    if (event.code === "BracketLeft") game.tryCast(p2, 3);
+    if (event.code === "BracketRight") game.tryCast(p2, 4);
+    if (event.code === "KeyB") game.tryDash(p2, p2.moveInput.x, p2.moveInput.y, p2.moveInput.z);
+  }
+});
+window.addEventListener("keyup", (event) => {
+  keys.delete(event.code);
+  // tap Space = switch target (hold Space = fly up, handled in applyInput)
+  if (event.code === "Space") {
+    const p1 = game.player();
+    if (spaceDownAt && performance.now() - spaceDownAt < 260 && p1 && game.state === "playing") game.cycleLock(p1);
+    spaceDownAt = 0;
+  }
+});
+
+canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+// no aiming: left click attacks, the camera & shots auto-face the locked target
+canvas.addEventListener("mousedown", (event) => {
+  if (event.button !== 0 || game.state !== "playing") return;
+  const p1 = game.player();
+  if (p1) game.tryCast(p1, 0);
+});
+window.addEventListener("wheel", (event) => {
+  if (game.mode === "dual") {
+    renderer.dualZoom = Math.max(-10, Math.min(28, (renderer.dualZoom || 0) + event.deltaY * 0.012));
+  } else {
+    renderer.setOrbit(renderer.camYaw, renderer.camPitch, renderer.camDist + event.deltaY * 0.012);
+  }
+}, { passive: true });
+
+document.addEventListener("pointerdown", () => audio.ensure(), { capture: true, passive: true });
+
+window.addEventListener("resize", () => {
+  const rect = arena.getBoundingClientRect();
+  renderer.resize(rect.width, rect.height);
+});
+
+// ---- per-frame input application ----
+function applyInput() {
+  const p1 = game.player();
+  const inBattle = game.state === "playing";
+
+  // show the touch UI on touch-first devices, or as soon as a touch is used
+  const wantTouch = inBattle && (coarseTouch || touchUsed);
+  if (touch.enabled !== wantTouch) touch.setEnabled(wantTouch);
+  // auto-lock camera (no manual aim) + split-screen layout
+  renderer.lockCamera = true;
+  if (btnLock) btnLock.style.display = touch.enabled && game.enemyList(p1).length >= 2 ? "" : "none";
+  document.body.classList.toggle("split-mode", game.mode === "dual" && inBattle && !touch.enabled);
+
+  if (p1 && inBattle) {
+    const yaw = renderer.camYaw;
+    const fwd = { x: Math.sin(yaw), z: Math.cos(yaw) };
+    const right = { x: -Math.cos(yaw), z: Math.sin(yaw) };
+    let mx = 0;
+    let mz = 0;
+    let my = 0;
+    if (keys.has("KeyW")) { mx += fwd.x; mz += fwd.z; }
+    if (keys.has("KeyS")) { mx -= fwd.x; mz -= fwd.z; }
+    if (keys.has("KeyD")) { mx += right.x; mz += right.z; }
+    if (keys.has("KeyA")) { mx -= right.x; mz -= right.z; }
+    if (keys.has("KeyZ")) my += 1;
+    if (keys.has("KeyX")) my -= 1;
+    // hold Space to fly up (a quick tap switches target instead)
+    if (keys.has("Space") && spaceDownAt && performance.now() - spaceDownAt > 260) my += 1;
+    let sprint = keys.has("ShiftLeft");
+
+    if (touch.enabled) {
+      if (touch.stickActive) {
+        mx = fwd.x * touch.move.y + right.x * touch.move.x;
+        mz = fwd.z * touch.move.y + right.z * touch.move.x;
+      }
+      if (touch.vertical !== 0) my = touch.vertical;
+      if (touch.sprint) sprint = true;
+    }
+    p1.sprinting = sprint;
+    game.setMove(p1, mx, mz, my);
+
+    if (touch.enabled) {
+      if (touch.playerChar !== p1.charId) touch.rebuildAbilities(p1.charId);
+      touch.updateSlots(p1, game);
+      const target = game.lockEntity(p1);
+      if (btnLock && target) btnLock.textContent = `锁定 · ${target.name}`;
+    }
+  }
+
+  const p2 = game.entities.find((e) => e.isPlayer && e !== game.player());
+  if (p2 && game.state === "playing") {
+    const yaw = renderer.camYaw;
+    const fwd = { x: Math.sin(yaw), z: Math.cos(yaw) };
+    const right = { x: -Math.cos(yaw), z: Math.sin(yaw) };
+    let mx = 0;
+    let mz = 0;
+    if (keys.has("KeyI")) { mx += fwd.x; mz += fwd.z; }
+    if (keys.has("KeyK")) { mx -= fwd.x; mz -= fwd.z; }
+    if (keys.has("KeyL")) { mx += right.x; mz += right.z; }
+    if (keys.has("KeyJ")) { mx -= right.x; mz -= right.z; }
+    let my = 0;
+    if (keys.has("KeyN")) my += 1;
+    if (keys.has("KeyM")) my -= 1;
+    p2.sprinting = keys.has("ShiftRight");
+    game.setMove(p2, mx, mz, my);
+    const enemy = game.entities.find((e) => e.id !== p2.id && e.alive);
+    if (enemy) game.setAim(p2, enemy.x, enemy.z);
+  }
+}
+
+// ---- loop ----
+let previousTime = performance.now();
+function frame(now) {
+  const realDt = Math.min(0.033, Math.max(0, (now - previousTime) / 1000));
+  previousTime = now;
+  applyInput();
+  // brief time-stop (Gojo's 茈) + cut-in timer run on real time
+  if (game.timeStop > 0) game.timeStop = Math.max(0, game.timeStop - realDt);
+  if (game.cutIn) { game.cutIn.life -= realDt; if (game.cutIn.life <= 0) game.cutIn = null; }
+  // freeze the whole scene behind the menus / during a time-stop
+  const frozen = game.state === "menu" || game.state === "difficulty" || game.state === "paused" || game.timeStop > 0;
+  const dt = frozen ? 0 : realDt;
+  game.update(dt);
+  for (const ev of game.drainEvents()) audio.handle(ev);
+  renderer.sync(game, dt);
+  renderer.render(dt);
+  ui.update(game);
+  requestAnimationFrame(frame);
+}
+
+const rect = arena.getBoundingClientRect();
+renderer.resize(rect.width, rect.height);
+applyTheme("gojo");
+requestAnimationFrame(frame);
+
+window.__arena3d = {
+  game,
+  renderer,
+  audio,
+  start: (mode = "single", difficulty = "normal") => startGame(mode, difficulty),
+  cast: (id, index) => { const e = game.entities.find((x) => x.charId === id) || game.player(); return game.tryCast(e, index); }
+};
