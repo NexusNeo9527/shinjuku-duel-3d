@@ -1060,6 +1060,10 @@ export class Game3D {
     if (!ai || !target) return;
     const profile = DIFFICULTY[this.difficulty];
 
+    // an unfinished combo window must expire, or the AI keeps reaching for a
+    // finisher (e.g. 开) it can no longer cast and stops attacking entirely
+    if (ai.comboChain?.length && this.elapsed - (ai.lastComboAt || 0) > 1.3) ai.comboChain = [];
+
     const dx = target.x - ai.x;
     const dz = target.z - ai.z;
     const dist = Math.hypot(dx, dz) || 1;
@@ -1130,9 +1134,13 @@ export class Game3D {
       if (alignment > rand(profile.aimMin, profile.aimMax) || waited > profile.forcedShotMs / 1000) {
         const idx = this.pickAiAbility(ai, dist);
         if (idx >= 0) {
-          this.tryCast(ai, idx);
-          ai.aiWaitStarted = this.elapsed;
-          ai.aiCastCd = rand(profile.reactionMin, profile.reactionMax);
+          if (this.tryCast(ai, idx)) {
+            ai.aiWaitStarted = this.elapsed;
+            ai.aiCastCd = rand(profile.reactionMin, profile.reactionMax);
+          } else {
+            // keep the wait timer running so the forced shot still lands
+            ai.aiCastCd = 0.15;
+          }
         } else {
           ai.aiCastCd = 0.12;
         }
@@ -1142,36 +1150,46 @@ export class Game3D {
     }
   }
 
+  // an ability the AI may actually fire right now (cooldown + charge gates)
+  aiAbilityReady(ai, idx) {
+    const ability = CHARACTERS[ai.charId].abilities[idx];
+    if (!ability) return false;
+    if (ai.cooldowns[idx] > 0) return false;
+    if (ability.needsCharge && ai.charge < 100) return false;
+    if (ability.needsDomain && ai.domainCharge < 100) return false;
+    return true;
+  }
+
   pickAiAbility(ai, dist) {
-    const cooldowns = ai.cooldowns;
     const abilities = CHARACTERS[ai.charId].abilities;
     const combos = CHARACTERS[ai.charId].combos || [];
+    const ready = (idx) => this.aiAbilityReady(ai, idx);
 
-    // 1) finish a combo that is one hit away
+    // 1) finish a combo that is one hit away (only if the finisher is actually castable)
     for (const c of combos) {
       const n = c.seq.length;
       if (ai.comboChain.length < n - 1) continue;
       const tail = ai.comboChain.slice(-(n - 1));
       if (!tail.every((id, i) => id === c.seq[i])) continue;
       const idx = abilities.findIndex((a) => a.id === c.seq[n - 1]);
-      if (idx >= 0 && cooldowns[idx] <= 0) return idx;
+      if (idx >= 0 && ready(idx)) return idx;
     }
 
     // 2) summon Mahoraga
     const hasSummon = this.entities.some((e) => e.summon && e.ownerId === ai.id && e.alive);
-    if (!hasSummon && cooldowns[4] <= 0 && this.elapsed > 6 && Math.random() < 0.6) return 4;
+    if (!hasSummon && ready(4) && this.elapsed > 6 && Math.random() < 0.6) return 4;
 
     // 3) domain when the target is inside its reach
-    if (ai.domainCharge >= 100 && cooldowns[3] <= 0 && dist < 18) return 3;
+    if (ready(3) && dist < 18) return 3;
 
     // 4) ultimate when charged and roughly in line
-    if (ai.charge >= 100 && cooldowns[2] <= 0 && dist < 42) return 2;
+    if (ready(2) && dist < 42) return 2;
 
     // 5) mid-range secondary
-    if (cooldowns[1] <= 0 && dist < 30 && Math.random() < 0.65) return 1;
+    if (ready(1) && dist < 30 && Math.random() < 0.65) return 1;
 
     // 6) basic
-    if (cooldowns[0] <= 0) return 0;
+    if (ready(0)) return 0;
     return -1;
   }
 
