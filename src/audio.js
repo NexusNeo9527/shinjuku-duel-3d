@@ -71,11 +71,11 @@ export class AudioEngine {
     this.startBgm();
   }
 
-  // click to cycle: 正常 -> 司凤 -> 关闭 -> 正常
+  // Version selection is independent of the sound on/off button.
   cycleBgm() {
     const ids = BGM_TRACKS.map((t) => t.id);
     const i = ids.indexOf(this.bgmId);
-    const next = i === -1 ? ids[0] : (i + 1 < ids.length ? ids[i + 1] : null);
+    const next = ids[(i + 1) % ids.length];
     this.setBgm(next);
     this.ensure();
     return this.bgmLabel();

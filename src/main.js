@@ -52,7 +52,9 @@ const ui = new UI3D(game, {
   onSound: (btn) => {
     const muted = !audio.muted;
     audio.setMuted(muted);
-    btn.textContent = muted ? "×" : "♪";
+    btn.textContent = muted ? "♪ 关" : "♪ 开";
+    btn.setAttribute("aria-pressed", String(!muted));
+    btn.setAttribute("aria-label", muted ? "开启声音" : "关闭声音");
     if (!muted) audio.ensure();
   }
 });
@@ -83,7 +85,7 @@ function switchTarget(e) {
 btnLock?.addEventListener("pointerdown", switchTarget);
 btnSwitch?.addEventListener("pointerdown", switchTarget);
 
-// BGM: one button cycles 正常 -> 司凤 -> 关闭
+// BGM version: 正常 <-> 司凤; the adjacent button owns sound on/off.
 const bgmBtn = document.querySelector("#bgmBtn");
 function refreshBgmBtn() { if (bgmBtn) bgmBtn.textContent = `♫ ${audio.bgmLabel()}`; }
 refreshBgmBtn();
