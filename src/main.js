@@ -320,8 +320,8 @@ function applyInput() {
     // P2 faces the mirrored camera, so its forward axis is opposite P1's.
     if (keys.has("KeyI")) { mx -= fwd.x; mz -= fwd.z; }
     if (keys.has("KeyK")) { mx += fwd.x; mz += fwd.z; }
-    if (keys.has("KeyL")) { mx += right.x; mz += right.z; }
-    if (keys.has("KeyJ")) { mx -= right.x; mz -= right.z; }
+    if (keys.has("KeyJ")) { mx += right.x; mz += right.z; }
+    if (keys.has("KeyL")) { mx -= right.x; mz -= right.z; }
     let my = 0;
     if (keys.has("KeyM")) my = -1;
     else if (keys.has("KeyN")) my = 1;
