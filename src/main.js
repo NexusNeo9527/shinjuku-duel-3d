@@ -349,12 +349,15 @@ function applyInput() {
 // ---- loop ----
 let previousTime = performance.now();
 function frame(now) {
-  const realDt = Math.min(0.033, Math.max(0, (now - previousTime) / 1000));
+  const rawDt = Math.max(0, (now - previousTime) / 1000);
+  // simulation steps are capped so a hitch cannot teleport the fighters…
+  const realDt = Math.min(0.033, rawDt);
   previousTime = now;
   applyInput();
-  // brief time-stop (Gojo's 茈) + cut-in timer run on real time
-  if (game.timeStop > 0) game.timeStop = Math.max(0, game.timeStop - realDt);
-  if (game.cutIn) { game.cutIn.life -= realDt; if (game.cutIn.life <= 0) game.cutIn = null; }
+  // …but the cinematic timers must use real time, otherwise a low frame rate
+  // stretches the death cut-in / time-stop into what looks like a freeze
+  if (game.timeStop > 0) game.timeStop = Math.max(0, game.timeStop - rawDt);
+  if (game.cutIn) { game.cutIn.life -= rawDt; if (game.cutIn.life <= 0) game.cutIn = null; }
   // freeze the whole scene behind the menus / during a time-stop
   const frozen = game.state === "menu" || game.state === "difficulty" || game.state === "paused" || game.timeStop > 0;
   const dt = frozen ? 0 : realDt;

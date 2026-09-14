@@ -804,7 +804,7 @@ export class Game3D {
     if (alive.length <= 1) {
       this.winner = alive[0] || null;
       // when Gojo goes down, let the death art finish before the result panel slides in
-      if (gojoDown && this.cutIn) this.endPending = true;
+      if (gojoDown && this.cutIn) { this.endPending = true; this.endPendingAt = performance.now(); }
       else this.finishEnd();
     }
   }
@@ -1263,8 +1263,12 @@ export class Game3D {
   update(dt) {
     this.updateDialogue(dt);
     if (this.state !== "playing") { this.updateEffects(dt); return; }
-    // the result panel is held back until the death cut-in has finished
-    if (this.endPending && !this.cutIn) { this.finishEnd(); this.updateEffects(dt); return; }
+    // the result panel is held back until the death cut-in has finished — with a
+    // hard ceiling so a stuck cut-in can never stall the match
+    if (this.endPending) {
+      const waited = performance.now() - (this.endPendingAt || 0);
+      if (!this.cutIn || waited > 3000) { this.finishEnd(); this.updateEffects(dt); return; }
+    }
     this.elapsed += dt;
     if (this.hitStop > 0) { this.hitStop -= dt; this.updateEffects(dt * 0.3); return; }
     for (const e of this.entities) this.updateEntity(e, dt);

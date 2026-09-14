@@ -818,3 +818,16 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
 }
 .sc-btn:hover { border-color: var(--accent); }
 .sc-btn.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 12px -4px var(--accent); }
+
+/* ---------- real-device touch robustness ----------
+   Without touch-action the browser may treat a press on a control as a pan/zoom
+   gesture and fire pointercancel, which reads as "the button can't be pressed". */
+body.touch-mode #touchUI,
+body.touch-mode #touchUI * {
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+body.touch-mode .touch-btn,
+body.touch-mode .touch-ability,
+body.touch-mode .vt-btn { touch-action: none; }

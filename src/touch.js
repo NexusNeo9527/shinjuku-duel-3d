@@ -51,9 +51,14 @@ class TouchPad {
 
   bind() {
     const stop = (fn) => (e) => { e.preventDefault(); e.stopPropagation(); fn(e); };
+    const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch (_) { /* synthetic pointer */ } };
     const hold = (btn, value) => {
       if (!btn) return;
-      const on = stop(() => { this.vertical = value; btn.classList.add("on"); });
+      const on = stop((e) => {
+        capture(btn, e);
+        this.vertical = value;
+        btn.classList.add("on");
+      });
       const off = stop(() => { if (this.vertical === value) this.vertical = 0; btn.classList.remove("on"); });
       btn.addEventListener("pointerdown", on);
       btn.addEventListener("pointerup", off);
@@ -66,7 +71,7 @@ class TouchPad {
       this.sprint = !this.sprint;
       this.sprintBtn.classList.toggle("on", this.sprint);
     }));
-    this.dashBtn?.addEventListener("pointerdown", stop(() => this.onDash()));
+    this.dashBtn?.addEventListener("pointerdown", stop((e) => { capture(this.dashBtn, e); this.onDash(); }));
   }
 
   beginStick(e) {
@@ -133,6 +138,9 @@ class TouchPad {
       b.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        // capture the pointer so a small finger drift off the button does not
+        // cancel the press (pointerleave would otherwise stop it)
+        try { b.setPointerCapture(e.pointerId); } catch (_) { /* synthetic pointer */ }
         this.onCast(i);
         if (!repeatable) return;
         b.classList.add("holding");
