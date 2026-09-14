@@ -944,9 +944,9 @@ export class Game3D {
           stronger.power = Math.max(1, stronger.power - 1);
         }
         this.announce(equalPower ? "术式相杀" : "术式突破", equalPower ? "#ffffff" : "#cfe0ff", 0.9);
-        if (equalPower && !this.dialogueFlags.has("sukuna_challenger")) {
-          this.dialogueFlags.add("sukuna_challenger");
-          this.queueDialogue("sukuna", "你才是挑战者。", 2.7, 3);
+        if (equalPower && !this.dialogueFlags.has("gojo_challenger")) {
+          this.dialogueFlags.add("gojo_challenger");
+          this.queueDialogue("gojo", "你才是挑战者。", 2.7, 3);
         }
         break;
       }
