@@ -951,6 +951,14 @@ export class Renderer3D {
 
   sync(game, dt) {
     this._game = game;
+    if (game.state === "ended") {
+      if (!this._combatEffectsCleared) {
+        this.reset();
+        this._combatEffectsCleared = true;
+      }
+    } else {
+      this._combatEffectsCleared = false;
+    }
     // halve the screen flash: it used to wash out the whole arena and hide the
     // fighters, which matters more than the extra punch
     this._flash = clamp((game.flash || 0) * 0.5, 0, 1);

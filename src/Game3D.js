@@ -815,6 +815,11 @@ export class Game3D {
   finishEnd() {
     if (this.state === "ended") return;
     this.state = "ended";
+    // 结算后不再推进领域生命周期；主动清理，避免五条悟倒地时无量空处停在最后一帧。
+    this.projectiles = [];
+    this.beams = [];
+    this.domains = [];
+    this.particles = [];
     this.emit("sfx", { kind: "win" });
     const winnerId = this.winner?.charId || "gojo";
     this.queueDialogue(winnerId, this.winner?.charId === "gojo" ? "这场胜负，已经定了。" : "到此为止。", 2.5, 4);
