@@ -17,3 +17,6 @@ Thumbs.db
 
 # raw source art kept outside the project (already exported into public/assets)
 /*.png
+
+# local test scripts
+*.mjs
