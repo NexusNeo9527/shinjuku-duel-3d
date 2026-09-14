@@ -32,6 +32,7 @@ export class Game3D {
     this.hitPulseColor = "#ecc25a";
     this.timeStop = 0;
     this.cutIn = null;
+    this.endPending = false;
     this.battleTime = 0;
     this.rampStage = 0;
     this.dialogueQueue = [];
@@ -99,6 +100,7 @@ export class Game3D {
     this.rampStage = 0;
     this.timeStop = 0;
     this.cutIn = null;
+    this.endPending = false;
     this.projectiles = [];
     this.beams = [];
     this.domains = [];
@@ -776,17 +778,27 @@ export class Game3D {
       this.emit("sfx", { kind: "defeat" });
       return;
     }
-    if (target.charId === "gojo") this.triggerCutIn("gojo-death", 0.5, 0.7, 2.6);
+    const gojoDown = target.charId === "gojo";
+    if (gojoDown) this.triggerCutIn("gojo-death", 0.5, 0.7, 2.6, { life: 1.4 });
     this.announce(`${target.name} 退场`, target.color, 1.4);
     this.emit("sfx", { kind: "defeat" });
     const alive = this.entities.filter((e) => e.alive && !e.summon);
     if (this.practice) return;
     if (alive.length <= 1) {
       this.winner = alive[0] || null;
-      this.state = "ended";
-      this.emit("sfx", { kind: "win" });
-      this.queueDialogue(this.winner?.charId || "gojo", this.winner?.charId === "gojo" ? "这场胜负，已经定了。" : "到此为止。", 2.5, 4);
+      // when Gojo goes down, let the death art finish before the result panel slides in
+      if (gojoDown && this.cutIn) this.endPending = true;
+      else this.finishEnd();
     }
+  }
+
+  finishEnd() {
+    if (this.state === "ended") return;
+    this.endPending = false;
+    this.state = "ended";
+    this.emit("sfx", { kind: "win" });
+    const winnerId = this.winner?.charId || "gojo";
+    this.queueDialogue(winnerId, this.winner?.charId === "gojo" ? "这场胜负，已经定了。" : "到此为止。", 2.5, 4);
   }
 
   // ---- projectiles / beams / domains ----
@@ -1234,6 +1246,8 @@ export class Game3D {
   update(dt) {
     this.updateDialogue(dt);
     if (this.state !== "playing") { this.updateEffects(dt); return; }
+    // the result panel is held back until the death cut-in has finished
+    if (this.endPending && !this.cutIn) { this.finishEnd(); this.updateEffects(dt); return; }
     this.elapsed += dt;
     if (this.hitStop > 0) { this.hitStop -= dt; this.updateEffects(dt * 0.3); return; }
     for (const e of this.entities) this.updateEntity(e, dt);
