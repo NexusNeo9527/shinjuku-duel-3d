@@ -14,6 +14,11 @@ const practiceFlag = (game, key) => Boolean(game[PRACTICE_FLAGS[key]]);
 const VICTORY_LINES = {
   gojo: "我大概明天就会忘记你吧"
 };
+// 胜利插图（结算页顶部）
+const WIN_ART = {
+  gojo: "win-gojo.jpg",
+  sukuna: "win-sukuna.jpg"
+};
 const RING_CIRC = 276.5;
 
 export const ICONS = {
@@ -52,6 +57,7 @@ export class UI3D {
       resultKicker: document.querySelector("#resultKicker"),
       resultTitle: document.querySelector("#resultTitle"),
       resultReason: document.querySelector("#resultReason"),
+      resultArt: document.querySelector("#resultArt"),
       resultQuote: document.querySelector("#resultQuote"),
       resultQuoteText: document.querySelector("#resultQuoteText"),
       homeBtn: document.querySelector("#homeBtn"),
@@ -474,6 +480,13 @@ export class UI3D {
     this.dom.resultTitle.style.color = w ? w.color : "#e8eefc";
     const loser = game.entities.find((e) => !e.alive && !e.summon);
     this.dom.resultReason.textContent = loser ? `${loser.name} 退场` : "战斗结束";
+    // winner illustration
+    const art = w && WIN_ART[w.charId];
+    this.dom.resultArt.classList.toggle("hidden", !art);
+    if (art) {
+      const src = `${import.meta.env.BASE_URL}assets/${art}`;
+      if (!this.dom.resultArt.src.endsWith(art)) this.dom.resultArt.src = src;
+    }
     // 胜利者的台词（五条悟击败宿傩后对宿傩说的话）
     const line = w ? VICTORY_LINES[w.charId] : null;
     this.dom.resultQuote.classList.toggle("hidden", !line);
