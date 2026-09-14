@@ -18,7 +18,6 @@
   - [触屏操作](#触屏操作)
 - [连招](#连招)
 - [难度](#难度)
-- [运行与构建](#运行与构建)
 - [技术栈](#技术栈)
 - [项目结构](#项目结构)
 - [说明](#说明)
@@ -160,18 +159,6 @@ npm run build
 # 预览构建结果
 npm run preview
 ```
-
-## 部署（Netlify）
-
-仓库已内置 `netlify.toml`，在 Netlify 中 **Import from GitHub** 选择本仓库后即可直接部署，无需手动填写构建配置：
-
-| 设置项 | 值 |
-| --- | --- |
-| Build command | `npm run build` |
-| Publish directory | `dist` |
-| Node version | `20` |
-
-每次推送到 `main` 分支都会自动重新部署。
 
 ## 技术栈
 
