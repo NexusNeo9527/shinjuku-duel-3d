@@ -575,12 +575,9 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
   border-left: 2px solid var(--accent); background: rgba(255, 255, 255, 0.035);
   border-radius: 0 10px 10px 0;
 }
-.result-quote p { font-size: 17px; font-weight: 700; letter-spacing: 0.04em; color: #f2f7ff; }
-.result-quote cite { display: block; margin-top: 7px; font-style: normal; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; color: var(--accent); }
+.result-quote p { font-size: 17px; font-weight: 700; letter-spacing: 0.04em; color: #f2f7ff; text-align: center; }
 .result-quote.char-gojo { border-left-color: var(--cyan); }
-.result-quote.char-gojo cite { color: var(--cyan); }
 .result-quote.char-sukuna { border-left-color: var(--red); }
-.result-quote.char-sukuna cite { color: var(--red); }
 .action-button {
   padding: 14px 50px; border-radius: 30px; border: 1px solid currentColor; cursor: pointer;
   font-size: 15px; font-weight: 700; letter-spacing: 0.1em;

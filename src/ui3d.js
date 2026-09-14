@@ -46,7 +46,6 @@ export class UI3D {
       resultReason: document.querySelector("#resultReason"),
       resultQuote: document.querySelector("#resultQuote"),
       resultQuoteText: document.querySelector("#resultQuoteText"),
-      resultQuoteBy: document.querySelector("#resultQuoteBy"),
       homeBtn: document.querySelector("#homeBtn"),
       soundBtn: document.querySelector("#soundBtn"),
       againBtn: document.querySelector("#againBtn"),
@@ -468,7 +467,6 @@ export class UI3D {
     if (line) {
       this.applyCharColor(this.dom.resultQuote, w.charId);
       this.dom.resultQuoteText.textContent = line;
-      this.dom.resultQuoteBy.textContent = `—— ${w.name}`;
     }
   }
 }
