@@ -22,7 +22,8 @@ def mat(name, color, metal=0, rough=.6):
 
 skin=mat('warm porcelain',(.72,.48,.37)); ivory=mat('divine ivory',(.66,.70,.59))
 navy=mat('ink blue uniform',(.025,.035,.07)); black=mat('black leather',(.009,.012,.018),0,.34)
-white=mat('silver white hair',(.84,.90,.96)); pink=mat('rose hair',(.55,.17,.22))
+white=mat('silver white hair',(.84,.90,.96)); raven=mat('raven hair',(.012,.016,.024),0,.48)
+blue=mat('six eyes azure',(.015,.48,.95),.05,.25)
 cloth=mat('warm white cloth',(.78,.74,.66)); red=mat('oxblood sash',(.19,.013,.027))
 gold=mat('antique gold',(.62,.37,.09),.72,.3); ink=mat('curse ink',(.017,.009,.015))
 eye=mat('crimson iris',(.7,.025,.045),.1,.25); steel=mat('sword silver',(.67,.77,.79),.8,.22)
@@ -70,42 +71,70 @@ def spike(name,a,b,r,m,parent):
     o=finish(bpy.context.object,name,parent,m);o.location=(Vector(a)+Vector(b))/2
     o.rotation_euler=delta.to_track_quat('Z','Y').to_euler();return o
 
+def lock(name, a, b, c, width, material, parent):
+    # Curved, flattened leaf-shaped hair clump with a sharp tip and central ridge.
+    a,b,c=Vector(a),Vector(b),Vector(c); verts=[];faces=[]
+    for j in range(7):
+        t=j/6; p=(1-t)**2*a+2*t*(1-t)*b+t*t*c
+        tangent=(2*(1-t)*(b-a)+2*t*(c-b)).normalized()
+        side=tangent.cross(Vector((0,1,0))).normalized()
+        normal=side.cross(tangent).normalized()
+        r=width*(.5+.7*math.sin(t*math.pi))*(1-t)+.0003
+        for i in range(6):
+            ang=i*math.pi/3;verts.append(p+side*math.cos(ang)*r+normal*math.sin(ang)*r*.3)
+    for j in range(6):
+        for i in range(6):
+            k=j*6+i;n=j*6+(i+1)%6;faces.append((k,n,n+6,k+6))
+    mesh=bpy.data.meshes.new(name);mesh.from_pydata(verts,[],faces);mesh.update()
+    o=bpy.data.objects.new(name,mesh);scene.collection.objects.link(o);finish(o,name,parent,material)
+
 roots=[]
 for ident in ['gojo','sukuna','mahoraga']:
     maha=ident=='mahoraga'; suk=ident=='sukuna'; bodymat=ivory if maha else skin
     root=node(ident);roots.append(root)
     hips=node('hips',root,(0,0,.91));torso=node('torso',hips,(0,0,.12))
     width=.29 if maha else .22
-    loft('tailored torso' if not maha else 'tapered muscular trunk',[(0,.15,.105,0),(.12,width*.83,.12,0),(.30,width,.135,0),(.41,width,.12,.012),(.46,.12,.08,0)],bodymat if maha else (cloth if suk else navy),torso)
-    ell('pelvis',(0,0,0),(.175,.12,.15),cloth if (maha or suk) else navy,hips)
-    loft('high collar',[(.39,.102,.085,0),(.49,.092,.082,0)],navy if not suk else cloth,torso) if not maha else None
+    loft('tailored torso' if not maha else 'tapered muscular trunk',[(-.10,.158,.11,0),(0,.15,.105,0),(.12,width*.83,.12,0),(.30,width,.135,0),(.41,width,.12,.012),(.46,.12,.08,0)],bodymat if maha else navy,torso)
+    ell('pelvis',(0,0,0),(.165,.11,.13),cloth if maha else navy,hips)
+    loft('high collar',[(.39,.12,.10,0),(.50,.115,.097,0)],navy,torso) if not maha else None
     ell('neck',(0,0,.47),(.07,.068,.11),bodymat,torso)
     head=node('head',torso,(0,0,.60))
     loft('sculpted jaw and cranium',[(-.14,.055,.065,-.012),(-.105,.085,.079,-.014),(-.045,.112,.092,0),(.04,.12,.1,0),(.115,.095,.085,.007),(.14,.025,.03,.01)],bodymat,head)
-    ell('nose',(0,-.099,-.018),(.022,.031,.035),bodymat,head)
+    ell('nose',(0,-.097,-.023),(.011,.016,.033),bodymat,head)
     for s in [-1,1]:ell('ear',(s*.115,0,-.018),(.021,.027,.039),bodymat,head)
-    line('mouth',[(-.038,-.087,-.073),(0,-.097,-.078),(.038,-.087,-.073)],.0035,ink,head)
+    line('mouth',[(-.040,-.087,-.070),(-.018,-.098,-.077),(.019,-.098,-.077),(.041,-.087,-.064)],.0025,ink,head)
     if not maha:
-        # Dozens of individually directed tapered locks, avoiding spherical helmet hair.
-        hair= pink if suk else white
+        hair=raven if suk else white
+        loft('hair foundation',[(.065,.12,.102,.005),(.12,.108,.089,.01),(.155,.055,.05,.02),(.167,.009,.009,.02)],hair,head)
         for j in range(3):
-            for i in range(13):
-                a=i*2*math.pi/13+j*.23
-                radius=.092*(1-j*.22); z=.062+j*.036
-                start=(math.cos(a)*radius,math.sin(a)*radius,z)
-                end=(math.cos(a)*(radius+.045),math.sin(a)*(radius+.045)+(.035 if suk else 0),z+.075+random.random()*.055)
-                spike('layered hair lock',start,end,.035,hair,head)
+            for i in range(14):
+                a=i*2*math.pi/14+j*.19
+                x=math.cos(a);y=math.sin(a);r=.102-j*.022
+                start=(x*r,y*r,.055+j*.035)
+                middle=(x*(r+.065),y*(r+.045)+.025,.11+j*.032)
+                end=(x*(r+.080),y*(r+.080)+.05,.10+j*.042+random.random()*.025)
+                lock('swept layered lock',start,middle,end,.030,hair,head)
         if not suk:
-            loft('fitted blindfold',[(-.015,.117,.102,0),(.041,.122,.105,0)],black,head)
-            for s in [-1,1]:line('blindfold tie',[(0,.09,.01),(s*.065,.17,-.01),(s*.085,.2,-.10)],.014,black,head)
-        else:
+            for i in range(7):
+                x=(i-3)*.026
+                lock('asymmetric fringe',(x+.022,-.064,.145),(x+.023,-.113,.10),(x-.018,-.11,.035+abs(i-3)*.01),.023,hair,head)
+        for s in [-1,1]:
+            ell('eye white',(s*.047,-.093,.012),(.030,.010,.016),cloth,head)
+            ell('iris',(s*.047,-.103,.012),(.012,.004,.013),eye if suk else blue,head)
+            ell('pupil',(s*.047,-.107,.012),(.0045,.002,.008),ink,head)
+            ell('eye highlight',(s*.047-.004,-.109,.017),(.003,.0015,.003),white,head)
+            line('upper eyelid',[(s*.018,-.10,.018),(s*.041,-.105,.029),(s*.072,-.088,.024)],.0035,ink,head)
+            line('lower eyelid',[(s*.022,-.097,.005),(s*.047,-.102,-.004),(s*.072,-.087,.005)],.002,ink,head)
+            line('brow',[(s*.018,-.098,.042),(s*.048,-.096,.050),(s*.079,-.077,.047)],.004,ink if suk else white,head)
+        if suk:
             for s in [-1,1]:
-                ell('eye white',(s*.047,-.093,.013),(.027,.009,.011),cloth,head)
-                ell('red iris',(s*.046,-.103,.013),(.008,.004,.009),eye,head)
-                line('brow',[(s*.022,-.098,.036),(s*.067,-.087,.045)],.006,ink,head)
-                for z in [-.023,-.043]:line('cheek curse',[(s*.043,-.091,z),(s*.083,-.076,z-.015),(s*.094,-.06,z+.005)],.004,ink,head)
-            line('forehead curse',[(-.024,-.084,.085),(0,-.103,.065),(.024,-.084,.085)],.005,ink,head)
-            line('chin curse',[(0,-.09,-.063),(0,-.083,-.108)],.005,ink,head)
+                for z in [-.014,-.034]:
+                    line('branched cheek curse',[(s*.054,-.087,z),(s*.089,-.072,z-.009),(s*.102,-.051,z+.008)],.005,ink,head)
+                    line('curse barb',[(s*.085,-.077,z-.007),(s*.079,-.078,z+.007)],.004,ink,head)
+                line('jaw curse',[(s*.092,-.067,-.040),(s*.082,-.070,-.071),(s*.064,-.072,-.105)],.005,ink,head)
+                line('forehead fork',[(s*.013,-.086,.106),(s*.023,-.096,.084),(s*.009,-.10,.062)],.005,ink,head)
+                line('chin curse',[(s*.01,-.093,-.086),(s*.012,-.080,-.113)],.004,ink,head)
+            line('forehead diamond',[(0,-.099,.09),(-.007,-.10,.075),(0,-.102,.061),(.007,-.10,.075),(0,-.099,.09)],.0035,ink,head)
     else:
         for s in [-1,1]:
             for i in range(3):
@@ -114,10 +143,11 @@ for ident in ['gojo','sukuna','mahoraga']:
         for s in [-1,1]:
             ell('pectoral',(s*.137,-.095,.305),(.143,.075,.095),ivory,torso)
             for z in [.10,.18]:ell('abdominal',(s*.065,-.11,z),(.064,.038,.048),ivory,torso)
-    if suk:
-        for s in [-1,1]:
-            line('crossed lapel',[(s*.09,-.09,.44),(0,-.143,.20),(s*.11,-.12,.015)],.019,black,torso)
-    if maha or suk:
+    if not maha:
+        line('uniform closure',[(.06,-.087,.49),(.09,-.104,.39),(.07,-.134,.26),(.055,-.109,-.08)],.0025,black,torso)
+        for z in [.09,.15,.21]:
+            line('subtle fabric fold',[(-.13,-.077,z),(-.06,-.112,z+.014),(.01,-.122,z+.006)],.002,black,torso)
+    if maha:
         loft('waist sash',[(-.07,.18,.124,0),(.055,.177,.123,0)],red if suk else gold,hips)
         for s in [-1,1]:
             flap=loft('overlapping skirt panel',[(-.31,.14,.10,0),(-.18,.16,.11,0),(0,.115,.09,0)],cloth,hips)
@@ -126,23 +156,23 @@ for ident in ['gojo','sukuna','mahoraga']:
     for s,label in [(-1,'L'),(1,'R')]:
         arm=node('arm'+label,torso,(s*(width+.025),0,.38))
         arm.rotation_euler.y=s*-.12
-        sleeve=bodymat if maha else (cloth if suk else navy)
+        sleeve=bodymat if maha else navy
         ell('deltoid',(0,0,-.035),(.107 if maha else .071,.079,.105),sleeve,arm)
         loft('upper arm',[(-.25,.052,.055,0),(-.15,.081 if maha else .06,.061,0),(-.02,.073,.064,0)],sleeve,arm)
         fore=node('fore'+label,arm,(0,0,-.25))
-        loft('forearm',[(-.24,.036,.034,0),(-.17,.045,.045,0),(-.06,.067 if maha else .054,.054,0),(0,.05,.048,0)],bodymat if (maha or suk) else navy,fore)
+        loft('forearm',[(-.24,.036,.034,0),(-.17,.045,.045,0),(-.06,.067 if maha else .054,.054,0),(0,.05,.048,0)],bodymat if maha else navy,fore)
         ell('palm',(0,-.008,-.26),(.048,.034,.062),bodymat,fore)
         for i in range(4):ell('finger',((i-1.5)*.020,-.015,-.307),(.011,.018,.033),bodymat,fore)
         ell('thumb',(s*.044,-.013,-.255),(.020,.023,.036),bodymat,fore)
         if suk:
-            for z in [-.05,-.085]:loft('arm curse band',[(z-.008,.057,.057,0),(z+.008,.057,.057,0)],ink,fore)
+            for z in [-.256,-.280]:line('hand curse', [(-.027,-.037,z),(0,-.044,z-.004),(.027,-.037,z)],.003,ink,fore)
         if maha and s==1:
             line('blade mount',[(0,0,-.13),(.10,0,-.15)],.04,gold,fore)
             blade=loft('Sword of Extermination',[(-.69,.001,.005,0),(-.55,.064,.014,0),(-.13,.056,.016,0),(-.07,.018,.01,0)],steel,fore,n=4);blade.location.x=.11
         leg=node('leg'+label,hips,(s*.095,0,-.08))
-        loft('trouser thigh',[(-.37,.060,.066,0),(-.20,.085,.085,0),(0,.086,.092,0)],cloth if maha or suk else navy,leg)
+        loft('trouser thigh',[(-.37,.060,.066,0),(-.20,.085,.085,0),(0,.086,.092,0)],cloth if maha else navy,leg)
         shin=node('shin'+label,leg,(0,0,-.37))
-        loft('lower leg',[(-.34,.043,.045,0),(-.22,.055,.06,0),(-.08,.068,.066,0),(0,.06,.061,0)],ivory if maha else (cloth if suk else navy),shin)
+        loft('lower leg',[(-.34,.043,.045,0),(-.22,.055,.06,0),(-.08,.068,.066,0),(0,.06,.061,0)],ivory if maha else navy,shin)
         ell('foot',(0,-.045,-.37),(.069,.125,.053),bodymat if maha else black,shin)
         if not maha:loft('boot cuff',[(-.33,.052,.055,0),(-.24,.052,.055,0)],black,shin)
     if maha:
@@ -157,14 +187,14 @@ for ident in ['gojo','sukuna','mahoraga']:
     # Merge static surfaces per articulated node/material to keep game draw calls low.
     for parent in [root]+[o for o in root.children_recursive if o.type=='EMPTY']:
         meshes=[o for o in parent.children if o.type=='MESH']
-        if not meshes:continue
+        if len(meshes)<2:continue
         bpy.ops.object.select_all(action='DESELECT')
         for o in meshes:o.select_set(True)
         bpy.context.view_layer.objects.active=meshes[0]
         bpy.ops.object.join()
     bpy.ops.object.select_all(action='DESELECT')
     for o in [root]+list(root.children_recursive):o.select_set(True)
-    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,ident+'.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=False)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,ident+'.glb'),export_format='GLB',use_selection=True,use_active_scene=True,export_yup=True,export_animations=False)
 
 # The saved studio lays the three editable models out side by side.
 for i,root in enumerate(roots):root.location.x=(i-1)*1.2
@@ -180,5 +210,3 @@ scene.render.resolution_x=1500;scene.render.resolution_y=950;scene.render.resolu
 scene.render.filepath=os.path.join(SOURCE,'fighters-preview.png')
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(SOURCE,'shinjuku-fighters.blend'))
 print('Exported three articulated fighters to '+OUT)
-
-

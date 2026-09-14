@@ -439,7 +439,7 @@ export class Renderer3D {
     const model = await loadGltf(key);
     if (model && entry) {
       entry.inner.clear();
-      model.scale.setScalar(scale * 1.6);
+      model.scale.setScalar(scale * (key === "mahoraga" ? 1.45 : 1));
       entry.inner.add(model);
       entry.model = model;
       model.traverse((o) => { if (o.userData?.isAura) o.layers.set(1); });

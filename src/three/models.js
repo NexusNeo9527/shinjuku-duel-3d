@@ -279,19 +279,50 @@ export async function loadGltf(id) {
     const model = gltf.scene;
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z) || 1;
-    const scale = 86 / maxDim;
+    const scale = 86 / (size.y || 1);
     model.scale.setScalar(scale);
     const center = box.getCenter(new THREE.Vector3());
-    model.position.sub(center.multiplyScalar(scale));
+    model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
     model.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     const wrapper = new THREE.Group();
     wrapper.add(model);
     const aura = auraFor(FIGHTER_STYLE[id], 1);
+    aura.position.y = 43;
+    aura.material.opacity = 0.035;
     wrapper.add(aura);
-    wrapper.userData.animate = () => {};
+    // Blender exports articulated empty nodes; preserve their rest quaternions.
+    const parts = {};
+    model.traverse((o) => {
+      const name = o.name.replace(/[_\.]?\d+$/, "");
+      if (/^(hips|torso|head|arm[LR]|fore[LR]|leg[LR]|shin[LR]|wheel)$/.test(name)) {
+        parts[name] = { node: o, rest: o.quaternion.clone() };
+      }
+    });
+    const q = new THREE.Quaternion();
+    const xAxis = new THREE.Vector3(1, 0, 0);
+    const zAxis = new THREE.Vector3(0, 0, 1);
+    function rotate(name, angle, axis = xAxis) {
+      const part = parts[name];
+      if (part) part.node.quaternion.copy(part.rest).multiply(q.setFromAxisAngle(axis, angle));
+    }
+    const baseY = model.position.y;
+    wrapper.userData.animate = (t, move = 0) => {
+      const swing = Math.sin(t * 8) * move;
+      model.position.y = baseY + (1 - move) * Math.sin(t * 2.1) * .6;
+      rotate('torso', Math.sin(t * 1.7) * .025 * (1 - move), zAxis);
+      rotate('head', Math.sin(t * 1.9) * .035);
+      for (const [side, sign] of [['L', 1], ['R', -1]]) {
+        rotate('arm' + side, sign * swing * .65 - .12);
+        rotate('fore' + side, -.15 - Math.max(0, sign * swing) * .4);
+        rotate('leg' + side, -sign * swing * .55);
+        rotate('shin' + side, Math.max(0, sign * swing) * .65);
+      }
+      rotate('wheel', t * 1.2, zAxis);
+    };
+    wrapper.userData.assetId = id;
     return wrapper;
-  } catch {
+  } catch (error) {
+    console.warn(`Unable to load fighter model: ${id}`, error);
     return null;
   }
 }
