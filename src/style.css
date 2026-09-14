@@ -585,6 +585,30 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
 }
 .action-button:hover { box-shadow: 0 0 30px -8px var(--accent); transform: translateY(-1px); }
 
+/* landscape suggestion for phones — a hint only, never blocks input */
+.rotate-tip {
+  position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%);
+  z-index: 12; pointer-events: none; display: flex; align-items: center; gap: 10px;
+  max-width: 88vw; padding: 10px 12px 10px 16px; border-radius: 12px;
+  background: var(--panel-strong); border: 1px solid var(--line-strong);
+  box-shadow: 0 0 30px -12px var(--accent); backdrop-filter: blur(8px);
+  animation: rotateTipIn 0.28s ease-out;
+}
+.rotate-tip .rt-icon { font-size: 20px; line-height: 1; color: var(--accent); transform: rotate(90deg); }
+.rotate-tip .rt-copy { display: flex; flex-direction: column; gap: 2px; }
+.rotate-tip strong { font-size: 13px; color: var(--text); letter-spacing: 0.06em; }
+.rotate-tip span { font-size: 11px; color: var(--muted); }
+.rotate-tip .rt-close {
+  pointer-events: auto; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 7px;
+  cursor: pointer; font-size: 12px; line-height: 1;
+  border: 1px solid var(--line-strong); background: var(--chip); color: var(--muted);
+}
+.rotate-tip .rt-close:active { border-color: var(--accent); color: var(--accent); }
+@keyframes rotateTipIn {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
 .statusbar {
   display: flex; align-items: center; justify-content: center; padding: 6px 14px;
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em; color: var(--muted);

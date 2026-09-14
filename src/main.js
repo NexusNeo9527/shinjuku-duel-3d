@@ -203,6 +203,32 @@ fullBtn?.addEventListener("click", async () => {
   setTimeout(fitCanvas, 150);
 });
 
+// phones: suggest landscape once per visit, but never force it
+const rotateTip = document.querySelector("#rotateTip");
+let rotateTipShown = false;
+let rotateTipTimer = 0;
+const isPortrait = () => (window.matchMedia
+  ? window.matchMedia("(orientation: portrait)").matches
+  : window.innerHeight >= window.innerWidth);
+function hideRotateTip() {
+  clearTimeout(rotateTipTimer);
+  rotateTip?.classList.add("hidden");
+}
+document.querySelector("#rotateTipClose")?.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  hideRotateTip();
+});
+function updateRotateTip() {
+  if (!rotateTip) return;
+  if (!isPortrait() || game.state !== "playing") { rotateTip.classList.add("hidden"); return; }
+  if (rotateTipShown) return;
+  if (!touch.enabled && !isTouchDevice && !touchUsed) return;
+  rotateTipShown = true;
+  rotateTip.classList.remove("hidden");
+  rotateTipTimer = setTimeout(() => rotateTip.classList.add("hidden"), 7000);
+}
+
 // ---- per-frame input application ----
 function applyInput() {
   const p1 = game.player();
@@ -211,6 +237,7 @@ function applyInput() {
   // show the touch UI on touch-first devices, or as soon as a touch is used
   const wantTouch = inBattle && (coarseTouch || touchUsed);
   if (touch.enabled !== wantTouch) touch.setEnabled(wantTouch);
+  updateRotateTip();
   // auto-lock camera (no manual aim) + split-screen layout
   renderer.lockCamera = true;
   // target buttons: visible whenever there is at least one enemy to aim at
