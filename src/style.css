@@ -574,6 +574,10 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
   background: var(--panel-strong); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; max-width: 760px;
 }
 .controls-note b { color: var(--accent); }
+.build-version {
+  margin-top: 14px; font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.18em; color: var(--muted); opacity: 0.8;
+}
 
 .difficulty-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; max-width: 500px; margin-top: 18px; }
 .difficulty-card {
