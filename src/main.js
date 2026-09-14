@@ -79,6 +79,15 @@ function switchTarget(e) {
 btnLock?.addEventListener("pointerdown", switchTarget);
 btnSwitch?.addEventListener("pointerdown", switchTarget);
 
+// BGM: one button cycles 正常 -> 司凤 -> 关闭
+const bgmBtn = document.querySelector("#bgmBtn");
+function refreshBgmBtn() { if (bgmBtn) bgmBtn.textContent = `♫ ${audio.bgmLabel()}`; }
+refreshBgmBtn();
+bgmBtn?.addEventListener("click", () => {
+  audio.cycleBgm();
+  refreshBgmBtn();
+});
+
 function startGame(mode, difficulty) {
   audio.ensure();
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();

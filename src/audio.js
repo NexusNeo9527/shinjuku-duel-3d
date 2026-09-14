@@ -1,13 +1,24 @@
+export const BGM_TRACKS = [
+  { id: "normal", label: "正常", src: "/assets/bgm-rain-normal.mp3" },
+  { id: "sifeng", label: "司凤", src: "/assets/bgm-rain-sifeng.mp3" }
+];
+
 export class AudioEngine {
   constructor() {
     this.muted = false;
     this.ctx = null;
     this.master = null;
+    this.bgm = null;
+    this.bgmId = "normal";   // 默认曲目（首次手势后才真正开始播放）
+    this.bgmVolume = 0.55;
+    this._bgmFade = 0;
   }
 
   ensure() {
+    this.ensureBgm();
     if (this.ctx) {
       if (this.ctx.state === "suspended") this.ctx.resume();
+      if (this.bgmId && this.bgm?.paused) this.startBgm();
       return;
     }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -20,6 +31,70 @@ export class AudioEngine {
     comp.knee.value = 14;
     comp.ratio.value = 4;
     this.master.connect(comp).connect(this.ctx.destination);
+    if (this.bgmId) this.startBgm();
+  }
+
+  // ---- background music ----
+  ensureBgm() {
+    if (this.bgm) return this.bgm;
+    const el = new Audio();
+    el.loop = true;
+    el.preload = "auto";
+    el.volume = 0;
+    el.muted = this.muted;
+    this.bgm = el;
+    return el;
+  }
+
+  startBgm() {
+    const track = BGM_TRACKS.find((t) => t.id === this.bgmId);
+    if (!track) return;
+    const el = this.ensureBgm();
+    if (el.dataset.track !== track.id) {
+      el.dataset.track = track.id;
+      el.src = track.src;
+      el.currentTime = 0;
+    }
+    el.muted = this.muted;
+    const p = el.play();
+    if (p && p.catch) p.catch(() => { /* autoplay blocked until a gesture */ });
+    this.fadeBgm(this.bgmVolume);
+  }
+
+  setBgm(id) {
+    this.bgmId = id;
+    const el = this.ensureBgm();
+    clearInterval(this._bgmFade);
+    if (!id) { el.pause(); el.volume = 0; return; }
+    this.startBgm();
+  }
+
+  // click to cycle: 正常 -> 司凤 -> 关闭 -> 正常
+  cycleBgm() {
+    const ids = BGM_TRACKS.map((t) => t.id);
+    const i = ids.indexOf(this.bgmId);
+    const next = i === -1 ? ids[0] : (i + 1 < ids.length ? ids[i + 1] : null);
+    this.setBgm(next);
+    this.ensure();
+    return this.bgmLabel();
+  }
+
+  bgmLabel() {
+    if (!this.bgmId) return "关";
+    return (BGM_TRACKS.find((t) => t.id === this.bgmId) || {}).label || "关";
+  }
+
+  fadeBgm(target, ms = 900) {
+    const el = this.bgm;
+    if (!el) return;
+    clearInterval(this._bgmFade);
+    const from = el.volume;
+    const t0 = performance.now();
+    this._bgmFade = setInterval(() => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      el.volume = Math.max(0, Math.min(1, from + (target - from) * k));
+      if (k >= 1) clearInterval(this._bgmFade);
+    }, 40);
   }
 
   resume() {
@@ -31,6 +106,7 @@ export class AudioEngine {
     if (this.master && this.ctx) {
       this.master.gain.setTargetAtTime(muted ? 0 : 0.9, this.ctx.currentTime, 0.025);
     }
+    if (this.bgm) this.bgm.muted = muted;
   }
 
   tone(frequency, duration = 0.08, type = "sine", volume = 0.035, endFrequency = null) {
