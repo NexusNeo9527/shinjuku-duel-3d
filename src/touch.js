@@ -26,6 +26,7 @@ class TouchPad {
     this.look = { id: null, lx: 0, ly: 0 };
     this.charId = null;
     this.slots = [];
+    this.repeatTimer = 0;
     this.el = null;
     this.bind();
   }
@@ -40,6 +41,7 @@ class TouchPad {
     this.vertical = 0;
     this.stick.id = null;
     this.look.id = null;
+    this.stopRepeat();
     if (this.stickKnob) this.stickKnob.style.transform = "";
     this.stickBase?.classList.add("hidden");
     this.sprintBtn?.classList.remove("on");
@@ -123,12 +125,44 @@ class TouchPad {
       const b = document.createElement("button");
       b.type = "button";
       b.className = "touch-ability";
+      b.dataset.slot = `ab${i}`;
       b.style.color = ab.color;
       b.innerHTML = `<svg viewBox="0 0 24 24">${ICONS[ab.id] || ICONS.blue}</svg><b>${ab.label}</b><span class="ta-cd"></span>`;
-      b.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); this.onCast(i); });
+      // basics can be held down to keep firing; gated skills stay a single tap
+      const repeatable = !ab.needsCharge && !ab.needsDomain;
+      b.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.onCast(i);
+        if (!repeatable) return;
+        b.classList.add("holding");
+        this.stopRepeat();
+        this.repeatTimer = setInterval(() => this.onCast(i), 90);
+      });
+      const release = (e) => {
+        if (!repeatable) return;
+        e?.preventDefault?.();
+        b.classList.remove("holding");
+        this.stopRepeat();
+      };
+      b.addEventListener("pointerup", release);
+      b.addEventListener("pointercancel", release);
+      b.addEventListener("pointerleave", release);
       this.abilityBar.appendChild(b);
       return { el: b, cd: b.querySelector(".ta-cd"), ability: ab };
     });
+  }
+
+  stopRepeat() {
+    if (this.repeatTimer) {
+      clearInterval(this.repeatTimer);
+      this.repeatTimer = 0;
+    }
+  }
+
+  // full stick deflection means "run"
+  get wantSprint() {
+    return this.sprint || Math.hypot(this.move.x, this.move.y) > 0.92;
   }
 
   updateSlots(player, game) {
@@ -173,6 +207,7 @@ export class TouchControls {
   get move() { return this.pad1.move; }
   get vertical() { return this.pad1.vertical; }
   get sprint() { return this.pad1.sprint; }
+  get wantSprint() { return this.pad1.wantSprint; }
   get playerChar() { return this.pad1.charId; }
 
   bindRoot() {
@@ -213,13 +248,14 @@ export class TouchControls {
     cluster.className = "touch-right p2";
     cluster.innerHTML = `
       <div class="vt-stack">
-        <button class="vt-btn" type="button" data-role="rise">▲<i>升空</i></button>
-        <button class="vt-btn" type="button" data-role="fall">▼<i>下降</i></button>
+        <button class="vt-btn" type="button" data-slot="rise">▲<i>升空</i></button>
+        <button class="vt-btn" type="button" data-slot="fall">▼<i>下降</i></button>
       </div>
       <div class="touch-abilities"></div>
       <div class="touch-slot">
-        <button class="touch-btn small" type="button" data-role="sprint">疾跑</button>
-        <button class="touch-btn small" type="button" data-role="dash">冲刺</button>
+        <button class="touch-btn small" type="button" data-slot="sprint">疾跑</button>
+        <button class="touch-btn small" type="button" data-slot="dash">冲刺</button>
+        <button class="touch-btn small switch" type="button" data-slot="switch">切换目标</button>
       </div>`;
     this.root.appendChild(stickBase);
     this.root.appendChild(cluster);
@@ -228,10 +264,10 @@ export class TouchControls {
       stickBase,
       stickKnob: stickBase.querySelector(".stick-knob"),
       abilityBar: cluster.querySelector(".touch-abilities"),
-      rise: cluster.querySelector('[data-role="rise"]'),
-      fall: cluster.querySelector('[data-role="fall"]'),
-      sprintBtn: cluster.querySelector('[data-role="sprint"]'),
-      dashBtn: cluster.querySelector('[data-role="dash"]'),
+      rise: cluster.querySelector('[data-slot="rise"]'),
+      fall: cluster.querySelector('[data-slot="fall"]'),
+      sprintBtn: cluster.querySelector('[data-slot="sprint"]'),
+      dashBtn: cluster.querySelector('[data-slot="dash"]'),
       onCast: (i) => this.onCast(1, i),
       onDash: () => this.onDash(1)
     });

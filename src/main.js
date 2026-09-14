@@ -21,16 +21,12 @@ let spaceDownAt = 0;
 const ui = new UI3D(game, {
   onMode: (mode) => {
     audio.ensure();
-    audio.resetBgm();       // 进入游戏默认播放正常版
-    refreshBgmBtn();
     if (mode === "single") { game.state = "difficulty"; return; }
     startGame(mode, "normal");
   },
   onDifficulty: (d) => startGame("single", d),
   onBack: () => { game.state = "menu"; },
   onHome: () => {
-    audio.resetBgm();
-    refreshBgmBtn();
     game.state = "menu";
     renderer.reset();
   },

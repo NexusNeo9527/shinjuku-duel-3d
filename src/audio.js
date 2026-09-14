@@ -6,6 +6,21 @@ export const BGM_TRACKS = [
 ];
 // 进入游戏时默认播放的曲目
 export const DEFAULT_BGM = "normal";
+const BGM_KEY = "sd3d.bgm";
+
+// remember the player's choice instead of snapping back to the default
+function loadBgmId() {
+  try {
+    const saved = localStorage.getItem(BGM_KEY);
+    if (saved === "") return null;                                   // explicitly off
+    if (saved && BGM_TRACKS.some((t) => t.id === saved)) return saved;
+  } catch (_) { /* storage unavailable */ }
+  return DEFAULT_BGM;
+}
+
+function saveBgmId(id) {
+  try { localStorage.setItem(BGM_KEY, id || ""); } catch (_) { /* ignore */ }
+}
 
 export class AudioEngine {
   constructor() {
@@ -13,7 +28,7 @@ export class AudioEngine {
     this.ctx = null;
     this.master = null;
     this.bgm = null;
-    this.bgmId = DEFAULT_BGM;   // 默认曲目（首次手势后才真正开始播放）
+    this.bgmId = loadBgmId();   // 上次选择（默认正常版，首次手势后开始播放）
     this.bgmVolume = 0.55;
     this._bgmFade = 0;
   }
@@ -67,6 +82,7 @@ export class AudioEngine {
 
   setBgm(id) {
     this.bgmId = id;
+    saveBgmId(id);
     const el = this.ensureBgm();
     clearInterval(this._bgmFade);
     if (!id) { el.pause(); el.volume = 0; return; }
@@ -83,7 +99,7 @@ export class AudioEngine {
     return this.bgmLabel();
   }
 
-  // 回到默认曲目（从主菜单进入游戏时调用）。已在默认曲目上则不打断播放
+  // 回到默认曲目（保留给需要"恢复默认"的入口使用）
   resetBgm() {
     if (this.bgmId === DEFAULT_BGM) {
       if (this.bgm?.paused) this.startBgm();
