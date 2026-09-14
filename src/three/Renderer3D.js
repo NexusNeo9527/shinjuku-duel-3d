@@ -21,6 +21,41 @@ function makeSolidTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+// ring + chevron used for the lock-on marker
+function makeTargetTexture() {
+  const s = 96;
+  const c = document.createElement("canvas");
+  c.width = c.height = s;
+  const g = c.getContext("2d");
+  const ring = (stroke, width, r, a) => {
+    g.globalAlpha = a;
+    g.strokeStyle = stroke;
+    g.lineWidth = width;
+    g.beginPath();
+    g.arc(s / 2, s / 2, r, 0, Math.PI * 2);
+    g.stroke();
+  };
+  const chevron = (stroke, width, a) => {
+    g.globalAlpha = a;
+    g.strokeStyle = stroke;
+    g.lineWidth = width;
+    g.lineJoin = "round";
+    g.lineCap = "round";
+    g.beginPath();
+    g.moveTo(s / 2 - 15, s / 2 + 20);
+    g.lineTo(s / 2, s / 2 + 34);
+    g.lineTo(s / 2 + 15, s / 2 + 20);
+    g.stroke();
+  };
+  ring("rgba(0,0,0,0.9)", 10, 29, 1);
+  ring("#ffffff", 5, 29, 1);
+  chevron("rgba(0,0,0,0.9)", 11, 1);
+  chevron("#ffffff", 6, 1);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function makeGroundTexture() {
   const size = 512;
   const c = document.createElement("canvas");
@@ -70,6 +105,7 @@ export class Renderer3D {
     this.camera2 = new THREE.PerspectiveCamera(55, 1, 0.1, 3000);
     this.camera2.layers.enable(1);
     this.cam2Yaw = 0;
+    this.cam2Pitch = 0.16;
 
     this.width = 800;
     this.height = 600;
@@ -113,6 +149,15 @@ export class Renderer3D {
     this._v1 = new THREE.Vector3();
     this._v2 = new THREE.Vector3();
     this._v3 = new THREE.Vector3();
+
+    // on-screen marker above the locked enemy so it stays findable even when the
+    // arena is full of additive VFX (drawn on top, unaffected by fog/bloom)
+    this.targetMarker = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeTargetTexture(), transparent: true, depthTest: false, depthWrite: false, opacity: 0.92
+    }));
+    this.targetMarker.renderOrder = 30;
+    this.targetMarker.visible = false;
+    this.scene.add(this.targetMarker);
 
     this.particlePool = new ParticlePool({
       capacity: 4000,
@@ -467,7 +512,7 @@ export class Renderer3D {
         });
       }
       const light = e.charId === "gojo" ? this.gojoLight : this.sukunaLight;
-      light.intensity = 14;
+      light.intensity = 8;
       light.position.set(e.x, e.y + 1.6, e.z);
     }
     // hide fighters whose entity is gone (e.g. a dismissed summon), otherwise the
@@ -475,6 +520,26 @@ export class Renderer3D {
     for (const key of Object.keys(this.fighters)) {
       if (!seen.has(key)) this.fighters[key].group.visible = false;
     }
+  }
+
+  // lock-on marker floating above the enemy (single player only — the split
+  // screen already isolates each player's view)
+  syncTargetMarker(game) {
+    const m = this.targetMarker;
+    if (!m) return;
+    const player = game.player();
+    const target = player && game.mode !== "dual" && game.state === "playing"
+      ? game.lockEntity(player)
+      : null;
+    if (!target) { m.visible = false; return; }
+    const dist = this.camera.position.distanceTo(this._v3.set(target.x, target.y, target.z));
+    const pulse = 1 + Math.sin(game.elapsed * 5.5) * 0.06;
+    const size = clamp(dist * 0.055, 0.9, 3.4) * pulse;
+    m.position.set(target.x, target.y + 2.8, target.z);
+    m.scale.set(size, size, 1);
+    m.material.color.set(target.color || "#ffffff");
+    m.material.opacity = 0.92;
+    m.visible = true;
   }
 
   // ---- aim arrow ----
@@ -797,21 +862,26 @@ export class Renderer3D {
     const p2 = ps[1];
     this.placeTps(this.camera, p1, this.camYaw, this.camPitch, this.camDist);
     this.camAim = this.aimFrom(this.camYaw, this.camPitch);
-    const manual = performance.now() - (this.lastManualOrbit || 0) < 2000;
+    const manual = performance.now() - (this.lastManualOrbit || 0) < 800;
     if (dt > 0) {
       const dx2 = p1.x - p2.x;
       const dz2 = p1.z - p2.z;
       const len2 = Math.hypot(dx2, dz2);
       if (len2 > 0.5) this.cam2Yaw = angLerp(this.cam2Yaw, Math.atan2(dx2 / len2, dz2 / len2), Math.min(1, dt * 6));
+      // player 2's camera tilts toward player 1's altitude as well
+      const wantPitch2 = clamp(Math.atan2((p1.y - p2.y) * 0.9, Math.max(6, len2)), -0.42, 0.55);
+      this.cam2Pitch = lerp(this.cam2Pitch ?? 0.16, wantPitch2, Math.min(1, dt * 4));
       if (!manual) {
         const dx1 = p2.x - p1.x;
         const dz1 = p2.z - p1.z;
         const len1 = Math.hypot(dx1, dz1);
         if (len1 > 0.5) this.camYaw = angLerp(this.camYaw, Math.atan2(dx1 / len1, dz1 / len1), Math.min(1, dt * 6));
+        const wantPitch1 = clamp(Math.atan2((p2.y - p1.y) * 0.9, Math.max(6, len1)), -0.42, 0.55);
+        this.camPitch = lerp(this.camPitch, wantPitch1, Math.min(1, dt * 4));
       }
     }
     this.placeTps(this.camera, p1, this.camYaw, this.camPitch, this.camDist);
-    this.placeTps(this.camera2, p2, this.cam2Yaw, 0.16, this.camDist);
+    this.placeTps(this.camera2, p2, this.cam2Yaw, this.cam2Pitch, this.camDist);
   }
 
   applyCamera(game, dt) {
@@ -824,15 +894,22 @@ export class Renderer3D {
     if (player) {
       const chestY = player.y + 1.1;
       this.camTarget.set(player.x, chestY, player.z);
-      // auto-face the locked target (manual look overrides for a moment)
-      if (this.lockCamera && dt > 0 && performance.now() - (this.lastManualOrbit || 0) > 2000) {
-        const target = game.lockEntity(player);
-        if (target) {
-          const dx = target.x - player.x;
-          const dz = target.z - player.z;
-          const len = Math.hypot(dx, dz);
-          if (len > 0.6) this.camYaw = angLerp(this.camYaw, Math.atan2(dx / len, dz / len), Math.min(1, dt * 6));
+      // stay locked on the target: yaw *and* pitch follow it, so the player
+      // rarely needs to touch the camera by hand
+      const locked = game.lockEntity(player);
+      const manualHold = performance.now() - (this.lastManualOrbit || 0) < 800;
+      if (this.lockCamera && dt > 0 && locked && !manualHold) {
+        const dx = locked.x - player.x;
+        const dz = locked.z - player.z;
+        const len = Math.hypot(dx, dz);
+        if (len > 0.6) {
+          const wantYaw = Math.atan2(dx / len, dz / len);
+          this.camYaw = angLerp(this.camYaw, wantYaw, Math.min(1, dt * 9));
         }
+        // tilt up/down toward the target's altitude
+        const dy = (locked.y + 1.0) - chestY;
+        const wantPitch = clamp(Math.atan2(dy, Math.max(6, len)), -0.42, 0.55);
+        this.camPitch = lerp(this.camPitch, wantPitch, Math.min(1, dt * 4));
       }
       const cp = Math.cos(this.camPitch);
       this.camAim = { x: Math.sin(this.camYaw) * cp, y: Math.sin(this.camPitch), z: Math.cos(this.camYaw) * cp };
@@ -874,7 +951,9 @@ export class Renderer3D {
 
   sync(game, dt) {
     this._game = game;
-    this._flash = game.flash || 0;
+    // halve the screen flash: it used to wash out the whole arena and hide the
+    // fighters, which matters more than the extra punch
+    this._flash = clamp((game.flash || 0) * 0.5, 0, 1);
     this._mode = game.mode;
     const p = game.player();
     if (p) {
@@ -889,6 +968,7 @@ export class Renderer3D {
       this._prevPlayer = { x: p.x, y: p.y, z: p.z };
     }
     this.syncFighter(game, dt);
+    this.syncTargetMarker(game);
     this.syncAimArrows(game);
     this.syncProjectiles(game);
     this.syncBeams(game);

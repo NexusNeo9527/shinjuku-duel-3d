@@ -71,7 +71,7 @@ const GradeShader = {
       color *= 1.0 - uVignette * smoothstep(0.15, 0.72, r2 * 1.9);
 
       if (uFlashStrength > 0.001) {
-        color = mix(color, uFlashColor, clamp(uFlashStrength, 0.0, 1.0) * 0.72);
+        color = mix(color, uFlashColor, clamp(uFlashStrength, 0.0, 1.0) * 0.42);
       }
       if (uGrain > 0.0005) {
         float grain = hash12(uv * vec2(1920.0, 1080.0) + fract(uTime) * 137.0) - 0.5;
@@ -96,7 +96,9 @@ export class Post {
     this.composer = new EffectComposer(renderer);
     this.composer.addPass(new RenderPass(scene, camera));
 
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.72, 0.55, 0.18);
+    // keep bloom restrained: a high threshold means only the genuinely bright
+    // cores glow, instead of the whole scene washing out the fighters
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.42, 0.52);
     this.composer.addPass(this.bloomPass);
 
     this.composer.addPass(new OutputPass());
@@ -115,8 +117,8 @@ export class Post {
     const f = clamp(flash, 0, 1);
     const s = clamp(speed, 0, 1);
     u.uFlashStrength.value = f;
-    u.uAberration.value = 0.22 + f * 1.6 + s * 0.5;
-    u.uVignette.value = 0.42 + f * 0.2 + s * 0.08;
+    u.uAberration.value = 0.2 + f * 0.8 + s * 0.4;
+    u.uVignette.value = 0.42 + f * 0.12 + s * 0.08;
     u.uSpeed.value = s;
   }
 

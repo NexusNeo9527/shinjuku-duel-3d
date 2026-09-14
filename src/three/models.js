@@ -52,11 +52,11 @@ function auraFor(style, scale) {
   const aura = new THREE.Mesh(
     new THREE.SphereGeometry(1, 24, 24),
     new THREE.MeshBasicMaterial({
-      color: style.aura, transparent: true, opacity: 0.22,
+      color: style.aura, transparent: true, opacity: 0.1,
       blending: THREE.AdditiveBlending, depthWrite: false
     })
   );
-  aura.scale.setScalar(52 * scale);
+  aura.scale.setScalar(40 * scale);
   aura.userData.isAura = true;
   return aura;
 }
