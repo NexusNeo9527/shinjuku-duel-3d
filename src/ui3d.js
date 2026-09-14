@@ -2,6 +2,14 @@ import { CHARACTERS, DIFFICULTY } from "./config3d.js";
 
 const SLOT_KEYS = ["LMB", "Q", "E", "R", "T"];
 const P2_KEYS = ["U", "O", "P", "[", "]"];
+// 练习面板开关 -> Game3D 上的字段
+const PRACTICE_FLAGS = {
+  infinite: "practiceInfinite",
+  invincible: "practiceInvincible",
+  enemyInvincible: "practiceEnemyInvincible",
+  dummy: "practiceDummy"
+};
+const practiceFlag = (game, key) => Boolean(game[PRACTICE_FLAGS[key]]);
 // 胜利者在结算页说的话（按角色 charId）
 const VICTORY_LINES = {
   gojo: "我大概明天就会忘记你吧"
@@ -113,7 +121,7 @@ export class UI3D {
     this.dom.practiceToggles.forEach((b) => b.addEventListener("click", () => {
       const key = b.dataset.ptoggle;
       const g = this.game;
-      const current = key === "infinite" ? g.practiceInfinite : key === "invincible" ? g.practiceInvincible : g.practiceDummy;
+      const current = practiceFlag(g, key);
       h.onPracticeOption(key, !current);
     }));
 
@@ -447,7 +455,7 @@ export class UI3D {
     }
     for (const b of this.dom.practiceToggles) {
       const key = b.dataset.ptoggle;
-      const on = key === "infinite" ? game.practiceInfinite : key === "invincible" ? game.practiceInvincible : game.practiceDummy;
+      const on = practiceFlag(game, key);
       b.classList.toggle("on", on);
       b.textContent = on ? "开" : "关";
     }

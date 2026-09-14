@@ -25,6 +25,7 @@ export class Game3D {
     this.practiceChar = "gojo";
     this.practiceInfinite = true;
     this.practiceInvincible = true;
+    this.practiceEnemyInvincible = true;
     this.practiceDummy = false;
     this.blackFlashCount = 0;
     this.nextRegenFxAt = 0;
@@ -155,6 +156,7 @@ export class Game3D {
   setPracticeOption(key, value) {
     if (key === "infinite") this.practiceInfinite = value;
     if (key === "invincible") this.practiceInvincible = value;
+    if (key === "enemyInvincible") this.practiceEnemyInvincible = value;
     if (key === "dummy") {
       this.practiceDummy = value;
       if (!this.practice) return;
@@ -682,6 +684,8 @@ export class Game3D {
   damage(target, amount, source, abilityId = null) {
     if (!target?.alive || target.invuln > 0) return;
     if (this.practice && this.practiceInvincible && target.isPlayer) return;
+    // 训练模式：敌方默认无敌（可在练习面板里关掉），方便反复练连招
+    if (this.practice && this.practiceEnemyInvincible && target.team !== this.player()?.team) return;
     const profile = DIFFICULTY[this.difficulty];
     const aiAttacker = source && !source.isPlayer && this.mode === "single";
     const aiTarget = this.mode === "single" && !target.isPlayer && !target.summon;
