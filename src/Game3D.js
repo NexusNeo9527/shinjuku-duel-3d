@@ -1,4 +1,4 @@
-import { CHARACTERS, DIFFICULTY, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, clamp, lerp, rand, TAU } from "./config3d.js";
+import { CHARACTERS, DIFFICULTY, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
 
 const ENTITY_RADIUS = 0.7;
 const CHEST = 1.0;
@@ -34,7 +34,6 @@ export class Game3D {
     this.hitPulseColor = "#ecc25a";
     this.timeStop = 0;
     this.cutIn = null;
-    this.endPending = false;
     this.battleTime = 0;
     this.rampStage = 0;
     this.dialogueQueue = [];
@@ -102,7 +101,6 @@ export class Game3D {
     this.rampStage = 0;
     this.timeStop = 0;
     this.cutIn = null;
-    this.endPending = false;
     this.projectiles = [];
     this.beams = [];
     this.domains = [];
@@ -127,7 +125,13 @@ export class Game3D {
     if (this.mode === "single") {
       const hp = DIFFICULTY[this.difficulty].enemyHp || 100;
       const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
-      if (ai) { ai.maxHp = hp; ai.hp = hp; }
+      const aiHpMultiplier = ai?.charId === "gojo" && this.singleChar === "sukuna"
+        ? SUKUNA_VS_GOJO_AI_HANDICAP.hp
+        : 1;
+      if (ai) {
+        ai.maxHp = Math.round(hp * aiHpMultiplier);
+        ai.hp = ai.maxHp;
+      }
     }
     // 地狱: Sukuna opens the fight with Mahoraga already on the field
     if (this.mode === "single" && DIFFICULTY[this.difficulty].mahoragaStart) {
@@ -703,6 +707,9 @@ export class Game3D {
     const aiAttacker = source && !source.isPlayer && this.mode === "single";
     const aiTarget = this.mode === "single" && !target.isPlayer && !target.summon;
     let dealt = amount * (aiAttacker ? profile.damageMultiplier : 1);
+    if (aiAttacker && source.charId === "gojo" && this.singleChar === "sukuna") {
+      dealt *= SUKUNA_VS_GOJO_AI_HANDICAP.damage;
+    }
     if (aiTarget) dealt *= profile.damageTakenMultiplier;
 
     // 黑闪：任意一方近身命中都有概率暴击（AI 也享受同样的演出）
@@ -795,23 +802,18 @@ export class Game3D {
       this.emit("sfx", { kind: "defeat" });
       return;
     }
-    const gojoDown = target.charId === "gojo";
-    if (gojoDown) this.triggerCutIn("gojo-death", 0.5, 0.7, 2.6, { life: 1.4 });
     this.announce(`${target.name} 退场`, target.color, 1.4);
     this.emit("sfx", { kind: "defeat" });
     const alive = this.entities.filter((e) => e.alive && !e.summon);
     if (this.practice) return;
     if (alive.length <= 1) {
       this.winner = alive[0] || null;
-      // when Gojo goes down, let the death art finish before the result panel slides in
-      if (gojoDown && this.cutIn) { this.endPending = true; this.endPendingAt = performance.now(); }
-      else this.finishEnd();
+      this.finishEnd();
     }
   }
 
   finishEnd() {
     if (this.state === "ended") return;
-    this.endPending = false;
     this.state = "ended";
     this.emit("sfx", { kind: "win" });
     const winnerId = this.winner?.charId || "gojo";
@@ -1263,12 +1265,6 @@ export class Game3D {
   update(dt) {
     this.updateDialogue(dt);
     if (this.state !== "playing") { this.updateEffects(dt); return; }
-    // the result panel is held back until the death cut-in has finished — with a
-    // hard ceiling so a stuck cut-in can never stall the match
-    if (this.endPending) {
-      const waited = performance.now() - (this.endPendingAt || 0);
-      if (!this.cutIn || waited > 3000) { this.finishEnd(); this.updateEffects(dt); return; }
-    }
     this.elapsed += dt;
     if (this.hitStop > 0) { this.hitStop -= dt; this.updateEffects(dt * 0.3); return; }
     for (const e of this.entities) this.updateEntity(e, dt);
@@ -1297,5 +1293,3 @@ export class Game3D {
     this.updateEffects(dt);
   }
 }
-
-
