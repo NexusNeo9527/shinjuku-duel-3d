@@ -708,6 +708,8 @@ export class Game3D {
 
   // ---- damage ----
   damage(target, amount, source, abilityId = null) {
+    // A simultaneous leftover hit must not overwrite a result already settled this frame.
+    if (this.state !== "playing") return;
     if (!target?.alive || target.invuln > 0) return;
     if (this.practice && this.practiceInvincible && target.isPlayer) return;
     // 训练模式：敌方默认无敌（可在练习面板里关掉），方便反复练连招
@@ -801,6 +803,7 @@ export class Game3D {
   }
 
   kill(target) {
+    if (this.state !== "playing") return;
     if (!target.alive) return;
     target.alive = false;
     this.burst(target.x, target.y + CHEST, target.z, target.aura, 70, 12);

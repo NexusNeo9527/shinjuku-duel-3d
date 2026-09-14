@@ -484,6 +484,14 @@ body.split-mode #crosshair { left: 25%; }
   position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%);
   background: linear-gradient(180deg, transparent, var(--line-strong) 18%, var(--line-strong) 82%, transparent);
 }
+.split-controls {
+  position: absolute; top: 58px; width: calc(50% - 18px); padding: 5px 9px;
+  border: 1px solid var(--line); border-radius: 13px; background: var(--panel);
+  color: var(--muted); font-family: var(--font-mono); font-size: 9px; line-height: 1.35;
+  text-align: center; letter-spacing: 0.03em;
+}
+.split-controls-p1 { left: 8px; }
+.split-controls-p2 { right: 8px; }
 
 /* one mirrored panel per half — identical width & tile size on both sides */
 .split-panel {
@@ -692,6 +700,7 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
   .ability-slot .slot-key { font-size: 7px; top: 2px; left: 4px; }
 
   .hint { display: none; }
+  .split-controls { top: 52px; font-size: 8px; padding: 4px 6px; }
   .announce { font-size: 18px; }
 
   /* touch controls (keep clear of notches in landscape) */

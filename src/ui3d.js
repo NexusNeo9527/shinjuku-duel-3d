@@ -301,7 +301,7 @@ export class UI3D {
     this.dom.pauseMenu.classList.toggle("hidden", s !== "paused");
     this.dom.result.classList.toggle("hidden", s !== "ended");
     this.dom.hud.classList.toggle("hidden", s !== "playing" && s !== "ended" && s !== "paused");
-    this.dom.hint.classList.toggle("hidden", s !== "playing");
+    this.dom.hint.classList.toggle("hidden", s !== "playing" || game.mode === "dual");
 
     const player = game.player();
     if (player) {

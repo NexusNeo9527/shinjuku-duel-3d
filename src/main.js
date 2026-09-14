@@ -141,7 +141,11 @@ window.addEventListener("keydown", (event) => {
     else if (game.state === "difficulty") { game.state = "menu"; }
     return;
   }
-  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "AltLeft"].includes(event.code)) {
+  if ([
+    "KeyW", "KeyA", "KeyS", "KeyD", "KeyZ", "KeyX", "KeyC", "ShiftLeft", "Space", "AltLeft",
+    "KeyI", "KeyJ", "KeyK", "KeyL", "KeyN", "KeyM", "ShiftRight",
+    "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"
+  ].includes(event.code)) {
     event.preventDefault();
   }
   if (event.repeat) return;
@@ -313,8 +317,9 @@ function applyInput() {
     const right = { x: -Math.cos(yaw), z: Math.sin(yaw) };
     let mx = 0;
     let mz = 0;
-    if (keys.has("KeyI")) { mx += fwd.x; mz += fwd.z; }
-    if (keys.has("KeyK")) { mx -= fwd.x; mz -= fwd.z; }
+    // P2 faces the mirrored camera, so its forward axis is opposite P1's.
+    if (keys.has("KeyI")) { mx -= fwd.x; mz -= fwd.z; }
+    if (keys.has("KeyK")) { mx += fwd.x; mz += fwd.z; }
     if (keys.has("KeyL")) { mx += right.x; mz += right.z; }
     if (keys.has("KeyJ")) { mx -= right.x; mz -= right.z; }
     let my = 0;
