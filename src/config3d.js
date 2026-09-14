@@ -96,7 +96,17 @@ export const GOJO_REGEN_PER_SECOND = 0.5;
 
 // 单人模式选择宿傩时，电脑五条悟保留原有招式节奏，但稍降耐久和输出。
 // 这只影响 AI，不会削弱玩家操控的五条悟或双人模式。
-export const SUKUNA_VS_GOJO_AI_HANDICAP = { hp: 0.9, damage: 0.9 };
+export const SUKUNA_VS_GOJO_AI_HANDICAP = {
+  hp: 0.9,
+  damage: 0.9,
+  // 宿傩 AI 的普攻有明显攻击间隙；五条悟按难度缩放，同步收紧奥义与领域频率。
+  aiTuning: {
+    easy: { blueCastDelayMultiplier: 1.9, blueForcedShotDelayMultiplier: 1.9, aiCooldowns: { purple: 14, void: 24 } },
+    normal: { blueCastDelayMultiplier: 1.5, blueForcedShotDelayMultiplier: 1.5, aiCooldowns: { purple: 10, void: 18 } },
+    shura: { blueCastDelayMultiplier: 1.25, blueForcedShotDelayMultiplier: 1.25, aiCooldowns: { purple: 8, void: 14 } },
+    abyss: { blueCastDelayMultiplier: 1.1, blueForcedShotDelayMultiplier: 1.1, aiCooldowns: { purple: 6, void: 10 } }
+  }
+};
 
 export const CHARACTERS = {
   gojo: {

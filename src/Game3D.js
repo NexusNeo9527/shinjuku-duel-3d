@@ -352,7 +352,13 @@ export class Game3D {
       if (ability.needsDomain && entity.domainCharge < 100) { this.emit("sfx", { kind: "empty" }); return false; }
     }
     if (this.practice) { entity.charge = 100; entity.domainCharge = 100; }
-    entity.cooldowns[index] = infinite ? 0.12 : ability.cooldown;
+    const isPacedGojoAi = !entity.isPlayer && this.mode === "single" &&
+      this.singleChar === "sukuna" && entity.charId === "gojo";
+    const gojoAiTuning = isPacedGojoAi
+      ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
+      : null;
+    const aiCooldown = gojoAiTuning?.aiCooldowns[ability.id];
+    entity.cooldowns[index] = infinite ? 0.12 : (aiCooldown ?? ability.cooldown);
     if (ability.needsCharge && !this.practice) entity.charge = 0;
     if (ability.needsDomain && !this.practice) entity.domainCharge = 0;
 
@@ -704,6 +710,11 @@ export class Game3D {
     // 训练模式：敌方默认无敌（可在练习面板里关掉），方便反复练连招
     if (this.practice && this.practiceEnemyInvincible && target.team !== this.player()?.team) return;
     const profile = DIFFICULTY[this.difficulty];
+    const sourceAbility = source && abilityId
+      ? CHARACTERS[source.charId]?.abilities.find((ability) => ability.id === abilityId)
+      : null;
+    // 领域是持续伤害；若每一跳都回充，会在持续时间内把领域值重新充满，导致 AI 连续展开。
+    const isDomainTick = sourceAbility?.type === "domain";
     const aiAttacker = source && !source.isPlayer && this.mode === "single";
     const aiTarget = this.mode === "single" && !target.isPlayer && !target.summon;
     let dealt = amount * (aiAttacker ? profile.damageMultiplier : 1);
@@ -768,7 +779,7 @@ export class Game3D {
       this.hitPulse = Math.min(1, this.hitPulse + gain);
       this.hitPulseColor = target.isPlayer ? "#e0233f" : "#ecc25a";
     }
-    if (source) {
+    if (source && !isDomainTick) {
       const beforeC = source.charge;
       const beforeD = source.domainCharge;
       source.charge = clamp(source.charge + 20, 0, 100);
@@ -1195,12 +1206,23 @@ export class Game3D {
     ai.aiCastCd -= dt;
     if (ai.aiCastCd <= 0) {
       const waited = this.elapsed - ai.aiWaitStarted;
-      if (alignment > rand(profile.aimMin, profile.aimMax) || waited > profile.forcedShotMs / 1000) {
+      const isPacedGojoAi = ai.charId === "gojo" && this.singleChar === "sukuna";
+      const gojoAiTuning = isPacedGojoAi
+        ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
+        : null;
+      const forcedShotDelay = (profile.forcedShotMs / 1000) * (
+        gojoAiTuning?.blueForcedShotDelayMultiplier ?? 1
+      );
+      if (alignment > rand(profile.aimMin, profile.aimMax) || waited > forcedShotDelay) {
         const idx = this.pickAiAbility(ai, dist);
         if (idx >= 0) {
           if (this.tryCast(ai, idx)) {
             ai.aiWaitStarted = this.elapsed;
-            ai.aiCastCd = rand(profile.reactionMin, profile.reactionMax);
+            const isBlue = CHARACTERS[ai.charId].abilities[idx]?.id === "blue";
+            const castDelayMultiplier = isPacedGojoAi && isBlue
+              ? gojoAiTuning.blueCastDelayMultiplier
+              : 1;
+            ai.aiCastCd = rand(profile.reactionMin, profile.reactionMax) * castDelayMultiplier;
           } else {
             // keep the wait timer running so the forced shot still lands
             ai.aiCastCd = 0.15;
