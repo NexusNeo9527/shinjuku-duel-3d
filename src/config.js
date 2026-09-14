@@ -17,28 +17,28 @@ export const COLORS = {
 
 export const DIFFICULTY_PROFILES = {
   easy: {
-    label: "轻松", badge: "难度 · 轻松",
+    label: "简单", badge: "难度 · 简单",
     aimMin: 0.5, aimMax: 0.76, forcedShotMs: 2200, reactionMin: 700, reactionMax: 1100,
     startDelay: 850, damageMultiplier: 0.86, damageTakenMultiplier: 1, knockbackTakenMultiplier: 1,
     projectileSpeed: 1, leadTime: 0.05, domainGain: 0.92, domainTick: 0.68,
     mahoraga: false, mahoragaStart: false, gojoRegen: false
   },
   normal: {
-    label: "标准", badge: "难度 · 标准",
+    label: "普通", badge: "难度 · 普通",
     aimMin: 0.25, aimMax: 0.55, forcedShotMs: 1450, reactionMin: 430, reactionMax: 760,
     startDelay: 450, damageMultiplier: 1.1, damageTakenMultiplier: 0.9, knockbackTakenMultiplier: 0.88,
     projectileSpeed: 1.06, leadTime: 0.22, domainGain: 1.15, domainTick: 0.54,
     mahoraga: false, mahoragaStart: false, gojoRegen: false
   },
   shura: {
-    label: "修罗", badge: "难度 · 修罗",
+    label: "困难", badge: "难度 · 困难",
     aimMin: 0.03, aimMax: 0.24, forcedShotMs: 700, reactionMin: 230, reactionMax: 420,
     startDelay: 250, damageMultiplier: 1.4, damageTakenMultiplier: 0.9, knockbackTakenMultiplier: 0.7,
     projectileSpeed: 1.16, leadTime: 0.48, domainGain: 1.15, domainTick: 0.5,
     mahoraga: true, mahoragaStart: false, gojoRegen: true
   },
   abyss: {
-    label: "无间", badge: "难度 · 无间",
+    label: "地狱", badge: "难度 · 地狱",
     aimMin: 0.03, aimMax: 0.24, forcedShotMs: 700, reactionMin: 230, reactionMax: 420,
     startDelay: 250, damageMultiplier: 1.4, damageTakenMultiplier: 0.72, knockbackTakenMultiplier: 0.7,
     projectileSpeed: 1.16, leadTime: 0.48, domainGain: 1.45, domainTick: 0.36,

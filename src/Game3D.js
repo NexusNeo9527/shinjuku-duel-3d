@@ -122,7 +122,7 @@ export class Game3D {
       const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
       if (ai) { ai.maxHp = hp; ai.hp = hp; }
     }
-    // 无间: Sukuna opens the fight with Mahoraga already on the field
+    // 地狱: Sukuna opens the fight with Mahoraga already on the field
     if (this.mode === "single" && DIFFICULTY[this.difficulty].mahoragaStart) {
       const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
       const summonAbility = CHARACTERS[ai?.charId]?.abilities?.find((a) => a.type === "summon");

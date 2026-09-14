@@ -17,7 +17,7 @@ export const COLORS = {
 
 export const DIFFICULTY = {
   easy: {
-    label: "轻松",
+    label: "简单",
     enemyHp: 85,
     mahoraga: { hp: 55, speed: 5.8, life: 20, dmg: 0.75 },
     aimError: 0.32,
@@ -35,7 +35,7 @@ export const DIFFICULTY = {
     gojoRegen: false
   },
   normal: {
-    label: "标准",
+    label: "普通",
     enemyHp: 100,
     mahoraga: { hp: 72, speed: 6.6, life: 26, dmg: 1 },
     aimError: 0.16,
@@ -53,7 +53,7 @@ export const DIFFICULTY = {
     gojoRegen: false
   },
   shura: {
-    label: "修罗",
+    label: "困难",
     enemyHp: 125,
     mahoraga: { hp: 100, speed: 7.4, life: 34, dmg: 1.3 },
     aimError: 0.07,
@@ -71,7 +71,7 @@ export const DIFFICULTY = {
     gojoRegen: true
   },
   abyss: {
-    label: "无间",
+    label: "地狱",
     enemyHp: 150,
     mahoraga: { hp: 140, speed: 8.4, life: 42, dmg: 1.6 },
     mahoragaStart: true,
