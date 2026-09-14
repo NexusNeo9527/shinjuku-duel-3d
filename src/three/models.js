@@ -269,10 +269,11 @@ export function buildPlaceholder(id) {
 }
 
 export async function loadGltf(id) {
+  const base = import.meta.env.BASE_URL;
   const paths = {
-    gojo: "/models/gojo.glb",
-    sukuna: "/models/sukuna.glb",
-    mahoraga: "/models/mahoraga.glb"
+    gojo: `${base}models/gojo.glb`,
+    sukuna: `${base}models/sukuna.glb`,
+    mahoraga: `${base}models/mahoraga.glb`
   };
   try {
     const gltf = await loader.loadAsync(paths[id]);

@@ -209,7 +209,7 @@ export class UI3D {
     }
     if (this._cutArt !== c.art) {
       this._cutArt = c.art;
-      this.dom.cutInImg.src = c.art.includes(".") ? `/assets/${c.art}` : `/assets/${c.art}.png`;
+      this.dom.cutInImg.src = `${import.meta.env.BASE_URL}assets/${c.art.includes(".") ? c.art : `${c.art}.png`}`;
       this.dom.cutIn.classList.toggle("contain", c.fit === "contain");
       this.dom.cutIn.style.setProperty("--cut-tint", c.tint || "rgba(176, 92, 255, 0.32)");
       this.dom.cutIn.style.setProperty("--cut-shadow", c.shadow || "rgba(120, 60, 220, 0.5)");

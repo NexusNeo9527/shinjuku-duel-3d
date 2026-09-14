@@ -1,6 +1,8 @@
+const ASSET = import.meta.env.BASE_URL;
+
 export const BGM_TRACKS = [
-  { id: "normal", label: "正常", src: "/assets/bgm-rain-normal.mp3" },
-  { id: "sifeng", label: "司凤", src: "/assets/bgm-rain-sifeng.mp3" }
+  { id: "normal", label: "正常", src: `${ASSET}assets/bgm-rain-normal.mp3` },
+  { id: "sifeng", label: "司凤", src: `${ASSET}assets/bgm-rain-sifeng.mp3` }
 ];
 // 进入游戏时默认播放的曲目
 export const DEFAULT_BGM = "normal";
