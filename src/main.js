@@ -104,6 +104,10 @@ function startGame(mode, difficulty) {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   game.start(mode, difficulty);
   renderer.reset();
+  // Dual rendering temporarily gives the main camera a half-screen aspect ratio.
+  // Restore the actual canvas size synchronously before the first frame of any
+  // new mode; ResizeObserver alone can otherwise leave practice looking flat.
+  fitCanvas();
   renderer.dualZoom = 0;
   renderer.lastManualOrbit = 0;
   applyTheme(game.player()?.charId);
