@@ -2,6 +2,10 @@ import { CHARACTERS, DIFFICULTY } from "./config3d.js";
 
 const SLOT_KEYS = ["LMB", "Q", "E", "R", "T"];
 const P2_KEYS = ["U", "O", "P", "[", "]"];
+// parting line shown on the result screen when this character is defeated
+const LAST_WORDS = {
+  sukuna: "我大概明天就会忘记你吧"
+};
 const RING_CIRC = 276.5;
 
 export const ICONS = {
@@ -40,6 +44,9 @@ export class UI3D {
       resultKicker: document.querySelector("#resultKicker"),
       resultTitle: document.querySelector("#resultTitle"),
       resultReason: document.querySelector("#resultReason"),
+      resultQuote: document.querySelector("#resultQuote"),
+      resultQuoteText: document.querySelector("#resultQuoteText"),
+      resultQuoteBy: document.querySelector("#resultQuoteBy"),
       homeBtn: document.querySelector("#homeBtn"),
       soundBtn: document.querySelector("#soundBtn"),
       againBtn: document.querySelector("#againBtn"),
@@ -455,5 +462,13 @@ export class UI3D {
     this.dom.resultTitle.style.color = w ? w.color : "#e8eefc";
     const loser = game.entities.find((e) => !e.alive && !e.summon);
     this.dom.resultReason.textContent = loser ? `${loser.name} 退场` : "战斗结束";
+    // parting line from whoever went down
+    const words = loser ? LAST_WORDS[loser.charId] : null;
+    this.dom.resultQuote.classList.toggle("hidden", !words);
+    if (words) {
+      this.applyCharColor(this.dom.resultQuote, loser.charId);
+      this.dom.resultQuoteText.textContent = words;
+      this.dom.resultQuoteBy.textContent = `—— ${loser.name}`;
+    }
   }
 }
