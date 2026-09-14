@@ -176,9 +176,31 @@ window.addEventListener("wheel", (event) => {
 
 document.addEventListener("pointerdown", () => audio.ensure(), { capture: true, passive: true });
 
-window.addEventListener("resize", () => {
+// keep the canvas matched to the *visible* viewport: mobile browsers resize the
+// visible area as the URL bar / toolbars collapse, and an orientation change is
+// not always followed by a reliable resize event
+function fitCanvas() {
   const rect = arena.getBoundingClientRect();
-  renderer.resize(rect.width, rect.height);
+  if (rect.width > 0 && rect.height > 0) renderer.resize(rect.width, rect.height);
+}
+window.addEventListener("resize", fitCanvas);
+window.addEventListener("orientationchange", () => { fitCanvas(); setTimeout(fitCanvas, 120); setTimeout(fitCanvas, 450); });
+if (window.visualViewport) window.visualViewport.addEventListener("resize", fitCanvas);
+if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe(arena);
+window.addEventListener("focus", fitCanvas);
+document.addEventListener("fullscreenchange", () => { setTimeout(fitCanvas, 120); });
+setTimeout(fitCanvas, 250);
+
+const fullBtn = document.querySelector("#fullBtn");
+fullBtn?.addEventListener("click", async () => {
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+    } else {
+      await document.exitFullscreen();
+    }
+  } catch (_) { /* fullscreen unsupported */ }
+  setTimeout(fitCanvas, 150);
 });
 
 // ---- per-frame input application ----
