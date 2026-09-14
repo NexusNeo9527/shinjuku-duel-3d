@@ -29,6 +29,7 @@ export class Game3D {
     this.practiceDummy = false;
     this.blackFlashCount = 0;
     this.nextRegenFxAt = 0;
+    this.singleChar = "gojo";
     this.hitPulse = 0;
     this.hitPulseColor = "#ecc25a";
     this.timeStop = 0;
@@ -116,8 +117,11 @@ export class Game3D {
       this.entities.push(this.makeEntity(this.practiceChar || "gojo", 0, 6, true));
       if (this.practiceDummy) this.spawnDummy();
     } else {
-      this.entities.push(this.makeEntity("gojo", 0, 15, true));
-      this.entities.push(this.makeEntity("sukuna", 0, -15, mode === "dual"));
+      // single player may pick either side; the other one is the AI
+      const playerChar = mode === "single" && this.singleChar === "sukuna" ? "sukuna" : "gojo";
+      const aiChar = playerChar === "gojo" ? "sukuna" : "gojo";
+      this.entities.push(this.makeEntity(playerChar, 0, 15, true));
+      this.entities.push(this.makeEntity(aiChar, 0, -15, mode === "dual"));
     }
     // difficulty decides the enemy's toughness
     if (this.mode === "single") {
@@ -141,11 +145,20 @@ export class Game3D {
       });
     }
     this.clearDialogue();
-    if (this.mode !== "practice") this.queueDialogue("gojo", "我的学生都在看着呢，再让我耍会儿帅吧。", 3.3, 2);
+    if (this.mode !== "practice") {
+      const pc = this.entities.find((e) => e.isPlayer)?.charId || "gojo";
+      this.queueDialogue(pc, pc === "gojo"
+        ? "我的学生都在看着呢，再让我耍会儿帅吧。"
+        : "让我看看，你凭什么站在我面前。", 3.3, 2);
+    }
     this.emit("sfx", { kind: "countdown" });
     if (this.mode === "single" && DIFFICULTY[this.difficulty].gojoRegen) {
       this.announce("反转术式 · 持续恢复", "#b9f5ff", 1.5);
     }
+  }
+
+  setSingleChar(charId) {
+    this.singleChar = charId === "sukuna" ? "sukuna" : "gojo";
   }
 
   setPracticeChar(charId) {
@@ -1268,8 +1281,9 @@ export class Game3D {
     this.entities = this.entities.filter((e) => !(e.summon && !e.alive));
     this.resolveEntityCollisions();
     if (this.mode === "single" && DIFFICULTY[this.difficulty].gojoRegen) {
-      const gojo = this.entities.find((e) => e.isPlayer && e.charId === "gojo");
-      if (gojo?.alive && gojo.hp < gojo.maxHp) {
+      // the reverse cursed technique belongs to whoever is playing Gojo
+      const gojo = this.entities.find((e) => e.alive && !e.summon && e.charId === "gojo");
+      if (gojo && gojo.hp < gojo.maxHp) {
         gojo.hp = clamp(gojo.hp + GOJO_REGEN_PER_SECOND * dt, 0, gojo.maxHp);
       }
     }

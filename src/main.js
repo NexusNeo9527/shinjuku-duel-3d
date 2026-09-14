@@ -25,6 +25,7 @@ const ui = new UI3D(game, {
     startGame(mode, "normal");
   },
   onDifficulty: (d) => startGame("single", d),
+  onSingleChar: (id) => game.setSingleChar(id),
   onBack: () => { game.state = "menu"; },
   onHome: () => {
     game.state = "menu";

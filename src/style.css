@@ -800,72 +800,21 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
    versus panels shrink to a header + health strip just under the top HUD */
 @media (max-height: 560px) {
   body.dual-hud.touch-mode .split-panel { top: 72px; bottom: auto; }
-  /* both strips sit on the left so the right thumb cluster stays clear */
   body.dual-hud.touch-mode .split-panel.left { left: 8px; right: auto; }
-  body.dual-hud.touch-mode .split-panel.right { left: 198px; right: auto; }
+  body.dual-hud.touch-mode .split-panel.right { right: 8px; left: auto; }
   body.dual-hud.touch-mode .split-panel .sp-slots { display: none; }
 }
 
-/* ---------- touch button grid (ergonomics) ----------
-   A 3x3 thumb grid replaces the old tall column: the abilities sit along the
-   bottom row in order (closest to the thumb), ascend/descend hug the right edge,
-   and the rarely used utilities go top-left. Sprint is auto (full stick). */
-body.touch-mode .touch-right {
-  --tc: 56px;
-  display: grid;
-  grid-template-columns: repeat(3, var(--tc));
-  grid-auto-rows: var(--tc);
-  gap: 8px;
-  align-items: stretch;
-  right: max(12px, env(safe-area-inset-right));
-  bottom: max(12px, env(safe-area-inset-bottom));
+/* single player: choose which side you control */
+.single-char {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 2px 0 12px; font-size: 12px; color: var(--muted); letter-spacing: 0.08em;
 }
-body.touch-mode .touch-right .vt-stack,
-body.touch-mode .touch-right .touch-abilities,
-body.touch-mode .touch-right .touch-slot { display: contents; }
-body.touch-mode .touch-right .vt-btn,
-body.touch-mode .touch-right .touch-ability,
-body.touch-mode .touch-right .touch-btn {
-  width: 100%; height: 100%; min-width: 0; border-radius: 14px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+.single-char-btns { display: flex; gap: 6px; }
+.sc-btn {
+  border-radius: 8px; border: 1px solid var(--line-strong); background: var(--chip);
+  color: var(--text); font-size: 12px; padding: 5px 14px; cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
-body.touch-mode .touch-right .touch-ability svg { width: 24px; height: 24px; }
-body.touch-mode .touch-right .touch-ability b { font-size: 10px; }
-body.touch-mode .vt-btn i { font-size: 9px; }
-body.touch-mode .touch-btn.small { font-size: 11px; }
-
-/* hide in touch mode: sprint is automatic, the lock chip is redundant with the
-   target marker and the duel HUD */
-body.touch-mode #btnSprint,
-body.touch-mode #btnLock { display: none !important; }
-
-body.touch-mode [data-slot="ab0"] { grid-area: 3 / 1; }
-body.touch-mode [data-slot="ab1"] { grid-area: 3 / 2; }
-body.touch-mode [data-slot="ab2"] { grid-area: 3 / 3; }
-body.touch-mode [data-slot="ab3"] { grid-area: 2 / 1; }
-body.touch-mode [data-slot="ab4"] { grid-area: 2 / 2; }
-body.touch-mode [data-slot="rise"] { grid-area: 1 / 3; }
-body.touch-mode [data-slot="fall"] { grid-area: 2 / 3; }
-body.touch-mode [data-slot="dash"] { grid-area: 1 / 1; }
-body.touch-mode [data-slot="switch"] { grid-area: 1 / 2; }
-
-/* roomier cells on a tablet */
-@media (pointer: coarse) and (min-width: 721px) and (min-height: 601px) {
-  body.touch-mode .touch-right { --tc: 66px; }
-  body.touch-mode .touch-right .touch-ability svg { width: 28px; height: 28px; }
-  body.touch-mode .touch-right .touch-ability b { font-size: 11px; }
-}
-
-/* dual on touch: pin each cluster to its own corner (must out-rank the grid's
-   single `right` declaration, otherwise the box stretches across the screen) */
-body.dual-touch .touch-right { right: auto; left: max(10px, env(safe-area-inset-left)); }
-body.dual-touch .touch-right.p2 { left: auto; right: max(10px, env(safe-area-inset-right)); }
-
-/* small screens: shrink the grid so two clusters (plus the versus panels) fit */
-@media (max-width: 400px), (max-height: 560px) {
-  body.touch-mode .touch-right { --tc: 48px; gap: 6px; }
-  body.touch-mode .touch-right .touch-ability svg { width: 21px; height: 21px; }
-  body.touch-mode .touch-right .touch-ability b { font-size: 9px; }
-  body.touch-mode .touch-right .vt-btn i { font-size: 8px; }
-  body.touch-mode .touch-right .touch-btn { font-size: 10px; }
-}
+.sc-btn:hover { border-color: var(--accent); }
+.sc-btn.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 12px -4px var(--accent); }

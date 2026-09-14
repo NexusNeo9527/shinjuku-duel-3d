@@ -94,6 +94,7 @@ export class UI3D {
       practicePanel: document.querySelector("#practicePanel"),
       splitUI: document.querySelector("#splitUI"),
       practiceChars: [...document.querySelectorAll("[data-pchar]")],
+      singleCharBtns: [...document.querySelectorAll("[data-single-char]")],
       practiceToggles: [...document.querySelectorAll("[data-ptoggle]")],
       themeChips: [...document.querySelectorAll("[data-theme]")],
       ppCombo: document.querySelector("#ppCombo")
@@ -117,6 +118,10 @@ export class UI3D {
     this.dom.pauseHomeBtn.addEventListener("click", () => h.onHome());
     this.dom.soundBtn.addEventListener("click", () => h.onSound(this.dom.soundBtn));
     this.dom.practiceChars.forEach((b) => b.addEventListener("click", () => h.onPracticeChar(b.dataset.pchar)));
+    this.dom.singleCharBtns.forEach((b) => b.addEventListener("click", () => {
+      h.onSingleChar(b.dataset.singleChar);
+      this.dom.singleCharBtns.forEach((x) => x.classList.toggle("active", x === b));
+    }));
     this.dom.themeChips.forEach((b) => b.addEventListener("click", () => h.onTheme(b.dataset.theme)));
     this.dom.practiceToggles.forEach((b) => b.addEventListener("click", () => {
       const key = b.dataset.ptoggle;
