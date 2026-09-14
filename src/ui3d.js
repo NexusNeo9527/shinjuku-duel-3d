@@ -2,9 +2,9 @@ import { CHARACTERS, DIFFICULTY } from "./config3d.js";
 
 const SLOT_KEYS = ["LMB", "Q", "E", "R", "T"];
 const P2_KEYS = ["U", "O", "P", "[", "]"];
-// parting line shown on the result screen when this character is defeated
-const LAST_WORDS = {
-  sukuna: "我大概明天就会忘记你吧"
+// 胜利者在结算页说的话（按角色 charId）
+const VICTORY_LINES = {
+  gojo: "我大概明天就会忘记你吧"
 };
 const RING_CIRC = 276.5;
 
@@ -462,13 +462,13 @@ export class UI3D {
     this.dom.resultTitle.style.color = w ? w.color : "#e8eefc";
     const loser = game.entities.find((e) => !e.alive && !e.summon);
     this.dom.resultReason.textContent = loser ? `${loser.name} 退场` : "战斗结束";
-    // parting line from whoever went down
-    const words = loser ? LAST_WORDS[loser.charId] : null;
-    this.dom.resultQuote.classList.toggle("hidden", !words);
-    if (words) {
-      this.applyCharColor(this.dom.resultQuote, loser.charId);
-      this.dom.resultQuoteText.textContent = words;
-      this.dom.resultQuoteBy.textContent = `—— ${loser.name}`;
+    // 胜利者的台词（五条悟击败宿傩后对宿傩说的话）
+    const line = w ? VICTORY_LINES[w.charId] : null;
+    this.dom.resultQuote.classList.toggle("hidden", !line);
+    if (line) {
+      this.applyCharColor(this.dom.resultQuote, w.charId);
+      this.dom.resultQuoteText.textContent = line;
+      this.dom.resultQuoteBy.textContent = `—— ${w.name}`;
     }
   }
 }
