@@ -16,7 +16,7 @@ let touchUsed = false;
 window.addEventListener("pointerdown", (e) => { if (e.pointerType === "touch") touchUsed = true; }, { capture: true, passive: true });
 
 const keys = new Set();
-let spaceDownAt = 0;
+
 
 const ui = new UI3D(game, {
   onMode: (mode) => {
@@ -141,7 +141,7 @@ window.addEventListener("keydown", (event) => {
     else if (game.state === "difficulty") { game.state = "menu"; }
     return;
   }
-  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) {
+  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "AltLeft"].includes(event.code)) {
     event.preventDefault();
   }
   if (event.repeat) return;
@@ -155,7 +155,7 @@ window.addEventListener("keydown", (event) => {
     if (event.code === "KeyE" || event.code === "Digit3") game.tryCast(p1, 2);
     if (event.code === "KeyR" || event.code === "Digit4") game.tryCast(p1, 3);
     if (event.code === "KeyT" || event.code === "Digit5") game.tryCast(p1, 4);
-    if (event.code === "Space") spaceDownAt = performance.now();
+    if (event.code === "AltLeft") game.cycleLock(p1);
     if (event.code === "KeyF") {
       game.tryDash(p1, p1.moveInput.x, p1.moveInput.y, p1.moveInput.z);
     }
@@ -171,12 +171,6 @@ window.addEventListener("keydown", (event) => {
 });
 window.addEventListener("keyup", (event) => {
   keys.delete(event.code);
-  // tap Space = switch target (hold Space = fly up, handled in applyInput)
-  if (event.code === "Space") {
-    const p1 = game.player();
-    if (spaceDownAt && performance.now() - spaceDownAt < 260 && p1 && game.state === "playing") game.cycleLock(p1);
-    spaceDownAt = 0;
-  }
 });
 
 canvas.addEventListener("contextmenu", (event) => event.preventDefault());
@@ -285,8 +279,8 @@ function applyInput() {
     // vertical: descend wins over ascend so the two can never cancel out
     let up = 0;
     if (keys.has("KeyZ")) up = 1;
-    // hold Space to fly up (a quick tap switches target instead)
-    if (keys.has("Space") && spaceDownAt && performance.now() - spaceDownAt > 260) up = 1;
+    // hold Space to fly up (target switching is on Left Alt)
+    if (keys.has("Space")) up = 1;
     const down = keys.has("KeyX") || keys.has("KeyC");
     my = down ? -1 : up;
     let sprint = keys.has("ShiftLeft");
