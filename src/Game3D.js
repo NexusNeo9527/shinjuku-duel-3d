@@ -125,8 +125,11 @@ export class Game3D {
     if (this.mode === "single") {
       const hp = DIFFICULTY[this.difficulty].enemyHp || 100;
       const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
+      const gojoAiTuning = ai?.charId === "gojo" && this.singleChar === "sukuna"
+        ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
+        : null;
       const aiHpMultiplier = ai?.charId === "gojo" && this.singleChar === "sukuna"
-        ? SUKUNA_VS_GOJO_AI_HANDICAP.hp
+        ? (gojoAiTuning?.hpMultiplier ?? SUKUNA_VS_GOJO_AI_HANDICAP.hp)
         : 1;
       if (ai) {
         ai.maxHp = Math.round(hp * aiHpMultiplier);
@@ -719,7 +722,8 @@ export class Game3D {
     const aiTarget = this.mode === "single" && !target.isPlayer && !target.summon;
     let dealt = amount * (aiAttacker ? profile.damageMultiplier : 1);
     if (aiAttacker && source.charId === "gojo" && this.singleChar === "sukuna") {
-      dealt *= SUKUNA_VS_GOJO_AI_HANDICAP.damage;
+      const gojoAiTuning = SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty];
+      dealt *= gojoAiTuning?.damageMultiplier ?? SUKUNA_VS_GOJO_AI_HANDICAP.damage;
     }
     if (aiTarget) dealt *= profile.damageTakenMultiplier;
 

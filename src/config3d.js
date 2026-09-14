@@ -104,7 +104,13 @@ export const SUKUNA_VS_GOJO_AI_HANDICAP = {
     easy: { blueCastDelayMultiplier: 1.9, blueForcedShotDelayMultiplier: 1.9, aiCooldowns: { purple: 14, void: 24 } },
     normal: { blueCastDelayMultiplier: 1.5, blueForcedShotDelayMultiplier: 1.5, aiCooldowns: { purple: 10, void: 18 } },
     shura: { blueCastDelayMultiplier: 1.25, blueForcedShotDelayMultiplier: 1.25, aiCooldowns: { purple: 8, void: 14 } },
-    abyss: { blueCastDelayMultiplier: 1.1, blueForcedShotDelayMultiplier: 1.1, aiCooldowns: { purple: 6, void: 10 } }
+    abyss: {
+      blueCastDelayMultiplier: 1.1,
+      blueForcedShotDelayMultiplier: 1.1,
+      aiCooldowns: { purple: 6, void: 10 },
+      hpMultiplier: 1.1,
+      damageMultiplier: 1.1
+    }
   }
 };
 
