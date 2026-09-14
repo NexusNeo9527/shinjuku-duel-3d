@@ -2,6 +2,8 @@ export const BGM_TRACKS = [
   { id: "normal", label: "正常", src: "/assets/bgm-rain-normal.mp3" },
   { id: "sifeng", label: "司凤", src: "/assets/bgm-rain-sifeng.mp3" }
 ];
+// 进入游戏时默认播放的曲目
+export const DEFAULT_BGM = "normal";
 
 export class AudioEngine {
   constructor() {
@@ -9,7 +11,7 @@ export class AudioEngine {
     this.ctx = null;
     this.master = null;
     this.bgm = null;
-    this.bgmId = "normal";   // 默认曲目（首次手势后才真正开始播放）
+    this.bgmId = DEFAULT_BGM;   // 默认曲目（首次手势后才真正开始播放）
     this.bgmVolume = 0.55;
     this._bgmFade = 0;
   }
@@ -77,6 +79,15 @@ export class AudioEngine {
     this.setBgm(next);
     this.ensure();
     return this.bgmLabel();
+  }
+
+  // 回到默认曲目（从主菜单进入游戏时调用）。已在默认曲目上则不打断播放
+  resetBgm() {
+    if (this.bgmId === DEFAULT_BGM) {
+      if (this.bgm?.paused) this.startBgm();
+      return;
+    }
+    this.setBgm(DEFAULT_BGM);
   }
 
   bgmLabel() {
