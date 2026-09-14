@@ -4,40 +4,30 @@ import { ICONS } from "./ui3d.js";
 const STICK_RADIUS = 56;
 const LOOK_SENS = 0.005;
 
-// Mobile dual-thumb controls:
-//   left thumb  -> floating move stick (camera-relative)
-//   right thumb -> drag to orbit the camera (aim = camera forward)
-//   side buttons -> ascend / descend / sprint / dash / abilities
-export class TouchControls {
-  constructor({ game, renderer, onCast, onDash }) {
-    this.game = game;
-    this.renderer = renderer;
+// One player's on-screen controls: a floating move stick plus a button cluster.
+// Single player uses one pad (left stick + right camera/buttons); local versus on
+// a touch device builds a second, mirrored pad so both players can play.
+class TouchPad {
+  constructor({ root, stickBase, stickKnob, abilityBar, rise, fall, sprintBtn, dashBtn, onCast, onDash }) {
+    this.root = root;
+    this.stickBase = stickBase;
+    this.stickKnob = stickKnob;
+    this.abilityBar = abilityBar;
+    this.rise = rise;
+    this.fall = fall;
+    this.sprintBtn = sprintBtn;
+    this.dashBtn = dashBtn;
     this.onCast = onCast;
     this.onDash = onDash;
-    this.enabled = false;
     this.move = { x: 0, y: 0 };
     this.vertical = 0;
     this.sprint = false;
     this.stick = { id: null, ox: 0, oy: 0 };
     this.look = { id: null, lx: 0, ly: 0 };
-    this.playerChar = null;
+    this.charId = null;
     this.slots = [];
-    this.root = document.querySelector("#touchUI");
-    this.stickBase = document.querySelector("#stickBase");
-    this.stickKnob = document.querySelector("#stickKnob");
-    this.abilityBar = document.querySelector("#touchAbilities");
-    this.rise = document.querySelector("#btnRise");
-    this.fall = document.querySelector("#btnFall");
-    this.sprintBtn = document.querySelector("#btnSprint");
-    this.dashBtn = document.querySelector("#btnDash");
+    this.el = null;
     this.bind();
-  }
-
-  setEnabled(on) {
-    this.enabled = on;
-    document.body.classList.toggle("touch-mode", on);
-    if (this.root) this.root.classList.toggle("hidden", !on);
-    if (!on) this.reset();
   }
 
   get stickActive() {
@@ -50,8 +40,11 @@ export class TouchControls {
     this.vertical = 0;
     this.stick.id = null;
     this.look.id = null;
-    if (this.stickBase) this.stickBase.classList.add("hidden");
-    this.sprintBtn?.classList.toggle("on", false);
+    if (this.stickKnob) this.stickKnob.style.transform = "";
+    this.stickBase?.classList.add("hidden");
+    this.sprintBtn?.classList.remove("on");
+    this.rise?.classList.remove("on");
+    this.fall?.classList.remove("on");
   }
 
   bind() {
@@ -72,36 +65,25 @@ export class TouchControls {
       this.sprintBtn.classList.toggle("on", this.sprint);
     }));
     this.dashBtn?.addEventListener("pointerdown", stop(() => this.onDash()));
-
-    if (!this.root) return;
-    this.root.addEventListener("pointerdown", (e) => this.onDown(e));
-    this.root.addEventListener("pointermove", (e) => this.onMove(e));
-    const up = (e) => this.onUp(e);
-    this.root.addEventListener("pointerup", up);
-    this.root.addEventListener("pointercancel", up);
-    this.root.addEventListener("pointerleave", up);
   }
 
-  onDown(e) {
-    if (!this.enabled) return;
-    const half = window.innerWidth * 0.5;
-    if (e.clientX < half && this.stick.id === null) {
-      this.stick.id = e.pointerId;
-      this.stick.ox = e.clientX;
-      this.stick.oy = e.clientY;
-      this.stickBase.style.left = `${e.clientX}px`;
-      this.stickBase.style.top = `${e.clientY}px`;
-      this.stickBase.classList.remove("hidden");
-      this.stickKnob.style.transform = "";
-      try { this.root.setPointerCapture(e.pointerId); } catch (_) { /* synthetic pointer */ }
-    } else if (e.clientX >= half && this.look.id === null) {
-      this.look.id = e.pointerId;
-      this.look.lx = e.clientX;
-      this.look.ly = e.clientY;
-    }
+  beginStick(e) {
+    this.stick.id = e.pointerId;
+    this.stick.ox = e.clientX;
+    this.stick.oy = e.clientY;
+    this.stickBase.style.left = `${e.clientX}px`;
+    this.stickBase.style.top = `${e.clientY}px`;
+    this.stickBase.classList.remove("hidden");
+    this.stickKnob.style.transform = "";
   }
 
-  onMove(e) {
+  beginLook(e) {
+    this.look.id = e.pointerId;
+    this.look.lx = e.clientX;
+    this.look.ly = e.clientY;
+  }
+
+  onPointerMove(e, renderer) {
     if (e.pointerId === this.stick.id) {
       let dx = e.clientX - this.stick.ox;
       let dy = e.clientY - this.stick.oy;
@@ -115,12 +97,12 @@ export class TouchControls {
       const dy = e.clientY - this.look.ly;
       this.look.lx = e.clientX;
       this.look.ly = e.clientY;
-      this.renderer.lastManualOrbit = performance.now();
-      this.renderer.setOrbit(this.renderer.camYaw - dx * LOOK_SENS, this.renderer.camPitch + dy * LOOK_SENS, this.renderer.camDist);
+      renderer.lastManualOrbit = performance.now();
+      renderer.setOrbit(renderer.camYaw - dx * LOOK_SENS, renderer.camPitch + dy * LOOK_SENS, renderer.camDist);
     }
   }
 
-  onUp(e) {
+  onPointerUp(e) {
     if (e.pointerId === this.stick.id) {
       this.stick.id = null;
       this.move.x = 0;
@@ -134,7 +116,7 @@ export class TouchControls {
 
   rebuildAbilities(charId) {
     if (!this.abilityBar) return;
-    this.playerChar = charId;
+    this.charId = charId;
     const char = CHARACTERS[charId] || CHARACTERS.gojo;
     this.abilityBar.innerHTML = "";
     this.slots = char.abilities.map((ab, i) => {
@@ -159,18 +141,146 @@ export class TouchControls {
       s.el.classList.toggle("ready", cd <= 0.001 && !locked);
     }
   }
+}
 
-  apply(player) {
-    if (!this.enabled || !player) return false;
-    const yaw = this.renderer.camYaw;
-    const fwd = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
-    const right = { x: Math.cos(yaw), z: -Math.sin(yaw) };
-    const mx = fwd.x * this.move.y + right.x * this.move.x;
-    const mz = fwd.z * this.move.y + right.z * this.move.x;
-    player.sprinting = this.sprint;
-    this.game.setMove(player, mx, mz, this.vertical);
-    const f = this.renderer.cameraForward();
-    if (f) this.game.setAim(player, player.x + f.x * 30, player.z + f.z * 30);
-    return true;
+export class TouchControls {
+  constructor({ game, renderer, onCast, onDash }) {
+    this.game = game;
+    this.renderer = renderer;
+    this.onCast = onCast;
+    this.onDash = onDash;
+    this.enabled = false;
+    this.dual = false;
+    this.root = document.querySelector("#touchUI");
+    this.pad1 = new TouchPad({
+      root: this.root,
+      stickBase: document.querySelector("#stickBase"),
+      stickKnob: document.querySelector("#stickKnob"),
+      abilityBar: document.querySelector("#touchAbilities"),
+      rise: document.querySelector("#btnRise"),
+      fall: document.querySelector("#btnFall"),
+      sprintBtn: document.querySelector("#btnSprint"),
+      dashBtn: document.querySelector("#btnDash"),
+      onCast: (i) => this.onCast(0, i),
+      onDash: () => this.onDash(0)
+    });
+    this.pad2 = null;
+    this.bindRoot();
+  }
+
+  // single-player accessors (kept so the existing input code keeps working)
+  get stickActive() { return this.pad1.stickActive; }
+  get move() { return this.pad1.move; }
+  get vertical() { return this.pad1.vertical; }
+  get sprint() { return this.pad1.sprint; }
+  get playerChar() { return this.pad1.charId; }
+
+  bindRoot() {
+    if (!this.root) return;
+    this.root.addEventListener("pointerdown", (e) => this.onDown(e));
+    this.root.addEventListener("pointermove", (e) => this.onMove(e));
+    const up = (e) => this.onUp(e);
+    this.root.addEventListener("pointerup", up);
+    this.root.addEventListener("pointercancel", up);
+    this.root.addEventListener("pointerleave", up);
+  }
+
+  setEnabled(on) {
+    this.enabled = on;
+    document.body.classList.toggle("touch-mode", on);
+    if (this.root) this.root.classList.toggle("hidden", !on);
+    if (!on) {
+      this.pad1.reset();
+      this.pad2?.reset();
+    }
+  }
+
+  // local versus on touch: give player 2 their own mirrored pad
+  setDual(on) {
+    if (on === this.dual) return;
+    this.dual = on;
+    document.body.classList.toggle("dual-touch", on);
+    if (on) this.buildPad2();
+    else this.removePad2();
+  }
+
+  buildPad2() {
+    if (this.pad2 || !this.root) return;
+    const stickBase = document.createElement("div");
+    stickBase.className = "stick-base p2 hidden";
+    stickBase.innerHTML = `<div class="stick-ring"></div><div class="stick-knob p2"></div>`;
+    const cluster = document.createElement("div");
+    cluster.className = "touch-right p2";
+    cluster.innerHTML = `
+      <div class="vt-stack">
+        <button class="vt-btn" type="button" data-role="rise">▲<i>升空</i></button>
+        <button class="vt-btn" type="button" data-role="fall">▼<i>下降</i></button>
+      </div>
+      <div class="touch-abilities"></div>
+      <div class="touch-slot">
+        <button class="touch-btn small" type="button" data-role="sprint">疾跑</button>
+        <button class="touch-btn small" type="button" data-role="dash">冲刺</button>
+      </div>`;
+    this.root.appendChild(stickBase);
+    this.root.appendChild(cluster);
+    this.pad2 = new TouchPad({
+      root: this.root,
+      stickBase,
+      stickKnob: stickBase.querySelector(".stick-knob"),
+      abilityBar: cluster.querySelector(".touch-abilities"),
+      rise: cluster.querySelector('[data-role="rise"]'),
+      fall: cluster.querySelector('[data-role="fall"]'),
+      sprintBtn: cluster.querySelector('[data-role="sprint"]'),
+      dashBtn: cluster.querySelector('[data-role="dash"]'),
+      onCast: (i) => this.onCast(1, i),
+      onDash: () => this.onDash(1)
+    });
+    this.pad2.el = { stickBase, cluster };
+  }
+
+  removePad2() {
+    if (!this.pad2) return;
+    this.pad2.el?.stickBase.remove();
+    this.pad2.el?.cluster.remove();
+    this.pad2 = null;
+  }
+
+  onDown(e) {
+    if (!this.enabled) return;
+    const left = e.clientX < window.innerWidth * 0.5;
+    if (left) {
+      if (this.pad1.stick.id === null) {
+        this.pad1.beginStick(e);
+        try { this.root.setPointerCapture(e.pointerId); } catch (_) { /* synthetic pointer */ }
+      }
+      return;
+    }
+    if (this.dual) {
+      if (this.pad2 && this.pad2.stick.id === null) {
+        this.pad2.beginStick(e);
+        try { this.root.setPointerCapture(e.pointerId); } catch (_) { /* synthetic pointer */ }
+      }
+      return;
+    }
+    if (this.pad1.look.id === null) this.pad1.beginLook(e);
+  }
+
+  onMove(e) {
+    if (!this.enabled) return;
+    this.pad1.onPointerMove(e, this.renderer);
+    this.pad2?.onPointerMove(e, this.renderer);
+  }
+
+  onUp(e) {
+    this.pad1.onPointerUp(e);
+    this.pad2?.onPointerUp(e);
+  }
+
+  rebuildAbilities(charId) {
+    if (this.pad1.charId !== charId) this.pad1.rebuildAbilities(charId);
+  }
+
+  updateSlots(player, game) {
+    this.pad1.updateSlots(player, game);
   }
 }

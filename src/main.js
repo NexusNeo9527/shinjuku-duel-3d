@@ -66,11 +66,19 @@ function applyTheme(charId) {
   ui.setThemeChip(id);
 }
 
+const secondPlayer = () => game.entities.find((e) => e.isPlayer && e !== game.player());
 const touch = new TouchControls({
   game,
   renderer,
-  onCast: (i) => { audio.ensure(); const p = game.player(); if (p && game.state === "playing") game.tryCast(p, i); },
-  onDash: () => { const p = game.player(); if (p && game.state === "playing") game.tryDash(p, p.moveInput.x, p.moveInput.y, p.moveInput.z); }
+  onCast: (pad, i) => {
+    audio.ensure();
+    const p = pad === 1 ? secondPlayer() : game.player();
+    if (p && game.state === "playing") game.tryCast(p, i);
+  },
+  onDash: (pad) => {
+    const p = pad === 1 ? secondPlayer() : game.player();
+    if (p && game.state === "playing") game.tryDash(p, p.moveInput.x, p.moveInput.y, p.moveInput.z);
+  }
 });
 
 const btnLock = document.querySelector("#btnLock");
@@ -254,6 +262,8 @@ function applyInput() {
   // show the touch UI on touch-first devices, or as soon as a touch is used
   const wantTouch = inBattle && (coarseTouch || touchUsed);
   if (touch.enabled !== wantTouch) touch.setEnabled(wantTouch);
+  // local versus on a touch device: both players get their own pad
+  touch.setDual(inBattle && game.mode === "dual" && wantTouch);
   updateRotateTip();
   // auto-lock camera (no manual aim) + split-screen layout
   renderer.lockCamera = true;
@@ -305,7 +315,9 @@ function applyInput() {
 
   const p2 = game.entities.find((e) => e.isPlayer && e !== game.player());
   if (p2 && game.state === "playing") {
-    const yaw = renderer.camYaw;
+    const pad2 = touch.enabled && touch.dual ? touch.pad2 : null;
+    // player 2 looks through their own half of the split screen
+    const yaw = pad2 ? renderer.cam2Yaw : renderer.camYaw;
     const fwd = { x: Math.sin(yaw), z: Math.cos(yaw) };
     const right = { x: -Math.cos(yaw), z: Math.sin(yaw) };
     let mx = 0;
@@ -317,10 +329,23 @@ function applyInput() {
     let my = 0;
     if (keys.has("KeyM")) my = -1;
     else if (keys.has("KeyN")) my = 1;
-    p2.sprinting = keys.has("ShiftRight");
+    let sprint2 = keys.has("ShiftRight");
+    if (pad2) {
+      if (pad2.stickActive) {
+        mx = fwd.x * pad2.move.y + right.x * pad2.move.x;
+        mz = fwd.z * pad2.move.y + right.z * pad2.move.x;
+      }
+      if (pad2.vertical !== 0) my = pad2.vertical;
+      if (pad2.sprint) sprint2 = true;
+    }
+    p2.sprinting = sprint2;
     game.setMove(p2, mx, mz, my);
     const enemy = game.entities.find((e) => e.id !== p2.id && e.alive);
     if (enemy) game.setAim(p2, enemy.x, enemy.z);
+    if (pad2) {
+      if (pad2.charId !== p2.charId) pad2.rebuildAbilities(p2.charId);
+      pad2.updateSlots(p2, game);
+    }
   }
 }
 
@@ -353,6 +378,7 @@ window.__arena3d = {
   game,
   renderer,
   audio,
+  touch,
   start: (mode = "single", difficulty = "normal") => startGame(mode, difficulty),
   cast: (id, index) => { const e = game.entities.find((x) => x.charId === id) || game.player(); return game.tryCast(e, index); }
 };

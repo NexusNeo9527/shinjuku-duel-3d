@@ -406,6 +406,30 @@ body.touch-mode .ability-bar { display: none; }
 body.touch-mode .hint { display: none; }
 body.touch-mode .operator-card { bottom: 150px; }
 
+/* ---------- dual (local versus) on a touch device ----------
+   each player gets their own half: P1 keeps the left stick and moves their
+   cluster to the left edge, P2 gets a mirrored pad on the right */
+body.dual-touch .touch-right { right: auto; left: 12px; align-items: flex-start; }
+body.dual-touch .touch-right.p2 { right: 12px; left: auto; align-items: flex-end; }
+body.dual-touch .look-zone { display: none; }
+/* no target switching needed in local versus */
+body.dual-touch .touch-btn.lock,
+body.dual-touch #btnSwitch { display: none !important; }
+.stick-base.p2 { border-color: rgba(255, 78, 100, 0.5); }
+.stick-base.p2 .stick-knob { border-color: var(--red); box-shadow: 0 0 20px -5px var(--red); }
+
+/* narrow screens: each player only has half the width, so wrap the ability
+   tiles and shrink the pad to fit inside its own half */
+@media (max-width: 700px) {
+  body.dual-touch .touch-right { left: 6px; right: auto; }
+  body.dual-touch .touch-right.p2 { right: 6px; left: auto; }
+  body.dual-touch .touch-abilities { flex-wrap: wrap; max-width: 148px; }
+  body.dual-touch .touch-ability { width: 44px; height: 44px; }
+  body.dual-touch .touch-ability svg { width: 20px; height: 20px; }
+  body.dual-touch .vt-btn { width: 46px; height: 40px; }
+  body.dual-touch .touch-btn.small { min-width: 46px; height: 34px; }
+}
+
 /* manga cut-in (Gojo 茈) */
 .cut-in {
   position: absolute; inset: 0; z-index: 9; pointer-events: none; overflow: hidden;
@@ -735,7 +759,7 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
 
 /* narrow phones: compact the practice panel so it clears the thumb cluster */
 @media (orientation: portrait) and (max-width: 420px) {
-  .practice-panel { width: 178px; padding: 6px 8px; top: 244px; max-height: 158px; overflow-y: auto; }
+  .practice-panel { width: 178px; padding: 6px 8px; top: 244px; max-height: 106px; overflow-y: auto; }
   .practice-panel .pp-head { margin-bottom: 5px; padding-bottom: 4px; font-size: 9px; }
   .practice-panel .pp-row { font-size: 9px; margin-bottom: 4px; gap: 5px; }
   .practice-panel .pp-hint { display: none; }
@@ -768,4 +792,15 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
 
   /* dual: keep both per-half panels clear of the thumb cluster */
   body.dual-hud.touch-mode .split-panel { top: 128px; bottom: auto; }
+}
+
+/* ---------- final overrides (must win the cascade) ---------- */
+
+/* short landscape dual on touch: the pads own both bottom corners, so the
+   versus panels shrink to a header + health strip just under the top HUD */
+@media (max-height: 560px) {
+  body.dual-hud.touch-mode .split-panel { top: 72px; bottom: auto; }
+  body.dual-hud.touch-mode .split-panel.left { left: 8px; right: auto; }
+  body.dual-hud.touch-mode .split-panel.right { right: 8px; left: auto; }
+  body.dual-hud.touch-mode .split-panel .sp-slots { display: none; }
 }
