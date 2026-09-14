@@ -107,7 +107,7 @@ export const SUKUNA_VS_GOJO_AI_HANDICAP = {
     abyss: {
       blueCastDelayMultiplier: 1.1,
       blueForcedShotDelayMultiplier: 1.1,
-      aiCooldowns: { purple: 6, void: 10 },
+      aiCooldowns: { purple: 4, void: 7 },
       hpMultiplier: 1.1,
       damageMultiplier: 1.1
     }
