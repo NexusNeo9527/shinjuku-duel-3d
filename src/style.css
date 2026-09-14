@@ -670,35 +670,48 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
   /* touch controls (keep clear of notches in landscape) */
   body.touch-mode .operator-card { bottom: 8px; }
   .touch-right { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); gap: 6px; }
-  .vt-btn { width: 52px; height: 42px; border-radius: 11px; font-size: 12px; }
+  .vt-btn { width: 52px; height: 38px; border-radius: 11px; font-size: 12px; }
   .vt-btn i { font-size: 8px; }
-  .touch-ability { width: 46px; height: 46px; border-radius: 11px; }
+  .touch-ability { width: 46px; height: 42px; border-radius: 11px; }
   .touch-ability svg { width: 19px; height: 19px; }
   .touch-ability b { font-size: 9px; }
-  .touch-btn.small { min-width: 48px; height: 34px; font-size: 11px; border-radius: 10px; }
-  .touch-btn.lock { min-width: 92px; height: 30px; font-size: 11px; }
+  .touch-btn.small { min-width: 48px; height: 32px; font-size: 11px; border-radius: 10px; }
+  .touch-btn.lock { min-width: 92px; height: 26px; font-size: 10px; }
   .look-zone { padding-bottom: 130px; }
   .look-hint { display: none; }
   .stick-base { width: 108px; height: 108px; margin: -54px 0 0 -54px; }
   .stick-knob { width: 46px; height: 46px; margin: -23px 0 0 -23px; }
 
-  /* dual split panels */
-  .split-panel { bottom: 8px; width: calc(50% - 14px); gap: 5px; }
-  .split-panel .ability-slot { width: 46px; height: 46px; }
+  /* dual split panels: there is no room above the thumb cluster on a short
+     screen, so both panels sit bottom-left and leave the right side to the
+     touch controls */
+  body.dual-hud.touch-mode .split-panel { top: auto; bottom: 8px; width: 186px; gap: 4px; }
+  body.dual-hud.touch-mode .split-panel.left { left: 8px; right: auto; }
+  body.dual-hud.touch-mode .split-panel.right { left: 202px; right: auto; }
+  .split-panel .ability-slot { width: 42px; height: 42px; }
+  .sp-slots { flex-wrap: wrap; }
+  .sp-gauges { display: none; }
   .split-panel .sp-name { font-size: 13px; }
   .split-panel .sp-hpnum { font-size: 13px; }
   .sp-gauge span { font-size: 9px; }
-  body.dual-hud.touch-mode .split-panel { bottom: 108px; }
 
-  .practice-panel { right: 8px; top: 8px; padding: 8px 10px; }
-  .practice-panel .pp-row { font-size: 11px; }
+  /* practice panel drops below the versus header and stays clear of the thumb cluster */
+  .practice-panel {
+    left: max(8px, env(safe-area-inset-left)); right: auto; top: 66px;
+    width: 176px; padding: 6px 8px;
+  }
+  .practice-panel .pp-head { margin-bottom: 5px; padding-bottom: 4px; font-size: 9px; }
+  .practice-panel .pp-row { font-size: 9px; margin-bottom: 4px; gap: 5px; }
+  .practice-panel .pp-hint { display: none; }
+  .practice-panel button { font-size: 10px; padding: 3px 7px; }
 }
 
 /* phone portrait: keep the HUD clear of the touch controls */
 @media (orientation: portrait) and (max-width: 620px) {
   .duel-hud { top: 8px; width: 96%; }
-  /* the bottom half is taken by the thumb controls — park the card up top */
-  .operator-card, body.touch-mode .operator-card { left: 8px; right: auto; top: 96px; bottom: auto; padding: 6px 10px; gap: 8px; }
+  /* the bottom half is taken by the thumb controls — park the card up top,
+     but below the versus header (which grows when a line of dialogue shows) */
+  .operator-card, body.touch-mode .operator-card { left: 8px; right: auto; top: 154px; bottom: auto; padding: 6px 10px; gap: 8px; }
   .op-gauges { min-width: 100px; }
   .ability-slot { width: 52px; height: 52px; }
   .ability-slot .slot-icon { width: 22px; height: 22px; }
@@ -707,8 +720,52 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
   .look-zone { padding-bottom: 250px; }
   .look-hint { display: none; }
   .hint { display: none; }
-  .split-panel { bottom: 10px; width: calc(50% - 12px); gap: 4px; }
-  .split-panel .ability-slot { width: 44px; height: 44px; }
+  /* practice panel stacks under the operator card */
+  .practice-panel { left: auto; right: 8px; top: 248px; width: 200px; padding: 8px 10px; }
+  /* dual: panels go under the versus header, tiles wrap instead of overflowing.
+     must out-specify `body.dual-hud.touch-mode .split-panel { bottom: … }` */
+  body.dual-hud.touch-mode .split-panel { top: 90px; bottom: auto; width: calc(50% - 12px); gap: 4px; }
+  body.dual-hud.touch-mode .split-panel.left { left: 8px; }
+  body.dual-hud.touch-mode .split-panel.right { right: 8px; }
+  .split-panel .ability-slot { width: 42px; height: 42px; }
+  .sp-slots { flex-wrap: wrap; }
   .split-panel .sp-name { font-size: 12px; }
   .sp-gauges { display: none; }
+}
+
+/* narrow phones: compact the practice panel so it clears the thumb cluster */
+@media (orientation: portrait) and (max-width: 420px) {
+  .practice-panel { width: 178px; padding: 6px 8px; top: 244px; max-height: 158px; overflow-y: auto; }
+  .practice-panel .pp-head { margin-bottom: 5px; padding-bottom: 4px; font-size: 9px; }
+  .practice-panel .pp-row { font-size: 9px; margin-bottom: 4px; gap: 5px; }
+  .practice-panel .pp-hint { display: none; }
+  .practice-panel button { font-size: 10px; padding: 3px 7px; }
+}
+
+/* ---------- tablets ----------
+   a tablet is wide enough for the desktop HUD, but the thumb cluster is big
+   and the centre HUD reaches into the practice panel on narrower screens */
+
+/* the practice settings panel would sit on top of the centre versus header */
+@media (min-width: 621px) and (max-width: 1080px) and (min-height: 561px) {
+  .practice-panel { top: 132px; }
+}
+
+/* a real tablet: coarse pointer, wide AND tall (a landscape phone is short) */
+@media (pointer: coarse) and (min-width: 721px) and (min-height: 601px) {
+  /* compact the thumb cluster so it stops covering the HUD */
+  .touch-right { right: 14px; bottom: 14px; gap: 8px; }
+  .vt-btn { width: 58px; height: 50px; border-radius: 12px; }
+  .touch-ability { width: 54px; height: 54px; }
+  .touch-ability svg { width: 22px; height: 22px; }
+  .touch-btn.small { min-width: 54px; height: 40px; border-radius: 11px; }
+  .touch-btn.lock { min-width: 104px; height: 36px; }
+  .stick-base { width: 120px; height: 120px; margin: -60px 0 0 -60px; }
+
+  /* there is room on a big screen — no need to shove the card upwards */
+  body.touch-mode .operator-card { bottom: 14px; }
+  body.touch-mode .practice-panel { top: 132px; }
+
+  /* dual: keep both per-half panels clear of the thumb cluster */
+  body.dual-hud.touch-mode .split-panel { top: 128px; bottom: auto; }
 }

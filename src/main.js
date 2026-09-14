@@ -236,7 +236,9 @@ document.querySelector("#rotateTipClose")?.addEventListener("pointerdown", (e) =
 });
 function updateRotateTip() {
   if (!rotateTip) return;
-  if (!isPortrait() || game.state !== "playing") { rotateTip.classList.add("hidden"); return; }
+  // phones only — tablets are fine in either orientation
+  const shortest = Math.min(window.innerWidth, window.innerHeight);
+  if (!isPortrait() || shortest > 560 || game.state !== "playing") { rotateTip.classList.add("hidden"); return; }
   if (rotateTipShown) return;
   if (!touch.enabled && !isTouchDevice && !touchUsed) return;
   rotateTipShown = true;
