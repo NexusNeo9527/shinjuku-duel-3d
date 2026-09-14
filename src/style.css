@@ -589,7 +589,6 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
 
 .text-button { margin-top: 20px; background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; transition: color 0.15s; }
 .text-button:hover { color: var(--accent); }
-.result-panel { padding: 40px 60px; }
 #resultTitle { font-size: clamp(30px, 5vw, 46px); letter-spacing: 0.12em; }
 #resultReason { margin-top: 10px; color: var(--muted); font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.16em; }
 .result-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 26px; }
@@ -834,14 +833,21 @@ body.touch-mode .vt-btn { touch-action: none; }
 
 /* winner illustration on the result screen */
 .result-art {
-  display: block; margin: 0 auto 16px;
-  width: auto; max-width: min(430px, 76vw); max-height: 36vh;
+  display: block; margin: 0 auto 14px;
+  width: auto; max-width: min(400px, 72vw); max-height: 30vh;
   border-radius: 14px; object-fit: contain;
   border: 1px solid var(--line-strong);
   box-shadow: 0 0 46px -18px var(--accent), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
   background: rgba(0, 0, 0, 0.35);
 }
-.result-panel { max-height: 92vh; overflow-y: auto; }
+/* scrollbar chrome is hidden: the overlays are laid out to fit */
+.overlay-panel {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overflow-x: hidden;
+}
+.overlay-panel::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.result-panel { padding: 34px 54px; max-height: 90vh; overflow-y: auto; }
 @media (max-height: 620px) {
   .result-art { max-height: 30vh; margin-bottom: 10px; }
   .result-panel { padding: 22px 30px; }
