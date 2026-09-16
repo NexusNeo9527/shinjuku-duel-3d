@@ -406,6 +406,15 @@ body.touch-mode .ability-bar { display: none; }
 body.touch-mode .hint { display: none; }
 body.touch-mode .operator-card { bottom: 150px; }
 
+/* Netlify's production badge is fixed to the lower-right corner.  Reserve its
+   height for real touch phones so the last row (疾跑 / 冲刺) remains tappable. */
+@media (pointer: coarse) and (orientation: portrait) and (max-width: 720px),
+       (pointer: coarse) and (orientation: landscape) and (max-height: 560px) {
+  body.touch-mode .touch-right {
+    bottom: max(62px, calc(16px + env(safe-area-inset-bottom)));
+  }
+}
+
 /* ---------- dual (local versus) on a touch device ----------
    each player gets their own half: P1 keeps the left stick and moves their
    cluster to the left edge, P2 gets a mirrored pad on the right */
