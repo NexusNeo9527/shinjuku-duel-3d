@@ -5,7 +5,7 @@ export const BGM_TRACKS = [
   { id: "sifeng", label: "司凤", src: `${ASSET}assets/bgm-rain-sifeng.mp3` },
   { id: "yuta", label: "乙骨 · 心似烟火", src: `${ASSET}assets/bgm-yuta-shinjuku.mp3` }
 ];
-export const SCENE_BGM = { menu: "normal", gojo: "normal", practice: "sifeng", story: "yuta" };
+export const SCENE_BGM = { menu: null, gojo: "normal", practice: "sifeng", story: "yuta" };
 const BGM_KEY = "sd3d.bgm.scene.";
 
 // Manual choices belong to a scene; a new scene gets its own default track.
@@ -67,7 +67,17 @@ export class AudioEngine {
 
   startBgm() {
     const track = BGM_TRACKS.find((t) => t.id === this.bgmId);
-    if (!track) return;
+    if (!track) {
+      const el = this.bgm;
+      if (!el || el.paused) return;
+      this.fadeBgm(0, 350, () => {
+        if (!this.bgmId) {
+          el.pause();
+          el.currentTime = 0;
+        }
+      });
+      return;
+    }
     const el = this.ensureBgm();
     if (el.dataset.track !== track.id) {
       el.dataset.track = track.id;
@@ -125,7 +135,7 @@ export class AudioEngine {
     return (BGM_TRACKS.find((t) => t.id === this.bgmId) || {}).label || "关";
   }
 
-  fadeBgm(target, ms = 900) {
+  fadeBgm(target, ms = 900, onComplete = null) {
     const el = this.bgm;
     if (!el) return;
     clearInterval(this._bgmFade);
@@ -134,7 +144,11 @@ export class AudioEngine {
     this._bgmFade = setInterval(() => {
       const k = Math.min(1, (performance.now() - t0) / ms);
       el.volume = Math.max(0, Math.min(1, from + (target - from) * k));
-      if (k >= 1) clearInterval(this._bgmFade);
+      if (k >= 1) {
+        clearInterval(this._bgmFade);
+        this._bgmFade = 0;
+        onComplete?.();
+      }
     }, 40);
   }
 

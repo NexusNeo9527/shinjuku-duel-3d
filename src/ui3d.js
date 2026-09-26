@@ -6,8 +6,8 @@ const P2_KEYS = ["U", "O", "P", "[", "]"];
 const STORY_DIFFICULTY_TEXT = {
   easy: "耐久 85 · 出招较慢",
   normal: "耐久 100 · 预判移动 · 减伤",
-  shura: "耐久 125 · 反转术式",
-  abyss: "耐久 150 · 反应更快 · 伤害更高"
+  shura: "耐久 112 · 攻击放缓 · 伤害降低",
+  abyss: "耐久 130 · 攻势与伤害下调"
 };
 // 练习面板开关 -> Game3D 上的字段
 const PRACTICE_FLAGS = {

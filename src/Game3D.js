@@ -1,4 +1,4 @@
-import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
+import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, YUTA_STORY_DIFFICULTY_OVERRIDES, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
 import { STORY_DIALOGUE } from "./storyDialogue.js";
 
 const ENTITY_RADIUS = 0.7;
@@ -76,6 +76,13 @@ export class Game3D {
     this.activeDialogue = null;
     this.dialogueUntil = 0;
     this.dialogueFlags = new Set();
+  }
+
+  getDifficultyProfile() {
+    const profile = DIFFICULTY[this.difficulty] || DIFFICULTY.normal;
+    if (this.mode !== "story" || this.storySide === "enemy") return profile;
+    const overrides = YUTA_STORY_DIFFICULTY_OVERRIDES[this.difficulty];
+    return overrides ? { ...profile, ...overrides } : profile;
   }
 
   queueDialogue(speaker, text, duration = 2.4, priority = 0) {
@@ -189,7 +196,7 @@ export class Game3D {
     }
     // difficulty decides the enemy's toughness
     if (this.mode === "single" || this.mode === "story") {
-      const hp = DIFFICULTY[this.difficulty].enemyHp || 100;
+      const hp = this.getDifficultyProfile().enemyHp || 100;
       const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
       const gojoAiTuning = this.mode === "single" && ai?.charId === "gojo" && this.singleChar === "sukuna"
         ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
@@ -971,7 +978,7 @@ export class Game3D {
     if (this.practice && this.practiceInvincible && target.isPlayer) return;
     // 训练模式：敌方默认无敌（可在练习面板里关掉），方便反复练连招
     if (this.practice && this.practiceEnemyInvincible && target.team !== this.player()?.team) return;
-    const profile = DIFFICULTY[this.difficulty];
+    const profile = this.getDifficultyProfile();
     const sourceAbility = source && abilityId
       ? CHARACTERS[source.charId]?.abilities.find((ability) => ability.id === abilityId)
       : null;
@@ -1424,7 +1431,7 @@ export class Game3D {
       else if (Math.hypot(target.x - ai.x, target.z - ai.z) < 3.2) this.tryBasicAttack(ai);
     }
     if (ai.stun > 0) { this.setMove(ai, 0, 0, 0); return; }
-    const profile = DIFFICULTY[this.difficulty];
+    const profile = this.getDifficultyProfile();
 
     // an unfinished combo window must expire, or the AI keeps reaching for a
     // finisher (e.g. 开) it can no longer cast and stops attacking entirely

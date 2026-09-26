@@ -91,6 +91,39 @@ export const DIFFICULTY = {
   }
 };
 
+// 乙骨剧情由玩家操控乙骨时，单独放缓困难与地狱的宿傩强度。
+// 普通单人对战及剧情反向操作（玩家操控宿傩）继续使用通用难度。
+export const YUTA_STORY_DIFFICULTY_OVERRIDES = {
+  shura: {
+    enemyHp: 112,
+    aimError: 0.12,
+    aimMin: 0.1,
+    aimMax: 0.32,
+    forcedShotMs: 950,
+    leadTime: 0.36,
+    reactionMin: 0.48,
+    reactionMax: 0.9,
+    damageMultiplier: 1.08,
+    damageTakenMultiplier: 0.98,
+    speed: 1.06,
+    aggro: 1.2
+  },
+  abyss: {
+    enemyHp: 130,
+    aimError: 0.09,
+    aimMin: 0.09,
+    aimMax: 0.32,
+    forcedShotMs: 900,
+    leadTime: 0.39,
+    reactionMin: 0.34,
+    reactionMax: 0.68,
+    damageMultiplier: 1.28,
+    damageTakenMultiplier: 0.88,
+    speed: 1.14,
+    aggro: 1.5
+  }
+};
+
 export const BLACK_FLASH = { chance: 0.18, multiplier: 1.55, range: 6.5 };
 export const GOJO_REGEN_PER_SECOND = 0.5;
 
