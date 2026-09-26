@@ -25,7 +25,9 @@ const VICTORY_LINES = {
 // 胜利插图（结算页顶部）
 const WIN_ART = {
   gojo: "win-gojo.jpg",
-  sukuna: "win-sukuna.jpg"
+  sukuna: "win-sukuna.jpg",
+  yuta: "win-yuta.png",
+  yutaGojo: "win-yuta.png"
 };
 const RING_CIRC = 276.5;
 
@@ -560,6 +562,7 @@ export class UI3D {
     const art = w && WIN_ART[w.charId];
     this.dom.resultArt.classList.toggle("hidden", !art);
     if (art) {
+      this.dom.resultArt.alt = `${w.name}胜利插画`;
       const src = `${import.meta.env.BASE_URL}assets/${art}`;
       if (!this.dom.resultArt.src.endsWith(art)) this.dom.resultArt.src = src;
     }
