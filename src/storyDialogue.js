@@ -41,7 +41,7 @@ export const STORY_DIALOGUE = {
     moves: {
       slash: "解！",
       cleave: "捌！",
-      worldSlash: "斩断世界！",
+      cleaveRush: "捌！",
       wickerBasket: "彌虚葛籠！",
       sukunaHeal: "反转术式！"
     }
@@ -55,9 +55,8 @@ export const STORY_DIALOGUE = {
     moves: {
       slash: "解！",
       cleave: "捌！",
-      flame: "开！",
+      cleaveRush: "捌！",
       shrine: "领域展开——伏魔御厨子！",
-      worldSlash: "斩断世界！",
       sukunaHeal: "反转术式！"
     }
   }

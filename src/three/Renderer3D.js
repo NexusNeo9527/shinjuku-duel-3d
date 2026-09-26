@@ -306,6 +306,9 @@ export class Renderer3D {
     this.storyAssets = new Map();
     this.storyStage = null;
     this.storyScene = null;
+    this.baseCollisionBoxes = [];
+    this.storyCollisionBoxes = new Map();
+    this.collisionBoxes = this.baseCollisionBoxes;
     const tex = makeGroundTexture();
     tex.repeat.set(12, 12);
     this.ground = new THREE.Mesh(
@@ -342,6 +345,15 @@ export class Renderer3D {
       b.rotation.y = Math.random() * Math.PI;
       b.castShadow = true;
       this.baseArena.add(b);
+      const c = Math.cos(b.rotation.y);
+      const s = Math.sin(b.rotation.y);
+      const halfX = Math.abs(c) * w / 2 + Math.abs(s) * d / 2;
+      const halfZ = Math.abs(s) * w / 2 + Math.abs(c) * d / 2;
+      this.baseCollisionBoxes.push({
+        minX: b.position.x - halfX, maxX: b.position.x + halfX,
+        minY: 0, maxY: h,
+        minZ: b.position.z - halfZ, maxZ: b.position.z + halfZ
+      });
       const winN = Math.floor(Math.random() * 10);
       for (let j = 0; j < winN; j += 1) {
         const win = new THREE.Mesh(
@@ -364,7 +376,13 @@ export class Renderer3D {
   async setStoryStage(stage) {
     this.storyStage = stage;
     for (const asset of this.storyAssets.values()) asset.visible = false;
-    if (!stage) { this.baseArena.visible = true; this.storyScene = null; return; }
+    if (!stage) {
+      this.baseArena.visible = true;
+      this.storyScene = null;
+      this.collisionBoxes = this.baseCollisionBoxes;
+      return;
+    }
+    this.collisionBoxes = this.baseCollisionBoxes;
     let scene = this.storyAssets.get(stage);
     if (!scene) {
       this.baseArena.visible = true;
@@ -373,10 +391,12 @@ export class Renderer3D {
       scene.visible = false;
       this.storyAssets.set(stage, scene);
       this.scene.add(scene);
+      this.storyCollisionBoxes.set(stage, this.collectStoryCollisionBoxes(scene));
     }
     if (this.storyStage !== stage) return;
     this.storyScene = scene;
     scene.visible = true;
+    this.collisionBoxes = this.storyCollisionBoxes.get(stage) || this.collectStoryCollisionBoxes(scene);
     this.storyDomainProps = [];
     scene.traverse((o) => {
       if (!o.isMesh) return;
@@ -387,6 +407,25 @@ export class Renderer3D {
       }
     });
     this.baseArena.visible = false;
+  }
+
+  getWorldCollisionBoxes() {
+    return this.collisionBoxes;
+  }
+
+  collectStoryCollisionBoxes(scene) {
+    scene.updateMatrixWorld(true);
+    const bounds = new THREE.Box3();
+    const boxes = [];
+    scene.traverse((object) => {
+      if (!object.isMesh || !object.name.startsWith("tower_") || !object.name.includes("_core")) return;
+      bounds.setFromObject(object);
+      if (bounds.isEmpty()) return;
+      const { min, max } = bounds;
+      if (![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite)) return;
+      boxes.push({ minX: min.x, maxX: max.x, minY: min.y, maxY: max.y, minZ: min.z, maxZ: max.z });
+    });
+    return boxes;
   }
 
   syncStoryHits(game) {

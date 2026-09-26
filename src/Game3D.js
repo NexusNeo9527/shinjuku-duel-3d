@@ -2,6 +2,7 @@ import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, ARENA, FLIGHT, S
 import { STORY_DIALOGUE } from "./storyDialogue.js";
 
 const ENTITY_RADIUS = 0.7;
+const ENTITY_HEIGHT = 2;
 const CHEST = 1.0;
 
 const ABILITY_ART = {
@@ -17,6 +18,7 @@ const ABILITY_ART = {
   cursedSpeech: { art: "yuta-cursed-speech", compact: true },
   skyBreak: { art: "yuta-sky-break", compact: true },
   jacobsLadder: { art: "yuta-jacobs-ladder", life: 1.05, stop: 0.32 },
+  cleaveRush: { art: "sukuna-slash", compact: true },
   yutaHeal: { art: "yuta-heal", compact: true },
   borrowedHeal: { art: "borrowed-heal", compact: true },
   worldSlash: { art: "sukuna-world-slash", life: 1.05, stop: 0.32 },
@@ -34,6 +36,7 @@ export class Game3D {
     this.beams = [];
     this.domains = [];
     this.sceneHits = [];
+    this.worldObstacles = [];
     this.particles = [];
     this.damageTexts = [];
     this.announcements = [];
@@ -331,6 +334,63 @@ export class Game3D {
     return this.entities.find((e) => e.isPlayer);
   }
 
+  isStorySukuna(entity) {
+    return this.mode === "story" && (entity?.charId === "sukunaStory1" || entity?.charId === "sukunaStory2");
+  }
+
+  setWorldObstacles(obstacles = []) {
+    this.worldObstacles = obstacles
+      .filter((box) => box && [box.minX, box.maxX, box.minY, box.maxY, box.minZ, box.maxZ].every(Number.isFinite))
+      .map((box) => ({ ...box }));
+  }
+
+  resolveObstacleAxis(entity, axis, from, to) {
+    if (this.worldObstacles.length === 0) return to;
+    const otherAxis = axis === "x" ? "z" : "x";
+    const other = entity[otherAxis];
+    const delta = to - from;
+    let resolved = to;
+    for (const box of this.worldObstacles) {
+      if (entity.y >= box.maxY || entity.y + ENTITY_HEIGHT <= box.minY) continue;
+      const minOther = otherAxis === "x" ? box.minX : box.minZ;
+      const maxOther = otherAxis === "x" ? box.maxX : box.maxZ;
+      const nearestOther = clamp(other, minOther, maxOther);
+      const otherGap = other - nearestOther;
+      if (otherGap * otherGap >= ENTITY_RADIUS * ENTITY_RADIUS) continue;
+      const radiusAtThisSlice = Math.sqrt(ENTITY_RADIUS * ENTITY_RADIUS - otherGap * otherGap);
+      const minAxis = (axis === "x" ? box.minX : box.minZ) - radiusAtThisSlice;
+      const maxAxis = (axis === "x" ? box.maxX : box.maxZ) + radiusAtThisSlice;
+      if ((from <= minAxis && delta < 0) || (from >= maxAxis && delta > 0)) continue;
+      if (from < minAxis && resolved >= minAxis) resolved = Math.min(resolved, minAxis);
+      else if (from > maxAxis && resolved <= maxAxis) resolved = Math.max(resolved, maxAxis);
+      else if (from >= minAxis && from <= maxAxis) {
+        resolved = from - minAxis <= maxAxis - from ? minAxis : maxAxis;
+      }
+    }
+    return resolved;
+  }
+
+  resolveWorldMovement(entity, fromX, fromZ, toX, toZ) {
+    const limit = ARENA.half - ENTITY_RADIUS;
+    toX = clamp(toX, -limit, limit);
+    toZ = clamp(toZ, -limit, limit);
+    entity.x = fromX;
+    entity.z = fromZ;
+    entity.x = this.resolveObstacleAxis(entity, "x", fromX, toX);
+    entity.z = this.resolveObstacleAxis(entity, "z", fromZ, toZ);
+    entity.x = clamp(entity.x, -limit, limit);
+    entity.z = clamp(entity.z, -limit, limit);
+  }
+
+  resolveWorldOverlaps() {
+    for (const entity of this.entities) {
+      if (!entity.alive) continue;
+      const x = entity.x;
+      const z = entity.z;
+      this.resolveWorldMovement(entity, x, z, x, z);
+    }
+  }
+
   // ---- lock-on (used by the mobile camera) ----
   enemyList(player = this.player()) {
     if (!player) return [];
@@ -489,7 +549,7 @@ export class Game3D {
     else if (ability.type === "melee") this.castMelee(entity, ability);
     else if (ability.type === "guard") this.castGuard(entity, ability);
     else if (ability.type === "heal") this.castHeal(entity, ability);
-    if (selected.type !== "domain") this.showAbilityArt(entity, selected);
+    if (selected.type !== "domain" && selected.type !== "melee") this.showAbilityArt(entity, selected);
     if (this.mode === "story") this.queueStoryMoveDialogue(entity, selected);
     return true;
   }
@@ -1287,6 +1347,8 @@ export class Game3D {
   // ---- entity update ----
   updateEntity(e, dt) {
     if (!e.alive) return;
+    const fromX = e.x;
+    const fromZ = e.z;
     e.burnout = Math.max(0, (e.burnout || 0) - dt);
     e.guardTimer = Math.max(0, (e.guardTimer || 0) - dt);
     e.basicCooldown = Math.max(0, (e.basicCooldown || 0) - dt);
@@ -1326,6 +1388,10 @@ export class Game3D {
     if (e.y < 0) { e.y = 0; e.vy = Math.max(0, e.vy); }
     if (e.y > FLIGHT.maxAlt) { e.y = FLIGHT.maxAlt; e.vy = Math.min(0, e.vy); }
 
+    const toX = e.x;
+    const toZ = e.z;
+    this.resolveWorldMovement(e, fromX, fromZ, toX, toZ);
+
     e.moving = Math.hypot(e.moveInput.x, e.moveInput.z) > 0.05;
 
     const damp = Math.pow(0.0001, dt);
@@ -1333,10 +1399,6 @@ export class Game3D {
     e.vz *= damp;
     if (Math.abs(e.vx) < 0.05) e.vx = 0;
     if (Math.abs(e.vz) < 0.05) e.vz = 0;
-
-    const lim = ARENA.half;
-    e.x = clamp(e.x, -lim, lim);
-    e.z = clamp(e.z, -lim, lim);
 
     for (let i = 0; i < e.cooldowns.length; i += 1) {
       if (e.cooldowns[i] > 0) e.cooldowns[i] = Math.max(0, e.cooldowns[i] - dt);
@@ -1382,29 +1444,38 @@ export class Game3D {
 
     let mx = 0;
     let mz = 0;
-    const closeCombat = ai.charId === "yuta" || ai.burnout > 0;
-    if (dist > (closeCombat ? 5 : 17)) { mx = nx; mz = nz; }
-    else if (dist < (closeCombat ? 2.8 : 9)) { mx = -nx; mz = -nz; }
+    const storySukuna = this.isStorySukuna(ai);
+    const closeCombat = storySukuna || ai.charId === "yuta" || ai.burnout > 0;
+    const engageDistance = storySukuna ? 3.1 : closeCombat ? 5 : 17;
+    const retreatDistance = storySukuna ? 1.8 : closeCombat ? 2.8 : 9;
+    if (dist > engageDistance) { mx = nx; mz = nz; }
+    else if (dist < retreatDistance) { mx = -nx; mz = -nz; }
     else { mx = -nz * ai.aiStrafe; mz = nx * ai.aiStrafe; }
     mx += nx * 0.25;
     mz += nz * 0.25;
     const ml = Math.hypot(mx, mz) || 1;
 
     // the AI picks its own altitude and flies there on its own schedule
-    ai.aiAltTimer -= dt;
-    if (ai.aiAltTimer <= 0) {
-      ai.aiAltTimer = rand(2.2, 4.5) / Math.max(0.5, profile.aggro);
-      const r = Math.random();
-      if (r < 0.24) ai.aiAlt = 0;
-      else if (r < 0.7) ai.aiAlt = rand(6, 16);
-      else ai.aiAlt = rand(16, FLIGHT.maxAlt * 0.85);
-      // sometimes it decides to engage at the opponent's height
-      if (Math.random() < profile.aggro * 0.35) {
-        ai.aiAlt = clamp(target.y + rand(-3.5, 3.5), 0, FLIGHT.maxAlt);
+    let my = 0;
+    if (storySukuna) {
+      // Story Sukuna keeps his feet aligned with his opponent so his attacks
+      // stay in melee range instead of drifting into a ranged aerial pattern.
+      ai.aiAlt = clamp(target.y, 0, FLIGHT.maxAlt);
+    } else {
+      ai.aiAltTimer -= dt;
+      if (ai.aiAltTimer <= 0) {
+        ai.aiAltTimer = rand(2.2, 4.5) / Math.max(0.5, profile.aggro);
+        const r = Math.random();
+        if (r < 0.24) ai.aiAlt = 0;
+        else if (r < 0.7) ai.aiAlt = rand(6, 16);
+        else ai.aiAlt = rand(16, FLIGHT.maxAlt * 0.85);
+        // sometimes it decides to engage at the opponent's height
+        if (Math.random() < profile.aggro * 0.35) {
+          ai.aiAlt = clamp(target.y + rand(-3.5, 3.5), 0, FLIGHT.maxAlt);
+        }
       }
     }
     const dyAlt = ai.aiAlt - ai.y;
-    let my = 0;
     if (Math.abs(dyAlt) > 1.2) my = clamp(dyAlt * 0.4, -0.95, 0.95);
 
     ai.sprinting = (dist > 18 || Math.abs(target.y - ai.y) > 8) && ai.dashTimer <= 0;
@@ -1488,6 +1559,16 @@ export class Game3D {
     const guardIndex = abilities.findIndex((a) => a.type === "guard");
     if (guardIndex >= 0 && ready(guardIndex) && this.domains.some((d) => d.alive && d.team !== ai.team)) return guardIndex;
 
+    if (this.isStorySukuna(ai)) {
+      const domainIndex = abilities.findIndex((a) => a.type === "domain");
+      if (domainIndex >= 0 && ready(domainIndex) && dist <= 4.2) return domainIndex;
+      const meleeIndices = abilities
+        .map((ability, index) => ability.type === "melee" && ready(index) ? index : -1)
+        .filter((index) => index >= 0);
+      if (!meleeIndices.length || dist > Math.max(...meleeIndices.map((index) => abilities[index].range))) return -1;
+      return meleeIndices[Math.floor(Math.random() * meleeIndices.length)];
+    }
+
     // 1) finish a combo that is one hit away (only if the finisher is actually castable)
     for (const c of combos) {
       const n = c.seq.length;
@@ -1552,6 +1633,7 @@ export class Game3D {
     }
     this.entities = this.entities.filter((e) => !(e.summon && !e.alive));
     this.resolveEntityCollisions();
+    this.resolveWorldOverlaps();
     // Collision separation can push a fighter below the floor after its own
     // movement step has clamped altitude. Keep the camera above the arena.
     for (const e of this.entities) e.y = clamp(e.y, 0, FLIGHT.maxAlt);

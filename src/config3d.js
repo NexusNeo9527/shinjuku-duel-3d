@@ -235,9 +235,9 @@ CHARACTERS.yutaGojo = {
 const storySukuna = (id, domain) => ({
   ...CHARACTERS.sukuna, id, name: "宿傩", combos: [],
   abilities: [
-    { ...CHARACTERS.sukuna.abilities[0] },
-    { ...CHARACTERS.sukuna.abilities[1] },
-    storyMove("worldSlash", "世界斩", "beam", { damage: 28, power: 3, length: 44, width: 1.3, life: 0.45, cooldown: 0, needsCharge: true, knock: 16, color: "#ff7583", core: "#fff4f4" }),
+    storyMove("slash", "解 · 近身斩", "melee", { damage: 11, range: 3.4, cooldown: 0.65, physical: true, chargeGain: 7, color: "#ff4e64", core: "#ffe9ed" }),
+    storyMove("cleave", "捌 · 近身斩", "melee", { damage: 15, range: 3.7, cooldown: 1.15, physical: true, chargeGain: 12, color: "#f7f2ff", core: "#ffffff" }),
+    storyMove("cleaveRush", "捌 · 连续斩击", "melee", { damage: 26, range: 4.1, power: 3, cooldown: 0, needsCharge: true, physical: true, knock: 12, color: "#ff7583", core: "#fff4f4" }),
     domain ? { ...CHARACTERS.sukuna.abilities[3] } : storyMove("wickerBasket", "彌虚葛籠", "guard", { cooldown: 12 }),
     storyMove("sukunaHeal", "反转术式", "heal", { cooldown: 18, needsCharge: true, heal: 13, color: "#ff7583" })
   ]

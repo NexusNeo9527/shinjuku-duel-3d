@@ -185,7 +185,9 @@ function startGame(mode, difficulty) {
   game.start(mode, difficulty);
   setModeTitle(mode === "story" ? "story" : mode === "practice" ? "practice" : "gojo", mode === "story" ? game.storyStage : null);
   renderer.reset();
-  renderer.setStoryStage(mode === "story" ? game.storyStage : null);
+  const stageReady = renderer.setStoryStage(mode === "story" ? game.storyStage : null);
+  game.setWorldObstacles(renderer.getWorldCollisionBoxes());
+  stageReady.then(() => game.setWorldObstacles(renderer.getWorldCollisionBoxes()));
   // Dual rendering temporarily gives the main camera a half-screen aspect ratio.
   // Restore the actual canvas size synchronously before the first frame of any
   // new mode; ResizeObserver alone can otherwise leave practice looking flat.
