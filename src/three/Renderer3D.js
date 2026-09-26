@@ -283,11 +283,14 @@ export class Renderer3D {
     const key = new THREE.DirectionalLight(0xe6f0ff, 2.4);
     key.position.set(30, 60, 40);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
-    const s = 70;
+    // Keep the shadow pass around the playable arena. The old 140-unit
+    // frustum pulled the whole ruined skyline into every shadow render, which
+    // was especially expensive on software WebGL renderers and integrated GPUs.
+    key.shadow.mapSize.set(1024, 1024);
+    const s = 60;
     key.shadow.camera.left = -s; key.shadow.camera.right = s;
     key.shadow.camera.top = s; key.shadow.camera.bottom = -s;
-    key.shadow.camera.far = 260;
+    key.shadow.camera.far = 150;
     this.scene.add(key);
     const rim = new THREE.DirectionalLight(0x5566cc, 1.3);
     rim.position.set(-40, 30, -50);
