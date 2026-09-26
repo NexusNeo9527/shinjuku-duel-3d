@@ -1,6 +1,8 @@
 # 角色模型
 
-`shinjuku-fighters.blend` 保存三名角色的可编辑建模场景，`fighters-preview.png0001.png` 为 Blender 实际渲染。
+`shinjuku-fighters-polished.blend` 保存当前三名角色的可编辑建模场景，`fighters-preview.png` 为优化版 Blender 实际渲染。旧版 `shinjuku-fighters.blend` 和 `fighters-preview.png0001.png` 保留。
+
+本轮增加躯干、脸部与四肢的平滑轮廓，融合肩部与上臂，增加肘膝覆盖体，打散重复发束。关节仍使用原有层级，未改成蒙皮模型。
 
 这套模型为本项目制作的风格化分段角色：五条悟白发蓝眼和深色高领制服、黑发红眼宿傩与面部咒纹、魔虚罗八握轮与退魔之剑。不是写实雕刻或原作官方资产。
 

@@ -2,9 +2,10 @@
 
 ## 可编辑源文件
 
-- `shinjuku-story-characters-refined.blend`：游戏当前使用版本。打开后选择 `Shinjuku Story Character Atelier` 场景。
+- `shinjuku-story-characters-polished.blend`：游戏当前使用版本。打开后选择 `Shinjuku Story Character Atelier` 场景。
+- `shinjuku-story-characters-refined.blend`：本轮优化前源文件，保留供回退与重新生成。
 - `shinjuku-story-characters.blend`：细修前源文件，保留未覆盖。
-- `lineup-refined.png`：Blender 合照；`*-face.png`：面部近景。
+- `lineup-polished.png`：当前 Blender 合照；`lineup-refined.png` 与 `*-face.png` 为上一版预览。
 - `asset-report.json`：实际导出三角面、网格和文件大小。
 
 四个角色分别为乙骨本体、里香、四臂宿傩、借用五条身体的乙骨。源文件中服装、头发、面部、纹样、武器为可编辑对象；四肢以层级节点驱动游戏动画。没有面部表情骨骼或完整蒙皮。
@@ -15,15 +16,16 @@
 
 | 角色 | public/models 导出 | 三角面 |
 | --- | --- | ---: |
-| 乙骨本体 | yuta.glb | 33548 |
-| 里香 | rika.glb | 30096 |
-| 四臂宿傩 | sukuna_shinjuku.glb | 64068 |
-| 乙骨·五条之身 | yuta_gojo.glb | 36148 |
+| 乙骨本体 | yuta.glb | 31028 |
+| 里香 | rika.glb | 37138 |
+| 四臂宿傩 | sukuna_shinjuku.glb | 65140 |
+| 乙骨·五条之身 | yuta_gojo.glb | 32244 |
 
 `src/three/models.js` 加载以上文件，原五条/宿傩模式保留其原资源。模型预览使用同一加载器及关节动画，开发服务启动后访问 `/tools/story-model-preview.html`。
 
 ## 制作脚本
 
+- `tools/polish_story_characters.py`：固定读取 refined 源文件，融合同一关节下的肩袖与前臂，重建裤腿，调整发束与材质，保存独立 polished 源文件、合照和游戏 GLB。可重复运行，不在上次结果上累积修改；会覆盖 polished 输出。
 - `tools/build_story_characters.py`：在 Blender 中创建独立角色场景，保存基础源文件并导出 GLB。重新执行会覆盖同名基础源文件和游戏导出；手工编辑后请先另存。
 - `tools/refine_story_faces.py`：以当前打开的基础源文件为输入，细修眼睛和发根，另存 refined 源文件，导出及渲染。只执行一次，重复执行会再次下移发根。
 - `tools/render_story_review.py`：从当前打开的角色场景输出近景，不保存或覆盖 Blender 源文件。

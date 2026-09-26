@@ -1,22 +1,22 @@
 {
   "yuta": {
-    "triangles": 33548,
+    "triangles": 31028,
     "meshes": 35,
-    "bytes": 593060
+    "bytes": 555064
   },
   "yuta_gojo": {
-    "triangles": 36148,
-    "meshes": 31,
-    "bytes": 633480
+    "triangles": 32244,
+    "meshes": 29,
+    "bytes": 571556
   },
   "rika": {
-    "triangles": 30096,
+    "triangles": 37138,
     "meshes": 15,
-    "bytes": 555136
+    "bytes": 680760
   },
   "sukuna_shinjuku": {
-    "triangles": 64068,
-    "meshes": 39,
-    "bytes": 1102356
+    "triangles": 65140,
+    "meshes": 37,
+    "bytes": 1107192
   }
 }

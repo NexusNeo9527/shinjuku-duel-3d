@@ -2,8 +2,9 @@
 import bpy, math, random, os
 from mathutils import Vector
 
-OUT = r'D:\新宿决战\public\models'
-SOURCE = r'D:\新宿决战\art'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT = os.path.join(ROOT, 'public', 'models')
+SOURCE = os.path.join(ROOT, 'art')
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(SOURCE, exist_ok=True)
 # Work in a separate scene to preserve the user's existing scene.
@@ -43,6 +44,12 @@ def ell(name,p,s,m,parent):
 
 def loft(name,rings,m,parent,n=24):
     # Elliptic sections: z, width, depth, front/back center. Sculpted silhouettes.
+    tailored = name in {'tailored torso', 'tapered muscular trunk', 'sculpted jaw and cranium', 'upper arm', 'forearm', 'trouser thigh', 'lower leg'}
+    if tailored:
+        # Support the ends so subdivision rounds the silhouette without shrinking cuffs.
+        near_start = tuple(a*.96+b*.04 for a,b in zip(rings[0],rings[1]))
+        near_end = tuple(a*.04+b*.96 for a,b in zip(rings[-2],rings[-1]))
+        rings = [rings[0],near_start,*rings[1:-1],near_end,rings[-1]]
     v=[]; f=[]
     for z,w,d,y in rings:
         for i in range(n):
@@ -53,7 +60,13 @@ def loft(name,rings,m,parent,n=24):
     f.extend([tuple(reversed(range(n))),tuple((len(rings)-1)*n+i for i in range(n))])
     mesh=bpy.data.meshes.new(name); mesh.from_pydata(v,[],f);mesh.update()
     o=bpy.data.objects.new(name,mesh);scene.collection.objects.link(o)
-    return finish(o,name,parent,m)
+    finish(o,name,parent,m)
+    if tailored:
+        modifier=o.modifiers.new('soft anatomical contour','SUBSURF')
+        modifier.levels=1;modifier.render_levels=1
+        bpy.context.view_layer.objects.active=o
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+    return o
 
 def line(name,points,r,m,parent):
     c=bpy.data.curves.new(name,'CURVE');c.dimensions='3D';c.resolution_u=2
@@ -112,7 +125,7 @@ for ident in ['gojo','sukuna','mahoraga']:
                 x=math.cos(a);y=math.sin(a);r=.102-j*.022
                 start=(x*r,y*r,.055+j*.035)
                 middle=(x*(r+.065),y*(r+.045)+.025,.11+j*.032)
-                end=(x*(r+.080),y*(r+.080)+.05,.10+j*.042+random.random()*.025)
+                end=(x*(r+.065+.012*math.sin(i*2.4)),y*(r+.080)+.05,.10+j*.042+random.random()*.036)
                 lock('swept layered lock',start,middle,end,.030,hair,head)
         if not suk:
             for i in range(7):
@@ -160,6 +173,7 @@ for ident in ['gojo','sukuna','mahoraga']:
         ell('deltoid',(0,0,-.035),(.107 if maha else .071,.079,.105),sleeve,arm)
         loft('upper arm',[(-.25,.052,.055,0),(-.15,.081 if maha else .06,.061,0),(-.02,.073,.064,0)],sleeve,arm)
         fore=node('fore'+label,arm,(0,0,-.25))
+        ell('elbow overlap',(0,0,0),(.050,.048,.048),sleeve,fore)
         loft('forearm',[(-.24,.036,.034,0),(-.17,.045,.045,0),(-.06,.067 if maha else .054,.054,0),(0,.05,.048,0)],bodymat if maha else navy,fore)
         ell('palm',(0,-.008,-.26),(.048,.034,.062),bodymat,fore)
         for i in range(4):ell('finger',((i-1.5)*.020,-.015,-.307),(.011,.018,.033),bodymat,fore)
@@ -172,6 +186,7 @@ for ident in ['gojo','sukuna','mahoraga']:
         leg=node('leg'+label,hips,(s*.095,0,-.08))
         loft('trouser thigh',[(-.37,.060,.066,0),(-.20,.085,.085,0),(0,.086,.092,0)],cloth if maha else navy,leg)
         shin=node('shin'+label,leg,(0,0,-.37))
+        ell('knee overlap',(0,0,0),(.060,.060,.051),cloth if maha else navy,shin)
         loft('lower leg',[(-.34,.043,.045,0),(-.22,.055,.06,0),(-.08,.068,.066,0),(0,.06,.061,0)],ivory if maha else navy,shin)
         ell('foot',(0,-.045,-.37),(.069,.125,.053),bodymat if maha else black,shin)
         if not maha:loft('boot cuff',[(-.33,.052,.055,0),(-.24,.052,.055,0)],black,shin)
@@ -184,6 +199,22 @@ for ident in ['gojo','sukuna','mahoraga']:
             a=i*math.pi/4;x=math.sin(a);z=math.cos(a)
             line('wheel spoke',[(x*.035,0,z*.035),(x*.29,0,z*.29)],.011,gold,wheel)
             ell('wheel handle',(x*.30,0,z*.30),(.035,.026,.035),gold,wheel)
+    # Fuse the shoulder into the upper arm before batching, preserving moving joints.
+    for parent in [o for o in root.children_recursive if o.type=='EMPTY']:
+        pieces=[o for o in parent.children if o.type=='MESH' and o.name.split('.')[0] in {'deltoid','upper arm'}]
+        if len(pieces)==2:
+            bpy.ops.object.select_all(action='DESELECT')
+            for o in pieces:o.select_set(True)
+            o=pieces[0];bpy.context.view_layer.objects.active=o
+            bpy.ops.object.join()
+            bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+            modifier=o.modifiers.new('continuous shoulder','REMESH');modifier.mode='VOXEL';modifier.voxel_size=.009
+            bpy.ops.object.modifier_apply(modifier=modifier.name)
+            modifier=o.modifiers.new('relax shoulder','SMOOTH');modifier.factor=.6;modifier.iterations=3
+            bpy.ops.object.modifier_apply(modifier=modifier.name)
+            modifier=o.modifiers.new('shoulder game density','DECIMATE');modifier.ratio=.5
+            bpy.ops.object.modifier_apply(modifier=modifier.name)
+            for p in o.data.polygons:p.use_smooth=True
     # Merge static surfaces per articulated node/material to keep game draw calls low.
     for parent in [root]+[o for o in root.children_recursive if o.type=='EMPTY']:
         meshes=[o for o in parent.children if o.type=='MESH']
@@ -208,5 +239,6 @@ bpy.ops.object.camera_add(location=(3,-8,3.1));cam=bpy.context.object;aim(cam,(0
 scene.render.engine='CYCLES';scene.cycles.samples=24
 scene.render.resolution_x=1500;scene.render.resolution_y=950;scene.render.resolution_percentage=100
 scene.render.filepath=os.path.join(SOURCE,'fighters-preview.png')
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(SOURCE,'shinjuku-fighters.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(SOURCE,'shinjuku-fighters-polished.blend'))
+bpy.ops.render.render(write_still=True)
 print('Exported three articulated fighters to '+OUT)
