@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>新宿角色 · 模型预览</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;background:#171b23;color:#edeaf4;font:14px system-ui}
+    header{padding:18px 24px;border-bottom:1px solid #40424b;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+    h1{font-size:20px;margin:0} button,select,a{background:#272735;color:#edeaf4;border:1px solid #696079;padding:9px 14px;border-radius:6px;font:inherit;text-decoration:none}
+    #stage{height:calc(100dvh - 145px);min-height:320px} canvas{display:block;width:100%;height:100%;touch-action:none}
+    footer{padding:12px 24px;color:#c2b8d7;font-size:13px;line-height:1.7} #status{color:#b6d3bd}
+  </style>
+</head>
+<body>
+  <header><h1>新宿决战 · 角色模型</h1>
+    <select id="character" aria-label="查看角色"><option value="all">全员对照</option><option value="yuta">乙骨忧太</option><option value="rika">里香</option><option value="sukunaStory1">四臂宿傩</option><option value="yutaGojo">乙骨 · 五条之身</option></select>
+    <button id="animate" aria-pressed="false">播放行走动作</button><button id="front">重置正面</button><a href="/">返回游戏</a>
+  </header>
+  <main id="stage"></main>
+  <footer><div>拖动旋转 · 滚轮缩放 · 选择单个角色查看细节。此页加载游戏实际使用的 GLB。</div><div id="status">正在加载四个角色…</div></footer>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { loadGltf } from '../src/three/models.js';
+    const host=document.querySelector('#stage');
+    const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));host.append(renderer.domElement);
+    const scene=new THREE.Scene();scene.background=new THREE.Color('#171b23');
+    const camera=new THREE.PerspectiveCamera(34,1,1,1600);
+    const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.minDistance=65;controls.maxDistance=1000;
+    scene.add(new THREE.HemisphereLight(0xd9e4ff,0x554638,2));
+    for(const [x,y,z,intensity] of [[-180,240,240,2.4],[250,160,60,1.4],[-70,180,-220,2]]){const l=new THREE.DirectionalLight(0xffffff,intensity);l.position.set(x,y,z);scene.add(l);}
+    const specs=[['yuta',-165,1],['rika',-50,1.55],['sukunaStory1',75,1.18],['yutaGojo',180,1.08]];
+    const models=new Map();let moving=false,selected='all';
+    function reset(){const all=selected==='all',rika=selected==='rika';const y=all||rika?67:48;const distance=all?Math.max(350,240/(Math.tan(17*Math.PI/180)*camera.aspect)):rika?300:235;controls.target.set(0,y,0);camera.position.set(0,y+20,distance);controls.update();}
+    function size(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();reset();}
+    new ResizeObserver(size).observe(host);reset();size();
+    for(const [id,x,scale] of specs){const model=await loadGltf(id);if(!model)throw new Error('模型加载失败：'+id);model.position.x=x;model.scale.setScalar(scale);scene.add(model);models.set(id,model);model.traverse(o=>{if(o.userData.isAura)o.visible=false;});}
+    const status=document.querySelector('#status');status.textContent='已加载：乙骨忧太、里香、四臂宿傩、乙骨·五条之身';status.dataset.loaded='4';
+    document.querySelector('#character').addEventListener('change',e=>{selected=e.target.value;for(const [id,x] of specs){const m=models.get(id);m.visible=selected==='all'||id===selected;m.position.x=selected==='all'?x:0;}reset();});
+    document.querySelector('#front').addEventListener('click',reset);
+    document.querySelector('#animate').addEventListener('click',e=>{moving=!moving;e.target.textContent=moving?'停止行走动作':'播放行走动作';e.target.setAttribute('aria-pressed',String(moving));});
+    renderer.setAnimationLoop(t=>{for(const m of models.values())m.userData.animate(t/1000,moving?1:0);controls.update();renderer.render(scene,camera);});
+  </script>
+</body>
+</html>

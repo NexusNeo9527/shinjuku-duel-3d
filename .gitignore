@@ -20,3 +20,8 @@ Thumbs.db
 
 # local test scripts
 *.mjs
+!tools/verify-story.mjs
+
+# Python asset tooling cache
+__pycache__/
+*.blend1

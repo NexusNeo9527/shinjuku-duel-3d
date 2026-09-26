@@ -6,7 +6,12 @@ const loader = new GLTFLoader();
 export const FIGHTER_STYLE = {
   gojo: { aura: 0x44d9ff, aura2: 0x266fff },
   sukuna: { aura: 0xff4e64, aura2: 0x9a1732 },
-  mahoraga: { aura: 0xe4c866, aura2: 0x8e7938 }
+  mahoraga: { aura: 0xe4c866, aura2: 0x8e7938 },
+  yuta: { aura: 0xc7b8ff, aura2: 0x7e6baa },
+  yutaGojo: { aura: 0x85cfff, aura2: 0x558acc },
+  sukunaStory1: { aura: 0xff4e64, aura2: 0x9a1732 },
+  sukunaStory2: { aura: 0xff4e64, aura2: 0x9a1732 },
+  rika: { aura: 0xd9c8ff, aura2: 0x887bb8 }
 };
 
 function makeGlowTexture() {
@@ -63,6 +68,7 @@ function auraFor(style, scale) {
 
 // Build a character in "game unit" space (radius 35 -> ~86 units tall), centered on origin.
 function buildCharacter(id) {
+  const visualId = id.startsWith("sukuna") ? "sukuna" : id === "yutaGojo" ? "gojo" : id === "yuta" ? "gojo" : id === "rika" ? "mahoraga" : id;
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -73,9 +79,9 @@ function buildCharacter(id) {
   const hairMat = std(0xf5f8ff, { roughness: 0.55 });
   let hasWheel = false;
 
-  if (id === "gojo") {
+  if (visualId === "gojo") {
     skinMat.color.set(0xf0d5c6);
-  } else if (id === "sukuna") {
+  } else if (visualId === "sukuna") {
     skinMat.color.set(0xe2b7aa);
     hairMat.color.set(0xf2798c);
     darkMat.color.set(0x6e2436);
@@ -124,7 +130,7 @@ function buildCharacter(id) {
   );
   hair.position.y = 2;
   headJoint.add(hair);
-  if (id !== "mahoraga") {
+  if (visualId !== "mahoraga") {
     const spikes = new THREE.Group();
     for (let i = 0; i < 7; i += 1) {
       const a = (i / 6 - 0.5) * Math.PI * 1.1;
@@ -138,7 +144,7 @@ function buildCharacter(id) {
   }
 
   // face
-  if (id === "gojo") {
+  if (visualId === "gojo") {
     const band = new THREE.Mesh(new THREE.BoxGeometry(27, 8, 26), std(0x05070c, { roughness: 0.4 }));
     band.position.y = 1;
     headJoint.add(band);
@@ -149,13 +155,13 @@ function buildCharacter(id) {
     line.position.y = 1;
     headJoint.add(line);
   } else {
-    const eyeMat = new THREE.MeshBasicMaterial({ color: id === "sukuna" ? 0xff2f4d : 0xf6df73 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: visualId === "sukuna" ? 0xff2f4d : 0xf6df73 });
     for (const sx of [-5, 5]) {
       const eye = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.2, 1), eyeMat);
       eye.position.set(sx, 1, 12);
       headJoint.add(eye);
     }
-    if (id === "sukuna") {
+    if (visualId === "sukuna") {
       const markMat = std(0x120208, { roughness: 0.5 });
       for (const sx of [-1, 1]) {
         const mark = new THREE.Mesh(new THREE.BoxGeometry(1.6, 6, 1), markMat);
@@ -166,13 +172,13 @@ function buildCharacter(id) {
   }
 
   // arms
-  const armMaterial = id === "sukuna" ? skinMat : darkMat;
+  const armMaterial = visualId === "sukuna" ? skinMat : darkMat;
   function buildArm(side) {
     const shoulder = joint(torso, side * 15, 21, 0);
     const upper = limb(4.4, 13, armMaterial);
     shoulder.add(upper);
     const elbow = joint(shoulder, 0, -22, 0);
-    const fore = limb(3.6, 12, id === "sukuna" ? skinMat : darkMat);
+    const fore = limb(3.6, 12, visualId === "sukuna" ? skinMat : darkMat);
     elbow.add(fore);
     const hand = new THREE.Mesh(new THREE.SphereGeometry(4.2, 10, 10), skinMat);
     hand.position.y = -19;
@@ -185,7 +191,7 @@ function buildCharacter(id) {
   // legs
   function buildLeg(side) {
     const hip = joint(hips, side * 7, -9, 0);
-    const thigh = limb(5.2, 14, id === "sukuna" ? skinMat : darkMat);
+    const thigh = limb(5.2, 14, visualId === "sukuna" ? skinMat : darkMat);
     hip.add(thigh);
     const knee = joint(hip, 0, -23, 0);
     const shin = limb(4.4, 13, darkMat);
@@ -209,7 +215,7 @@ function buildCharacter(id) {
   legR.knee.rotation.z = 0.35;
 
   // mahoraga wheel
-  if (id === "mahoraga") {
+  if (visualId === "mahoraga") {
     hasWheel = true;
     const wheel = new THREE.Group();
     const ring = new THREE.Mesh(
@@ -273,7 +279,12 @@ export async function loadGltf(id) {
   const paths = {
     gojo: `${base}models/gojo.glb`,
     sukuna: `${base}models/sukuna.glb`,
-    mahoraga: `${base}models/mahoraga.glb`
+    mahoraga: `${base}models/mahoraga.glb`,
+    yuta: `${base}models/yuta.glb`,
+    rika: `${base}models/rika.glb`,
+    yutaGojo: `${base}models/yuta_gojo.glb`,
+    sukunaStory1: `${base}models/sukuna_shinjuku.glb`,
+    sukunaStory2: `${base}models/sukuna_shinjuku.glb`
   };
   try {
     const gltf = await loader.loadAsync(paths[id]);
@@ -295,7 +306,7 @@ export async function loadGltf(id) {
     const parts = {};
     model.traverse((o) => {
       const name = o.name.replace(/[_\.]?\d+$/, "");
-      if (/^(hips|torso|head|arm[LR]|fore[LR]|leg[LR]|shin[LR]|wheel)$/.test(name)) {
+      if (/^(hips|torso|head|arm[LR]|fore[LR]|armLower[LR]|foreLower[LR]|leg[LR]|shin[LR]|wheel)$/.test(name)) {
         parts[name] = { node: o, rest: o.quaternion.clone() };
       }
     });
@@ -315,6 +326,8 @@ export async function loadGltf(id) {
       for (const [side, sign] of [['L', 1], ['R', -1]]) {
         rotate('arm' + side, sign * swing * .65 - .12);
         rotate('fore' + side, -.15 - Math.max(0, sign * swing) * .4);
+        rotate('armLower' + side, -sign * swing * .35 + .16);
+        rotate('foreLower' + side, -.25 - Math.max(0, -sign * swing) * .2);
         rotate('leg' + side, -sign * swing * .55);
         rotate('shin' + side, Math.max(0, sign * swing) * .65);
       }
@@ -324,6 +337,18 @@ export async function loadGltf(id) {
     return wrapper;
   } catch (error) {
     console.warn(`Unable to load fighter model: ${id}`, error);
+    return null;
+  }
+}
+
+export async function loadStoryScene(stage) {
+  if (stage !== "yuta" && stage !== "borrowed") return null;
+  try {
+    const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/story_${stage}.glb`);
+    gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    return gltf.scene;
+  } catch (error) {
+    console.warn(`Unable to load story arena: ${stage}`, error);
     return null;
   }
 }

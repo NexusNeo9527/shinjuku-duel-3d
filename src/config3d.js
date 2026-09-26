@@ -206,6 +206,55 @@ export const CHARACTERS = {
   }
 };
 
+// Story fighters have their own move lists. Keeping separate IDs prevents the
+// original duel's AI tuning and Mahoraga loadout from leaking into the story.
+const storyMove = (id, label, type, extra = {}) => ({
+  id, label, type, shape: type === "beam" ? "beam" : "blade",
+  color: "#d9c8ff", core: "#fffaff", cooldown: 1.2, ...extra
+});
+CHARACTERS.yuta = {
+  id: "yuta", name: "乙骨忧太", color: "#c7b8ff", aura: 0xc7b8ff,
+  height: 1.8, speed: 7.1, hp: 100,
+  dash: { speed: 26, duration: 0.2, cooldown: 1.1, invuln: 0.32 },
+  combos: [],
+  abilities: [
+    storyMove("katana", "咒力刀", "melee", { damage: 9, range: 3.2, cooldown: 0.55, physical: true }),
+    storyMove("rika", "里香", "summon", { cooldown: 24, hp: 65, life: 20 }),
+    storyMove("copy", "复制术式", "copy", { cooldown: 2.8 }),
+    storyMove("authenticLove", "真赝相爱", "domain", { damage: 4, tick: 0.48, radius: 17, life: 6, cooldown: 0, needsDomain: true }),
+    storyMove("yutaHeal", "反转术式", "heal", { cooldown: 16, needsCharge: true, heal: 16 })
+  ]
+};
+CHARACTERS.yutaGojo = {
+  ...CHARACTERS.gojo, id: "yutaGojo", name: "乙骨·五条之身", color: "#85cfff", aura: 0x85cfff,
+  abilities: [
+    ...CHARACTERS.gojo.abilities.map((ab) => ({ ...ab })),
+    storyMove("borrowedHeal", "反转术式", "heal", { cooldown: 16, needsCharge: true, heal: 15 })
+  ]
+};
+const storySukuna = (id, domain) => ({
+  ...CHARACTERS.sukuna, id, name: "宿傩", combos: [],
+  abilities: [
+    { ...CHARACTERS.sukuna.abilities[0] },
+    { ...CHARACTERS.sukuna.abilities[1] },
+    storyMove("worldSlash", "世界斩", "beam", { damage: 28, power: 3, length: 44, width: 1.3, life: 0.45, cooldown: 0, needsCharge: true, knock: 16, color: "#ff7583", core: "#fff4f4" }),
+    domain ? { ...CHARACTERS.sukuna.abilities[3] } : storyMove("wickerBasket", "彌虚葛籠", "guard", { cooldown: 12 }),
+    storyMove("sukunaHeal", "反转术式", "heal", { cooldown: 18, needsCharge: true, heal: 13, color: "#ff7583" })
+  ]
+});
+CHARACTERS.sukunaStory1 = storySukuna("sukunaStory1", false);
+CHARACTERS.sukunaStory2 = storySukuna("sukunaStory2", true);
+
+export const STORY_STAGES = {
+  yuta: { label: "乙骨本体 · 真赝相爱", ally: "yuta", enemy: "sukunaStory1" },
+  borrowed: { label: "五条之身 · 领域再战", ally: "yutaGojo", enemy: "sukunaStory2" }
+};
+export const COPY_TECHNIQUES = [
+  storyMove("cursedSpeech", "咒言", "orb", { damage: 12, power: 1, speed: 32, radius: 1.0, life: 1.35, knock: 5, cooldown: 3, stun: 0.75 }),
+  storyMove("skyBreak", "天空操术·薄冰破", "orb", { damage: 18, power: 2, speed: 29, radius: 1.0, life: 1.4, knock: 11, cooldown: 3 }),
+  storyMove("jacobsLadder", "雅各布天梯", "beam", { damage: 27, power: 3, length: 42, width: 2.2, life: 0.55, knock: 8, cooldown: 4.5 })
+];
+
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
 export const rand = (a, b) => a + Math.random() * (b - a);

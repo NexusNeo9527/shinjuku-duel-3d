@@ -93,6 +93,9 @@ body { transition: background 0.25s ease; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .brand-text strong { font-size: 15px; letter-spacing: 0.22em; color: var(--accent); }
 .brand-text span { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.24em; color: var(--muted); }
+body.story-title-active .brand-text strong { max-width: 48vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: clamp(10px, 2.5vw, 13px); letter-spacing: 0; }
+.overlay h1.story-home-title { font-size: clamp(20px, 5vw, 40px); letter-spacing: 0; white-space: nowrap; }
+.overlay h1.borrowed-home-title { font-size: clamp(18px, 4.3vw, 36px); }
 .topbar-actions { display: flex; gap: 8px; }
 .ghost-button {
   width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
@@ -204,6 +207,7 @@ body { transition: background 0.25s ease; }
 
 /* ability tiles */
 .ability-bar { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; gap: 9px; pointer-events: none; }
+.battle-status { position: absolute; top: 126px; left: 50%; transform: translateX(-50%); max-width: min(88vw, 760px); padding: 7px 14px; border: 1px solid rgba(200, 177, 255, .5); border-radius: 12px; background: rgba(8, 10, 22, .82); color: #eee1ff; font-size: 12px; font-weight: 700; text-align: center; pointer-events: none; z-index: 5; }
 .ability-slot {
   position: relative; width: 68px; height: 68px; border-radius: 14px; overflow: hidden;
   background: linear-gradient(160deg, var(--slot-a), var(--slot-b));
@@ -386,7 +390,8 @@ body { transition: background 0.25s ease; }
 .touch-ability b { font-size: 10px; font-weight: 800; }
 .touch-ability .ta-cd { position: absolute; inset: 0; background: conic-gradient(rgba(0, 0, 0, 0.72) calc(var(--cd, 0) * 1turn), transparent 0); }
 .touch-ability.ready { border-color: currentColor; box-shadow: 0 0 16px -4px currentColor; }
-.touch-slot { display: flex; gap: 8px; pointer-events: none; }
+.touch-slot { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; max-width: 310px; pointer-events: none; }
+.touch-ability.locked { opacity: .45; }
 .touch-btn.small {
   pointer-events: auto; min-width: 60px; height: 46px; border-radius: 12px; cursor: pointer;
   font-size: 12px; color: var(--text); background: var(--chip); border: 1px solid var(--line-strong);
@@ -450,6 +455,22 @@ body.dual-touch #btnSwitch { display: none !important; }
   filter: contrast(1.08) saturate(1.12) brightness(1.05);
 }
 .cut-in.contain img { object-fit: contain; }
+.cut-in.compact {
+  inset: auto 18px 90px auto;
+  width: min(37vw, 440px);
+  height: min(22vw, 248px);
+  min-width: 220px;
+  min-height: 140px;
+  border: 1px solid rgba(216, 197, 255, 0.55);
+  border-radius: 16px;
+  background: transparent;
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.5);
+}
+.cut-in.compact img { object-position: center 35%; }
+.cut-in.compact::before {
+  background: linear-gradient(180deg, rgba(7, 5, 14, 0.08), rgba(7, 5, 14, 0.44));
+}
+.cut-in.compact::after { box-shadow: inset 0 0 42px 5px var(--cut-shadow, rgba(120, 60, 220, 0.5)); }
 .cut-in::before {
   content: ""; position: absolute; inset: 0; z-index: 2;
   background:
@@ -459,6 +480,13 @@ body.dual-touch #btnSwitch { display: none !important; }
 .cut-in::after {
   content: ""; position: absolute; inset: 0; z-index: 3;
   box-shadow: inset 0 0 120px 30px var(--cut-shadow, rgba(120, 60, 220, 0.5));
+}
+@media (max-width: 600px) {
+  .cut-in.compact {
+    top: 32%; right: 8px; bottom: auto;
+    width: min(49vw, 240px); height: min(29vh, 210px);
+    min-width: 0; min-height: 0;
+  }
 }
 
 /* crosshair + pointer-lock hint */
@@ -492,6 +520,11 @@ body.split-mode #crosshair { left: 25%; }
 .split-divider {
   position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%);
   background: linear-gradient(180deg, transparent, var(--line-strong) 18%, var(--line-strong) 82%, transparent);
+}
+
+@media (max-width: 480px) {
+  body.story-title-active .brand-text strong { font-size: 11px; }
+  body.story-title-active .brand-text span { letter-spacing: 0.08em; }
 }
 .split-controls {
   position: absolute; top: 58px; width: calc(50% - 18px); padding: 5px 9px;
@@ -586,6 +619,15 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
 .mode-card .mode-no { font-family: var(--font-mono); display: block; font-size: 10px; letter-spacing: 0.3em; color: var(--muted); }
 .mode-card .mode-label { display: block; font-size: 20px; margin: 10px 0 6px; font-weight: 700; color: var(--accent); }
 .mode-card small { color: var(--muted); font-size: 12px; }
+.home-mode-grid { gap: 18px; }
+.home-mode-card { width: min(290px, 100%); min-height: 150px; }
+.gojo-mode-card { --card-accent: #44d9ff; }
+.yuta-mode-card { --card-accent: #c7b8ff; }
+.home-mode-card .mode-label { color: var(--card-accent); }
+.home-mode-card:hover, .home-mode-card:focus-visible {
+  border-color: var(--card-accent);
+  box-shadow: 0 8px 30px -12px var(--card-accent);
+}
 .controls-note {
   margin-top: 26px; font-size: 12px; color: var(--muted); line-height: 1.95; text-align: left;
   background: var(--panel-strong); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; max-width: 760px;
@@ -868,6 +910,11 @@ body.touch-mode .vt-btn { touch-action: none; }
   -ms-overflow-style: none;
   overflow-x: hidden;
 }
+#gojoMenu, #storyMenu { align-items: flex-start; overflow-y: auto; }
+#gojoMenu .overlay-panel, #storyMenu .overlay-panel { margin: auto; flex-shrink: 0; width: min(820px, 100%); }
+#gojoMenu, #storyMenu { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+#gojoMenu::-webkit-scrollbar, #storyMenu::-webkit-scrollbar { width: 5px; }
+#gojoMenu::-webkit-scrollbar-thumb, #storyMenu::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 5px; }
 .overlay-panel::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .result-panel { padding: 34px 54px; max-height: 90vh; overflow-y: auto; }
 @media (max-height: 620px) {
@@ -888,3 +935,23 @@ body.touch-mode .vt-btn { touch-action: none; }
   .result-quote { margin-top: 10px; padding: 8px 14px; }
   .result-quote p { font-size: 14px; }
 }
+
+/* Yuta keeps a separate violet identity across both player and enemy HUDs. */
+body.theme-yuta {
+  --accent: #c7b8ff; --accent-deep: #7058b8; --accent-2: #e8dfff; --gauge-domain: #b995ff;
+  --bg: #0b0715; --ov-a: rgba(31, 19, 54, .9); --ov-b: rgba(7, 5, 17, .97);
+  --panel: rgba(19, 15, 36, .76); --panel-strong: rgba(15, 11, 28, .8);
+  --chip: rgba(27, 20, 48, .84); --line: rgba(183, 155, 250, .18); --line-strong: rgba(183, 155, 250, .37);
+  --slot-a: rgba(37, 26, 61, .92); --slot-b: rgba(12, 10, 26, .96);
+  --card-a: rgba(37, 26, 61, .88); --card-b: rgba(16, 11, 32, .93);
+  --btn-a: #7058b8; --btn-b: #d9c8ff; --btn-text: #110c1d;
+}
+.duel-side.char-yuta, .duel-side.char-yuta .hp-num { color: #c7b8ff; }
+.bar-fill.char-yuta { background: linear-gradient(90deg, #7058b8, #c7b8ff); box-shadow: 0 0 12px -2px #c7b8ff; }
+.bar-fill.enemy.char-yuta { background: linear-gradient(270deg, #7058b8, #c7b8ff); }
+.duel-line.left.char-yuta { border-left-color: #c7b8ff; }
+.duel-line.right.char-yuta { border-right-color: #c7b8ff; }
+.duel-line.char-yuta .dl-sigil { background: rgba(47, 32, 74, .88); color: #c7b8ff; box-shadow: 0 0 16px -3px #c7b8ff; }
+.duel-line.char-yuta .dl-copy strong { color: #c7b8ff; }
+.split-panel.char-yuta { --char: #c7b8ff; --char-2: #7058b8; }
+.result-quote.char-yuta { border-left-color: #c7b8ff; }

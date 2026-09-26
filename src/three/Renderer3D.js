@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { buildPlaceholder, getGlowTexture, loadGltf } from "./models.js";
+import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene } from "./models.js";
 import { Post } from "./Post.js";
 import { ParticlePool } from "./Particles.js";
 import { clamp, lerp } from "../config3d.js";
@@ -174,6 +174,108 @@ export class Renderer3D {
     this.post = new Post(this.renderer, this.scene, this.camera);
     this._flash = 0;
     this.loading = { gojo: false, sukuna: false };
+    this._contextLost = false;
+    this._renderUnavailable = false;
+    this._makeGraphicsRecoveryUI();
+    // Mobile browsers can discard a WebGL context while a tab is backgrounded
+    // or under GPU memory pressure. Keep the browser's restoration path alive.
+    this.canvas.addEventListener("webglcontextlost", (event) => {
+      event.preventDefault();
+      this._markGraphicsContextLost();
+    });
+    this.canvas.addEventListener("webglcontextrestored", () => {
+      clearTimeout(this._contextRecoveryTimer);
+      this._contextLost = false;
+      this.recoverGraphicsState();
+    });
+  }
+
+  _makeGraphicsRecoveryUI() {
+    const host = this.canvas.parentElement;
+    if (!host) return;
+    const layer = document.createElement("div");
+    Object.assign(layer.style, {
+      position: "absolute", inset: "0", zIndex: "4", display: "none",
+      alignItems: "center", justifyContent: "center", padding: "20px",
+      background: "rgba(4, 5, 12, .72)", color: "#eee7ff",
+      font: "600 14px system-ui, sans-serif", textAlign: "center", pointerEvents: "none"
+    });
+    layer.setAttribute("role", "status");
+    layer.setAttribute("aria-live", "polite");
+    const card = document.createElement("div");
+    Object.assign(card.style, {
+      maxWidth: "320px", padding: "18px", borderRadius: "14px",
+      border: "1px solid rgba(190, 160, 255, .55)", background: "rgba(12, 12, 24, .96)",
+      boxShadow: "0 12px 40px rgba(0,0,0,.45)"
+    });
+    const message = document.createElement("div");
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.textContent = "重新加载画面";
+    Object.assign(retry.style, {
+      display: "none", marginTop: "14px", padding: "9px 14px", borderRadius: "9px",
+      border: "1px solid rgba(190, 160, 255, .7)", background: "#211a34",
+      color: "inherit", font: "inherit", pointerEvents: "auto", cursor: "pointer"
+    });
+    retry.addEventListener("click", () => window.location.reload());
+    card.append(message, retry);
+    layer.append(card);
+    host.append(layer);
+    this._graphicsRecoveryLayer = layer;
+    this._graphicsRecoveryMessage = message;
+    this._graphicsRecoveryButton = retry;
+  }
+
+  _showGraphicsRecovery(message, canReload) {
+    if (!this._graphicsRecoveryLayer) return;
+    this._graphicsRecoveryMessage.textContent = message;
+    this._graphicsRecoveryButton.style.display = canReload ? "inline-block" : "none";
+    this._graphicsRecoveryLayer.style.display = "flex";
+  }
+
+  _markGraphicsContextLost() {
+    if (this._contextLost) return;
+    this._contextLost = true;
+    this._renderUnavailable = true;
+    this._showGraphicsRecovery("3D 画面正在恢复…", false);
+    this._contextRecoveryTimer = setTimeout(() => {
+      if (this._contextLost) this._showGraphicsRecovery("3D 画面没有自动恢复，请点击重新加载画面。", true);
+    }, 2400);
+  }
+
+  _hideGraphicsRecovery() {
+    if (this._graphicsRecoveryLayer) this._graphicsRecoveryLayer.style.display = "none";
+    if (this._graphicsRecoveryButton) this._graphicsRecoveryButton.style.display = "none";
+  }
+
+  recoverGraphicsState() {
+    if (this.renderer.getContext().isContextLost()) {
+      this._contextLost = true;
+      this._renderUnavailable = true;
+      return false;
+    }
+    const rect = this.canvas.getBoundingClientRect();
+    this.renderer.resetState();
+    this.renderer.setRenderTarget(null);
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, this.width, this.height);
+    this.scene.background = new THREE.Color("#070a12");
+    this.scene.overrideMaterial = null;
+    this.camera.layers.set(0);
+    this.camera.layers.enable(1);
+    this.renderer.setClearColor(0x000000, 1);
+    if (rect.width > 0 && rect.height > 0) this.resize(rect.width, rect.height);
+    // Recreate the post-processing buffers after a mobile tab has slept; the
+    // old EffectComposer targets can otherwise stay black at the same size.
+    this.post.composer.reset();
+    const dpr = this.renderer.getPixelRatio();
+    this.post.bloomPass.setSize(this.width * dpr, this.height * dpr);
+    this.depthTarget.setSize(Math.max(2, Math.floor(this.width * dpr / 2)), Math.max(2, Math.floor(this.height * dpr / 2)));
+    this.renderer.setRenderTarget(null);
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, this.width, this.height);
+    this._renderUnavailable = false;
+    return true;
   }
 
   buildLights() {
@@ -196,6 +298,11 @@ export class Renderer3D {
   }
 
   buildArena() {
+    this.baseArena = new THREE.Group();
+    this.scene.add(this.baseArena);
+    this.storyAssets = new Map();
+    this.storyStage = null;
+    this.storyScene = null;
     const tex = makeGroundTexture();
     tex.repeat.set(12, 12);
     this.ground = new THREE.Mesh(
@@ -204,7 +311,7 @@ export class Renderer3D {
     );
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.receiveShadow = true;
-    this.scene.add(this.ground);
+    this.baseArena.add(this.ground);
 
     // boundary glow ring
     const ring = new THREE.Mesh(
@@ -214,7 +321,7 @@ export class Renderer3D {
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.02;
     ring.layers.set(1);
-    this.scene.add(ring);
+    this.baseArena.add(ring);
 
     // ruined skyline around the arena
     const colors = [0x121b29, 0x16202f, 0x101823, 0x1a2536];
@@ -231,7 +338,7 @@ export class Renderer3D {
       b.position.set(Math.sin(a) * dist, h / 2, Math.cos(a) * dist);
       b.rotation.y = Math.random() * Math.PI;
       b.castShadow = true;
-      this.scene.add(b);
+      this.baseArena.add(b);
       const winN = Math.floor(Math.random() * 10);
       for (let j = 0; j < winN; j += 1) {
         const win = new THREE.Mesh(
@@ -244,18 +351,69 @@ export class Renderer3D {
           b.position.z
         );
         win.lookAt(0, win.position.y, 0);
-        this.scene.add(win);
+        this.baseArena.add(win);
       }
     }
     this.boundary = 46;
     void this.boundary;
   }
 
+  async setStoryStage(stage) {
+    this.storyStage = stage;
+    for (const asset of this.storyAssets.values()) asset.visible = false;
+    if (!stage) { this.baseArena.visible = true; this.storyScene = null; return; }
+    let scene = this.storyAssets.get(stage);
+    if (!scene) {
+      this.baseArena.visible = true;
+      scene = await loadStoryScene(stage);
+      if (!scene) return;
+      scene.visible = false;
+      this.storyAssets.set(stage, scene);
+      this.scene.add(scene);
+    }
+    if (this.storyStage !== stage) return;
+    this.storyScene = scene;
+    scene.visible = true;
+    this.storyDomainProps = [];
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      if (o.name.startsWith("breakable_")) o.visible = true;
+      if (o.name.startsWith("domain_sword_") || o.name.startsWith("domain_marker_")) {
+        o.visible = false;
+        this.storyDomainProps.push(o);
+      }
+    });
+    this.baseArena.visible = false;
+  }
+
+  syncStoryHits(game) {
+    if (!game.sceneHits?.length) return;
+    const scene = this.storyScene;
+    if (!scene || game.mode !== "story") { game.sceneHits.length = 0; return; }
+    const candidates = [];
+    scene.traverse((o) => { if (o.isMesh && o.visible && o.name.startsWith("breakable_")) candidates.push(o); });
+    const pos = new THREE.Vector3();
+    for (const hit of game.sceneHits) {
+      let count = 0;
+      for (const mesh of candidates) {
+        if (!mesh.visible) continue;
+        mesh.getWorldPosition(pos);
+        if ((pos.x - hit.x) ** 2 + (pos.z - hit.z) ** 2 > hit.radius ** 2) continue;
+        mesh.visible = false;
+        game.burst(pos.x, pos.y, pos.z, "#9aa4b9", 10, 5);
+        if (++count >= 8) break;
+      }
+    }
+    game.sceneHits.length = 0;
+  }
+
   // ---- camera ----
   setOrbit(yaw, pitch, dist) {
-    this.camYaw = yaw;
-    this.camPitch = clamp(pitch, -0.5, 1.05);
-    this.camDist = clamp(dist, 5, 34);
+    this.camYaw = Number.isFinite(yaw) ? yaw : (Number.isFinite(this.camYaw) ? this.camYaw : Math.PI);
+    const safePitch = Number.isFinite(pitch) ? pitch : (Number.isFinite(this.camPitch) ? this.camPitch : 0.16);
+    const safeDistance = Number.isFinite(dist) ? dist : (Number.isFinite(this.camDist) ? this.camDist : 11);
+    this.camPitch = clamp(safePitch, -0.5, 1.05);
+    this.camDist = clamp(safeDistance, 5, 34);
   }
 
   groundPoint(ndcX, ndcY) {
@@ -300,6 +458,7 @@ export class Renderer3D {
   }
 
   resize(width, height) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return false;
     this.width = Math.max(320, width);
     this.height = Math.max(240, height);
     const dpr = Math.min(window.devicePixelRatio || 1, this.maxDpr);
@@ -315,6 +474,7 @@ export class Renderer3D {
     this.vfxUniforms.uFar.value = this.camera.far;
     this.depthMaterial.uniforms.uFar.value = this.camera.far;
     this.particlePool.setPixelRatio(dpr, this.height);
+    return true;
   }
 
   // ---- soft vfx material ----
@@ -484,7 +644,9 @@ export class Renderer3D {
     const model = await loadGltf(key);
     if (model && entry) {
       entry.inner.clear();
-      model.scale.setScalar(scale * (key === "mahoraga" ? 1.45 : 1));
+      const stature = key === "mahoraga" ? 1.45 : key === "rika" ? 1.55
+        : key.startsWith("sukunaStory") ? 1.18 : key === "yutaGojo" ? 1.08 : 1;
+      model.scale.setScalar(scale * stature);
       entry.inner.add(model);
       entry.model = model;
       model.traverse((o) => { if (o.userData?.isAura) o.layers.set(1); });
@@ -511,7 +673,7 @@ export class Renderer3D {
           }
         });
       }
-      const light = e.charId === "gojo" ? this.gojoLight : this.sukunaLight;
+      const light = e.team === "gojo" ? this.gojoLight : this.sukunaLight;
       light.intensity = 8;
       light.position.set(e.x, e.y + 1.6, e.z);
     }
@@ -752,6 +914,8 @@ export class Renderer3D {
   }
 
   syncDomains(game) {
+    const loveOpen = game.domains.some((d) => d.alive && d.type === "authenticLove");
+    for (const prop of this.storyDomainProps || []) prop.visible = loveOpen;
     while (this.domains.length < game.domains.length) this.domains.push(this.ensureDomain());
     for (let i = 0; i < this.domains.length; i += 1) {
       const dom = this.domains[i];
@@ -856,6 +1020,9 @@ export class Renderer3D {
   }
 
   applyDualCameras(game, dt) {
+    this.setOrbit(this.camYaw, this.camPitch, this.camDist);
+    if (!Number.isFinite(this.cam2Yaw)) this.cam2Yaw = this.camYaw + Math.PI;
+    if (!Number.isFinite(this.cam2Pitch)) this.cam2Pitch = 0.16;
     const ps = game.entities.filter((e) => e.isPlayer && e.alive);
     if (ps.length < 2) return;
     const p1 = ps[0];
@@ -885,6 +1052,14 @@ export class Renderer3D {
   }
 
   applyCamera(game, dt) {
+    this.setOrbit(this.camYaw, this.camPitch, this.camDist);
+    if (!Number.isFinite(this.speedFactor)) this.speedFactor = 0;
+    if (!Number.isFinite(this.camera.aspect) || this.camera.aspect <= 0) {
+      this.camera.aspect = this.width / Math.max(1, this.height);
+    }
+    if (!Number.isFinite(this.camera.fov) || this.camera.fov < 1 || this.camera.fov > 179) {
+      this.camera.fov = 55;
+    }
     if (game.mode === "dual") { this.applyDualCameras(game, dt); return; }
     const ls = dt > 0 ? Math.pow(0.0005, dt) : 0;
     const goal = this._camGoal || (this._camGoal = new THREE.Vector3());
@@ -924,10 +1099,21 @@ export class Renderer3D {
       look.set(goal.x + this.camAim.x * 50, goal.y + this.camAim.y * 50, goal.z + this.camAim.z * 50);
     }
 
+    if (![goal.x, goal.y, goal.z].every(Number.isFinite)) goal.set(0, 3, 20);
+    if (![look.x, look.y, look.z].every(Number.isFinite)) look.set(0, 1, 0);
+
     this.camera.position.lerp(goal, 1);
+    if (![this.camera.position.x, this.camera.position.y, this.camera.position.z].every(Number.isFinite)) {
+      this.camera.position.set(0, 3, 20);
+      look.set(0, 1, 0);
+      this._lookAt = look.clone();
+    }
     this.camera.position.y = Math.max(0.9, this.camera.position.y);
-    this._lookAt = this._lookAt || look.clone();
-    this._lookAt.lerp(look, 1);
+    if (!this._lookAt || ![this._lookAt.x, this._lookAt.y, this._lookAt.z].every(Number.isFinite)) {
+      this._lookAt = look.clone();
+    } else {
+      this._lookAt.lerp(look, 1);
+    }
     this.camera.lookAt(this._lookAt);
 
     // aspect-aware fov: widen the vertical fov on narrow screens (phones in
@@ -981,16 +1167,42 @@ export class Renderer3D {
     this.syncProjectiles(game);
     this.syncBeams(game);
     this.syncDomains(game);
+    this.syncStoryHits(game);
     this.syncParticles(game);
     this.syncDamageTexts(game);
     this.applyCamera(game, dt);
   }
 
   render(dt = 0) {
-    if (this._mode === "dual") { this._renderDual(); return; }
-    this._renderDepthPrepass();
-    this.post.sync(dt, this._flash, this.speedFactor);
-    this.post.render();
+    if (this.renderer.getContext().isContextLost()) {
+      this._markGraphicsContextLost();
+      this._renderUnavailable = true;
+      return;
+    }
+    if (this._contextLost) {
+      clearTimeout(this._contextRecoveryTimer);
+      this._contextLost = false;
+      this.recoverGraphicsState();
+    }
+    try {
+      if (this._mode === "dual") this._renderDual();
+      else {
+        this._renderDepthPrepass();
+        this.post.sync(dt, this._flash, this.speedFactor);
+        this.post.render();
+      }
+      this._renderUnavailable = false;
+      this._renderFailureCount = 0;
+      if (!this._contextLost) this._hideGraphicsRecovery();
+    } catch (error) {
+      this._renderUnavailable = true;
+      this._renderFailureCount = (this._renderFailureCount || 0) + 1;
+      if (this._renderFailureCount === 1) {
+        console.warn("3D frame failed; waiting for graphics recovery", error);
+        this._showGraphicsRecovery("3D 画面遇到暂时故障，正在尝试恢复…", false);
+        if (this.renderer.getContext().isContextLost()) this._contextLost = true;
+      }
+    }
   }
 
   // split-screen: left half = player 1, right half = player 2
@@ -1038,19 +1250,21 @@ export class Renderer3D {
     this.renderer.getClearColor(prevClear);
     const prevAlpha = this.renderer.getClearAlpha();
 
-    this.scene.background = null;
-    this.scene.overrideMaterial = this.depthMaterial;
-    this.camera.layers.set(0);
-    this.renderer.setClearColor(0xffffff, 1);
-    this.renderer.setRenderTarget(this.depthTarget);
-    this.renderer.clear();
-    this.renderer.render(this.scene, this.camera);
-
-    this.renderer.setRenderTarget(prevTarget);
-    this.renderer.setClearColor(prevClear, prevAlpha);
-    this.scene.background = prevBg;
-    this.scene.overrideMaterial = prevOverride;
-    this.camera.layers.mask = prevMask;
+    try {
+      this.scene.background = null;
+      this.scene.overrideMaterial = this.depthMaterial;
+      this.camera.layers.set(0);
+      this.renderer.setClearColor(0xffffff, 1);
+      this.renderer.setRenderTarget(this.depthTarget);
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.camera);
+    } finally {
+      this.renderer.setRenderTarget(prevTarget);
+      this.renderer.setClearColor(prevClear, prevAlpha);
+      this.scene.background = prevBg;
+      this.scene.overrideMaterial = prevOverride;
+      this.camera.layers.mask = prevMask;
+    }
   }
 
   reset() {

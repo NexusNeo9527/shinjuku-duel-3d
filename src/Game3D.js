@@ -1,7 +1,28 @@
-import { CHARACTERS, DIFFICULTY, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
+import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
+import { STORY_DIALOGUE } from "./storyDialogue.js";
 
 const ENTITY_RADIUS = 0.7;
 const CHEST = 1.0;
+
+const ABILITY_ART = {
+  blue: { art: "limitless-blue", compact: true },
+  red: { art: "limitless-red", compact: true },
+  purple: { art: "gojo-murasaki", life: 1, stop: 0.42, flash: 0.72, shake: 2.4 },
+  slash: { art: "sukuna-slash", compact: true },
+  cleave: { art: "sukuna-slash", compact: true },
+  flame: { art: "sukuna-flame", life: 1.05, stop: 0.3 },
+  mahoraga: { art: "mahoraga-summon", compact: true, life: 1.1 },
+  katana: { art: "yuta-katana", compact: true },
+  rika: { art: "yuta-rika", life: 1.15, stop: 0.35 },
+  cursedSpeech: { art: "yuta-cursed-speech", compact: true },
+  skyBreak: { art: "yuta-sky-break", compact: true },
+  jacobsLadder: { art: "yuta-jacobs-ladder", life: 1.05, stop: 0.32 },
+  yutaHeal: { art: "yuta-heal", compact: true },
+  borrowedHeal: { art: "borrowed-heal", compact: true },
+  worldSlash: { art: "sukuna-world-slash", life: 1.05, stop: 0.32 },
+  wickerBasket: { art: "sukuna-guard", compact: true },
+  sukunaHeal: { art: "sukuna-heal", compact: true }
+};
 
 export class Game3D {
   constructor() {
@@ -12,6 +33,7 @@ export class Game3D {
     this.projectiles = [];
     this.beams = [];
     this.domains = [];
+    this.sceneHits = [];
     this.particles = [];
     this.damageTexts = [];
     this.announcements = [];
@@ -30,10 +52,14 @@ export class Game3D {
     this.blackFlashCount = 0;
     this.nextRegenFxAt = 0;
     this.singleChar = "gojo";
+    this.storyStage = "yuta";
+    this.storySide = "ally";
+    this.storyTimer = 300;
     this.hitPulse = 0;
     this.hitPulseColor = "#ecc25a";
     this.timeStop = 0;
     this.cutIn = null;
+    this.lastSkillArtAt = -Infinity;
     this.battleTime = 0;
     this.rampStage = 0;
     this.dialogueQueue = [];
@@ -56,6 +82,34 @@ export class Game3D {
     this.dialogueQueue.sort((a, b) => b.priority - a.priority);
   }
 
+  storyDialogueLine(charId, cue) {
+    if (this.mode !== "story") return null;
+    return STORY_DIALOGUE[charId]?.[cue] || null;
+  }
+
+  queueStoryDialogue(entity, cue, duration = 2.5, priority = 2) {
+    if (!entity) return false;
+    const line = this.storyDialogueLine(entity.charId, cue);
+    if (!line) return false;
+    const key = `story:${entity.id}:${cue}`;
+    if (this.dialogueFlags.has(key)) return true;
+    this.dialogueFlags.add(key);
+    this.queueDialogue(entity.charId, line, duration, priority);
+    return true;
+  }
+
+  queueStoryMoveDialogue(entity, ability) {
+    if (this.mode !== "story" || !entity || !ability) return false;
+    const line = STORY_DIALOGUE[entity.charId]?.moves?.[ability.id];
+    if (!line) return false;
+    const key = `story:${entity.id}:move:${ability.id}`;
+    if (this.dialogueFlags.has(key)) return true;
+    this.dialogueFlags.add(key);
+    const isDomain = ability.type === "domain";
+    this.queueDialogue(entity.charId, line, isDomain ? 3 : 2.2, isDomain ? 5 : 3);
+    return true;
+  }
+
   updateDialogue(dt) {
     if (this.activeDialogue) {
       this.dialogueUntil -= dt;
@@ -73,7 +127,7 @@ export class Game3D {
     return {
       speaker: this.activeDialogue.speaker,
       name: char.name,
-      sigil: this.activeDialogue.speaker === "gojo" ? "五" : "宿",
+      sigil: this.activeDialogue.speaker.startsWith("yuta") ? "乙" : this.activeDialogue.speaker === "gojo" ? "五" : "宿",
       color: char.color,
       text: this.activeDialogue.text
     };
@@ -95,15 +149,18 @@ export class Game3D {
     this.practice = mode === "practice";
     this.state = "playing";
     this.elapsed = 0;
+    this.storyTimer = 300;
     this.winner = null;
     this.lockTargetId = null;
     this.battleTime = 0;
     this.rampStage = 0;
     this.timeStop = 0;
     this.cutIn = null;
+    this.lastSkillArtAt = -Infinity;
     this.projectiles = [];
     this.beams = [];
     this.domains = [];
+    this.sceneHits = [];
     this.particles = [];
     this.damageTexts = [];
     this.announcements = [];
@@ -114,6 +171,12 @@ export class Game3D {
     if (this.practice) {
       this.entities.push(this.makeEntity(this.practiceChar || "gojo", 0, 6, true));
       if (this.practiceDummy) this.spawnDummy();
+    } else if (mode === "story") {
+      const stage = STORY_STAGES[this.storyStage] || STORY_STAGES.yuta;
+      const playerChar = this.storySide === "enemy" ? stage.enemy : stage.ally;
+      const aiChar = this.storySide === "enemy" ? stage.ally : stage.enemy;
+      this.entities.push(this.makeEntity(playerChar, 0, 15, true));
+      this.entities.push(this.makeEntity(aiChar, 0, -15, false));
     } else {
       // single player may pick either side; the other one is the AI
       const playerChar = mode === "single" && this.singleChar === "sukuna" ? "sukuna" : "gojo";
@@ -122,13 +185,13 @@ export class Game3D {
       this.entities.push(this.makeEntity(aiChar, 0, -15, mode === "dual"));
     }
     // difficulty decides the enemy's toughness
-    if (this.mode === "single") {
+    if (this.mode === "single" || this.mode === "story") {
       const hp = DIFFICULTY[this.difficulty].enemyHp || 100;
       const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
-      const gojoAiTuning = ai?.charId === "gojo" && this.singleChar === "sukuna"
+      const gojoAiTuning = this.mode === "single" && ai?.charId === "gojo" && this.singleChar === "sukuna"
         ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
         : null;
-      const aiHpMultiplier = ai?.charId === "gojo" && this.singleChar === "sukuna"
+      const aiHpMultiplier = this.mode === "single" && ai?.charId === "gojo" && this.singleChar === "sukuna"
         ? (gojoAiTuning?.hpMultiplier ?? SUKUNA_VS_GOJO_AI_HANDICAP.hp)
         : 1;
       if (ai) {
@@ -152,11 +215,18 @@ export class Game3D {
       });
     }
     this.clearDialogue();
-    if (this.mode !== "practice") {
+    if (this.mode === "story") {
+      const player = this.entities.find((e) => e.isPlayer && !e.summon);
+      const opponent = this.entities.find((e) => !e.isPlayer && !e.summon);
+      this.queueStoryDialogue(player, "opening", 3.2, 5);
+      this.queueStoryDialogue(opponent, "opening", 2.8, 4);
+    } else if (this.mode !== "practice") {
       const pc = this.entities.find((e) => e.isPlayer)?.charId || "gojo";
       this.queueDialogue(pc, pc === "gojo"
         ? "我的学生都在看着呢，再让我耍会儿帅吧。"
-        : "让我看看，你凭什么站在我面前。", 3.3, 2);
+        : pc === "yuta" ? "里香，开始吧。"
+          : pc === "yutaGojo" ? "这一次，我会撑住。"
+            : "让我看看，你凭什么站在我面前。", 3.3, 2);
     }
     this.emit("sfx", { kind: "countdown" });
     if (this.mode === "single" && DIFFICULTY[this.difficulty].gojoRegen) {
@@ -166,6 +236,11 @@ export class Game3D {
 
   setSingleChar(charId) {
     this.singleChar = charId === "sukuna" ? "sukuna" : "gojo";
+  }
+
+  setStory(stage, side) {
+    this.storyStage = STORY_STAGES[stage] ? stage : "yuta";
+    this.storySide = side === "enemy" ? "enemy" : "ally";
   }
 
   setPracticeChar(charId) {
@@ -202,7 +277,7 @@ export class Game3D {
       name: char.name,
       color: char.color,
       aura: char.aura,
-      team: charId === "gojo" ? "gojo" : "sukuna",
+      team: charId === "gojo" || charId.startsWith("yuta") ? "gojo" : "sukuna",
       summon: false,
       ownerId: null,
       adapt: null,
@@ -230,6 +305,11 @@ export class Game3D {
       cooldowns: char.abilities.map(() => 0),
       charge: 0,
       domainCharge: 0,
+      burnout: 0,
+      domainLocked: false,
+      guardTimer: 0,
+      copyIndex: 0,
+      stun: 0,
       invuln: 0,
       hurtAt: -10,
       dashCooldown: 0,
@@ -339,11 +419,44 @@ export class Game3D {
   }
 
   // ---- casting ----
+  activeAbility(entity, index) {
+    const ability = CHARACTERS[entity.charId]?.abilities[index];
+    return ability?.type === "copy" ? COPY_TECHNIQUES[entity.copyIndex] : ability;
+  }
+
+  cycleCopy(entity) {
+    if (!entity?.alive || entity.charId !== "yuta") return false;
+    entity.copyIndex = (entity.copyIndex + 1) % COPY_TECHNIQUES.length;
+    this.announce(`复制术式 · ${COPY_TECHNIQUES[entity.copyIndex].label}`, "#d9c8ff", 1);
+    return true;
+  }
+
+  enterBurnout(entity) {
+    if (!entity?.alive || entity.summon) return;
+    entity.burnout = Math.max(entity.burnout, 6);
+    this.announce(`${entity.name} · 术式熔断`, entity.color, 1.25);
+  }
+
+  tryForceRestore(entity) {
+    if (!entity?.alive || entity.burnout <= 0 || entity.domainLocked || this.state !== "playing") return false;
+    const cost = Math.ceil(entity.maxHp * 0.2);
+    if (entity.hp <= cost) return false;
+    entity.hp -= cost;
+    entity.burnout = 0;
+    entity.domainLocked = true;
+    this.damageTexts.push({ x: entity.x, y: entity.y + 2, z: entity.z, text: `-${cost} 强行恢复`, color: "#ffb15c", life: 1, maxLife: 1 });
+    this.announce(`${entity.name} · 强行恢复`, "#ffb15c", 1.3);
+    return true;
+  }
+
   tryCast(entity, index) {
     if (!entity?.alive || this.state !== "playing") return false;
+    if (entity.stun > 0) return false;
     const char = CHARACTERS[entity.charId];
     const ability = char.abilities[index];
     if (!ability) return false;
+    if (entity.burnout > 0 && !ability.physical) return false;
+    if (ability.needsDomain && (entity.domainLocked || (this.mode === "story" && this.storyStage === "borrowed" && this.storyTimer <= 0 && entity.charId === "yutaGojo"))) return false;
     if (!this.practice && this.inVoidStun(entity) && !ability.needsDomain) {
       this.emit("sfx", { kind: "empty" });
       return false;
@@ -361,18 +474,50 @@ export class Game3D {
       ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
       : null;
     const aiCooldown = gojoAiTuning?.aiCooldowns[ability.id];
-    entity.cooldowns[index] = infinite ? 0.12 : (aiCooldown ?? ability.cooldown);
+    const selected = this.activeAbility(entity, index);
+    entity.cooldowns[index] = infinite ? 0.12 : (aiCooldown ?? selected.cooldown ?? ability.cooldown);
     if (ability.needsCharge && !this.practice) entity.charge = 0;
     if (ability.needsDomain && !this.practice) entity.domainCharge = 0;
 
     const dir = this.fireDir(entity);
     entity.yaw = Math.atan2(dir.x, dir.z);
 
-    if (ability.type === "orb") this.castOrb(entity, ability, dir);
-    else if (ability.type === "beam") this.castBeam(entity, ability, dir);
+    if (selected.type === "orb") this.castOrb(entity, selected, dir);
+    else if (selected.type === "beam") this.castBeam(entity, selected, dir);
     else if (ability.type === "domain") this.castDomain(entity, ability);
     else if (ability.type === "summon") this.castSummon(entity, ability);
+    else if (ability.type === "melee") this.castMelee(entity, ability);
+    else if (ability.type === "guard") this.castGuard(entity, ability);
+    else if (ability.type === "heal") this.castHeal(entity, ability);
+    if (selected.type !== "domain") this.showAbilityArt(entity, selected);
+    if (this.mode === "story") this.queueStoryMoveDialogue(entity, selected);
     return true;
+  }
+
+  castMelee(entity, ability) {
+    const target = this.enemyList(entity).find((e) => !e.summon && e.alive);
+    if (target && Math.hypot(target.x - entity.x, target.y - entity.y, target.z - entity.z) <= ability.range) {
+      this.damage(target, ability.damage, entity, ability.id);
+    }
+    this.burst(entity.x, entity.y + CHEST, entity.z, ability.color, 10, 3);
+    this.emit("sfx", { kind: "ability", ability: "slash" });
+  }
+
+  tryBasicAttack(entity) {
+    if (!entity?.alive || entity.stun > 0 || this.state !== "playing" || (entity.basicCooldown || 0) > 0) return false;
+    entity.basicCooldown = 0.65;
+    this.castMelee(entity, { id: "basicAttack", damage: 6, range: 3.2, color: entity.color });
+    return true;
+  }
+
+  castGuard(entity, ability) {
+    entity.guardTimer = 4;
+    this.announce(`${entity.name} · ${ability.label}`, ability.color, 1);
+  }
+
+  castHeal(entity, ability) {
+    entity.hp = clamp(entity.hp + ability.heal, 0, entity.maxHp);
+    this.damageTexts.push({ x: entity.x, y: entity.y + 2, z: entity.z, text: `+${ability.heal}`, color: "#8dffd4", life: 0.8, maxLife: 0.8 });
   }
 
   comboEligible(entity, abilityId) {
@@ -413,7 +558,7 @@ export class Game3D {
   }
 
   tryDash(entity, dirX, dirY = 0, dirZ = 0) {
-    if (!entity?.alive || this.state !== "playing") return false;
+    if (!entity?.alive || entity.stun > 0 || this.state !== "playing") return false;
     if (entity.dashCooldown > 0) return false;
     const cfg = CHARACTERS[entity.charId].dash;
     let dx = dirX;
@@ -468,7 +613,7 @@ export class Game3D {
         radius: ability.radius,
         damage: ability.damage,
         power: ability.power || 1,
-        knock: ability.knock,
+        knock: Number.isFinite(ability.knock) ? ability.knock : 0,
         life: ability.life,
         maxLife: ability.life,
         color: ability.color,
@@ -484,6 +629,21 @@ export class Game3D {
   }
 
   castBeam(entity, ability, dir) {
+    if (this.mode === "story") this.sceneHits.push({ x: entity.x + dir.x * 16, z: entity.z + dir.z * 16, radius: 8 });
+    for (const domain of this.domains) {
+      if (!domain.alive || domain.team === entity.team) continue;
+      const tx = domain.x - entity.x;
+      const tz = domain.z - entity.z;
+      const forward = tx * dir.x + tz * dir.z;
+      const side = Math.abs(tx * dir.z - tz * dir.x);
+      if (forward < 0 || forward > ability.length || side > domain.radius) continue;
+      domain.hp -= ability.id === "jacobsLadder" ? ability.damage * 2 : ability.damage;
+      if (domain.hp <= 0) {
+        domain.alive = false;
+        this.enterBurnout(this.entities.find((e) => e.id === domain.ownerId));
+        this.announce("领域被击破", ability.color, 1.2);
+      }
+    }
     this.beams.push({
       ownerId: entity.id,
       team: entity.team,
@@ -499,7 +659,7 @@ export class Game3D {
       life: ability.life,
       maxLife: ability.life,
       damage: ability.damage,
-      knock: ability.knock,
+      knock: Number.isFinite(ability.knock) ? ability.knock : 0,
       color: ability.color,
       core: ability.core,
       hit: new Set(),
@@ -510,15 +670,29 @@ export class Game3D {
     this.hitStop = Math.max(this.hitStop, 0.06);
     this.burst(entity.x + dir.x * 1.2, entity.y + CHEST, entity.z + dir.z * 1.2, ability.color, 34, 9, dir);
     this.emit("sfx", { kind: "ability", ability: ability.id });
-    // Gojo's 茈: brief time-stop + manga cut-in
-    if (entity.charId === "gojo" && ability.id === "purple") {
-      this.triggerCutIn("gojo-murasaki", 0.42, 0.72, 2.4);
-    }
     this.announce(`${CHARACTERS[entity.charId].name} · ${ability.label}`, ability.color, 1.2);
-    this.queueDialogue(entity.charId, entity.charId === "gojo" ? "这一击，可别移开视线。" : "让我看看你能撑到什么时候。", 2.4, 2);
+    if (this.mode !== "story") {
+      this.queueDialogue(entity.charId, entity.charId === "gojo" ? "这一击，可别移开视线。" : "让我看看你能撑到什么时候。", 2.4, 2);
+    }
   }
 
-  // ---- cinematic cut-in (time-stop + full-screen manga art) ----
+  showAbilityArt(entity, ability) {
+    const spec = ABILITY_ART[ability.id];
+    if (!spec || (this.cutIn && this.cutIn.presentation !== "compact")) return;
+    if (!entity.isPlayer && this.cutIn?.ownerPlayer) return;
+    if (spec.compact) {
+      const gap = entity.isPlayer ? 1.1 : 2.4;
+      if (this.elapsed - this.lastSkillArtAt < gap) return;
+      this.lastSkillArtAt = this.elapsed;
+    }
+    this.triggerCutIn(spec.art, spec.stop ?? 0, spec.flash ?? (spec.compact ? 0 : 0.65), spec.shake ?? (spec.compact ? 0 : 2.2), {
+      life: spec.life ?? (spec.compact ? 0.75 : 1),
+      presentation: spec.compact ? "compact" : "full",
+      ownerPlayer: entity.isPlayer
+    });
+  }
+
+  // ---- cinematic cut-in (time-stop + skill art) ----
   triggerCutIn(art, stop = 0.4, flash = 0.6, shake = 2.0, opts = {}) {
     const life = opts.life || 1.0;
     this.cutIn = {
@@ -527,7 +701,9 @@ export class Game3D {
       maxLife: life,
       tint: opts.tint || null,
       shadow: opts.shadow || null,
-      fit: opts.fit || "cover"
+      fit: opts.fit || "cover",
+      presentation: opts.presentation || "full",
+      ownerPlayer: opts.ownerPlayer || false
     };
     this.timeStop = Math.max(this.timeStop, stop);
     this.flash = Math.max(this.flash, flash);
@@ -535,10 +711,23 @@ export class Game3D {
   }
 
   castDomain(entity, ability) {
+    if (this.mode === "story") this.sceneHits.push({ x: entity.x, z: entity.z, radius: 24 });
     const opposing = this.domains.find((d) => d.alive && d.team !== entity.team);
     if (opposing) {
-      opposing.alive = false;
-      this.domains = this.domains.filter((d) => d.alive);
+      const existingOwner = this.entities.find((e) => e.id === opposing.ownerId);
+      const attackPower = ability.domainPower ?? 2;
+      const defensePower = opposing.power ?? 2;
+      if (attackPower >= defensePower) {
+        opposing.alive = false;
+        this.enterBurnout(existingOwner);
+      }
+      if (attackPower <= defensePower) this.enterBurnout(entity);
+      if (attackPower < defensePower) opposing.life = Math.min(opposing.life, 2.5);
+      if (attackPower > defensePower) {
+        this.domains = this.domains.filter((d) => d.alive);
+      } else if (attackPower === defensePower) {
+        this.domains = this.domains.filter((d) => d.alive);
+      }
       this.flash = Math.max(this.flash, 0.66);
       this.screenShake = Math.max(this.screenShake, 2.6);
       this.hitStop = Math.max(this.hitStop, 0.07);
@@ -547,7 +736,11 @@ export class Game3D {
       this.emit("sfx", { kind: "domain", owner: "clash" });
       this.announce("领域对抗", "#f4f1ff", 1.5);
       this.triggerCutIn("domain-clash", 0.42, 0.68, 2.6);
-      return;
+      if (this.mode === "story") {
+        this.queueStoryDialogue(entity, "clash", 2.7, 4);
+        this.queueStoryDialogue(existingOwner, "clash", 2.7, 4);
+      }
+      if (attackPower <= defensePower) return;
     }
     this.domains.push({
       ownerId: entity.id,
@@ -563,6 +756,8 @@ export class Game3D {
       tick: ability.tick,
       tickTimer: 0.15,
       damage: ability.damage,
+      power: ability.domainPower ?? 2,
+      hp: 40,
       color: ability.color,
       core: ability.core,
       alive: true
@@ -571,9 +766,10 @@ export class Game3D {
     this.screenShake = Math.max(this.screenShake, 2.2);
     this.emit("sfx", { kind: "domain", owner: entity.charId });
     this.announce(`领域展开 · ${ability.label}`, ability.color, 1.6);
-    if (entity.charId === "gojo") this.triggerCutIn("gojo-void", 0.42, 0.66, 2.4);
-    else if (entity.charId === "sukuna") this.triggerCutIn("sukuna-domain", 0.42, 0.66, 2.4);
-    this.queueDialogue(entity.charId, entity.charId === "gojo" ? "领域展开——无量空处。" : "领域展开——伏魔御厨子。", 3.0, 5);
+    if (entity.charId === "yuta") this.triggerCutIn("yuta-authentic-love", 0.42, 0.66, 2.4, { life: 1.3 });
+    else if (entity.charId === "gojo" || entity.charId === "yutaGojo") this.triggerCutIn("gojo-void", 0.42, 0.66, 2.4);
+    else if (entity.charId.startsWith("sukuna")) this.triggerCutIn("sukuna-domain", 0.42, 0.66, 2.4);
+    if (this.mode !== "story") this.queueDialogue(entity.charId, `领域展开——${ability.label}。`, 3.0, 5);
   }
 
   castSummon(entity, ability) {
@@ -581,18 +777,19 @@ export class Game3D {
     if (existing) existing.life = 0;
     // the difficulty decides how strong Mahoraga is
     const maha = (DIFFICULTY[this.difficulty] || DIFFICULTY.normal).mahoraga || {};
-    const hp = maha.hp ?? ability.hp ?? 72;
+    const rika = ability.id === "rika";
+    const hp = rika ? ability.hp : (maha.hp ?? ability.hp ?? 72);
     const m = {
-      id: `mahoraga_${entity.id}`,
-      charId: "mahoraga",
-      name: "魔虚罗",
-      color: "#e4c866",
-      aura: 0xe4c866,
+      id: `${ability.id}_${entity.id}`,
+      charId: rika ? "rika" : "mahoraga",
+      name: rika ? "里香" : "魔虚罗",
+      color: rika ? "#d9c8ff" : "#e4c866",
+      aura: rika ? 0xd9c8ff : 0xe4c866,
       team: entity.team,
       summon: true,
       ownerId: entity.id,
       adapt: {},
-      life: maha.life ?? ability.life ?? 24,
+      life: rika ? ability.life : (maha.life ?? ability.life ?? 24),
       contactAt: -10,
       shotAt: -10,
       isPlayer: false,
@@ -603,10 +800,10 @@ export class Game3D {
       yaw: 0,
       hp,
       maxHp: hp,
-      damageScale: maha.dmg ?? 1,
+      damageScale: rika ? 1.15 : (maha.dmg ?? 1),
       vx: 0,
       vz: 0,
-      speed: maha.speed ?? ability.speed ?? 6.6,
+      speed: rika ? 7.2 : (maha.speed ?? ability.speed ?? 6.6),
       alive: true,
       moving: true,
       sprinting: false,
@@ -637,9 +834,9 @@ export class Game3D {
     this.flash = Math.max(this.flash, 0.45);
     this.screenShake = Math.max(this.screenShake, 1.6);
     this.emit("sfx", { kind: "thunderHit" });
-    this.announce("魔虚罗 参战", "#e4c866", 1.5);
+    this.announce(`${m.name} 参战`, m.color, 1.5);
     this.burst(m.x, m.y + CHEST, m.z, "#e4c866", 44, 9);
-    this.queueDialogue("sukuna", "魔虚罗，适应他。", 2.5, 4);
+    if (this.mode !== "story") this.queueDialogue(entity.charId, rika ? "里香，帮我。" : "魔虚罗，适应他。", 2.5, 4);
   }
 
   updateSummon(dt) {
@@ -670,7 +867,7 @@ export class Game3D {
         this.damage(target, 6 * mDmg, m, "mahoragaContact");
         this.burst(target.x, target.y + CHEST, target.z, "#e4c866", 12, 5);
       }
-      if (this.elapsed - m.shotAt > 1.3 && dist < 28) {
+      if (m.charId === "mahoraga" && this.elapsed - m.shotAt > 1.3 && dist < 28) {
         m.shotAt = this.elapsed;
         const d = this.fireDir(m);
         this.projectiles.push({
@@ -703,7 +900,7 @@ export class Game3D {
     if (!m.alive) return;
     m.alive = false;
     this.burst(m.x, m.y + CHEST, m.z, "#e4c866", 46, 10);
-    this.announce("魔虚罗 退场", "#f8e7a4", 1.2);
+    this.announce(`${m.name} 退场`, m.color, 1.2);
   }
 
   // ---- damage ----
@@ -720,10 +917,10 @@ export class Game3D {
       : null;
     // 领域是持续伤害；若每一跳都回充，会在持续时间内把领域值重新充满，导致 AI 连续展开。
     const isDomainTick = sourceAbility?.type === "domain";
-    const aiAttacker = source && !source.isPlayer && this.mode === "single";
-    const aiTarget = this.mode === "single" && !target.isPlayer && !target.summon;
+    const aiAttacker = source && !source.isPlayer && (this.mode === "single" || this.mode === "story");
+    const aiTarget = (this.mode === "single" || this.mode === "story") && !target.isPlayer && !target.summon;
     let dealt = amount * (aiAttacker ? profile.damageMultiplier : 1);
-    if (aiAttacker && source.charId === "gojo" && this.singleChar === "sukuna") {
+    if (this.mode === "single" && aiAttacker && source.charId === "gojo" && this.singleChar === "sukuna") {
       const gojoAiTuning = SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty];
       dealt *= gojoAiTuning?.damageMultiplier ?? SUKUNA_VS_GOJO_AI_HANDICAP.damage;
     }
@@ -736,10 +933,12 @@ export class Game3D {
       if (dist <= BLACK_FLASH.range && Math.random() < BLACK_FLASH.chance) blackFlash = true;
     }
     if (blackFlash) dealt *= BLACK_FLASH.multiplier;
+    if (isDomainTick && target.guardTimer > 0) dealt *= 0.2;
+    if (this.mode === "story" && this.storyStage === "borrowed" && this.storyTimer <= 0 && source?.charId === "yutaGojo") dealt *= 0.65;
     dealt = Math.max(1, Math.round(dealt));
 
     let adapted = false;
-    if (target.summon && abilityId) {
+    if (target.charId === "mahoraga" && abilityId) {
       target.adapt = target.adapt || {};
       const stacks = target.adapt[abilityId] || 0;
       const red = Math.min(0.55, stacks * 0.18);
@@ -759,6 +958,7 @@ export class Game3D {
     }
 
     target.hp = clamp(target.hp - dealt, 0, target.maxHp);
+    if (abilityId === "cursedSpeech") target.stun = Math.max(target.stun || 0, 0.75);
     target.hurtAt = this.elapsed;
     target.invuln = 0.06;
     const label = blackFlash ? `-${dealt} 黑闪` : (combo ? `-${dealt} ${combo.name}` : (adapted ? `-${dealt} 适应` : `-${dealt}`));
@@ -797,7 +997,9 @@ export class Game3D {
     const lowKey = `${target.charId}_low`;
     if (target.hp > 0 && target.hp <= 38 && !this.dialogueFlags.has(lowKey)) {
       this.dialogueFlags.add(lowKey);
-      this.queueDialogue(target.charId, target.charId === "gojo" ? "还没结束呢。" : "这样才有意思。", 2.3, 1);
+      const line = this.storyDialogueLine(target.charId, "lowHealth")
+        || (target.charId === "gojo" ? "还没结束呢。" : "这样才有意思。");
+      this.queueDialogue(target.charId, line, 2.3, 1);
     }
     if (target.hp <= 0) this.kill(target);
   }
@@ -816,7 +1018,7 @@ export class Game3D {
       });
     }
     if (target.summon) {
-      this.announce("魔虚罗 退场", "#f8e7a4", 1.2);
+      this.announce(`${target.name} 退场`, target.color, 1.2);
       this.emit("sfx", { kind: "defeat" });
       return;
     }
@@ -840,7 +1042,9 @@ export class Game3D {
     this.particles = [];
     this.emit("sfx", { kind: "win" });
     const winnerId = this.winner?.charId || "gojo";
-    this.queueDialogue(winnerId, this.winner?.charId === "gojo" ? "这场胜负，已经定了。" : "到此为止。", 2.5, 4);
+    const line = this.storyDialogueLine(winnerId, "ending")
+      || (this.winner?.charId === "gojo" ? "这场胜负，已经定了。" : "到此为止。");
+    this.queueDialogue(winnerId, line, 2.5, 4);
   }
 
   // ---- projectiles / beams / domains ----
@@ -893,6 +1097,7 @@ export class Game3D {
           e.vz += (p.vz / len) * p.knock * kb;
           const owner = this.entities.find((x) => x.id === p.ownerId);
           this.damage(e, p.damage, owner, p.abilityId);
+          if (this.mode === "story") this.sceneHits.push({ x: p.x, z: p.z, radius: 6 });
           this.burst(p.x, p.y, p.z, p.color, 16, 5.5);
           p.alive = false;
           break;
@@ -986,9 +1191,14 @@ export class Game3D {
           stronger.power = Math.max(1, stronger.power - 1);
         }
         this.announce(equalPower ? "术式相杀" : "术式突破", equalPower ? "#ffffff" : "#cfe0ff", 0.9);
-        if (equalPower && !this.dialogueFlags.has("gojo_challenger")) {
-          this.dialogueFlags.add("gojo_challenger");
-          this.queueDialogue("gojo", "你才是挑战者。", 2.7, 3);
+        if (equalPower) {
+          if (this.mode === "story") {
+            const speaker = (ownerA?.isPlayer ? ownerA : null) || (ownerB?.isPlayer ? ownerB : null) || ownerA || ownerB;
+            this.queueStoryDialogue(speaker, "clash", 2.7, 3);
+          } else if (!this.dialogueFlags.has("gojo_challenger")) {
+            this.dialogueFlags.add("gojo_challenger");
+            this.queueDialogue("gojo", "你才是挑战者。", 2.7, 3);
+          }
         }
         break;
       }
@@ -1042,7 +1252,10 @@ export class Game3D {
           if (dx * dx + dy * dy + dz * dz <= d.radius * d.radius) this.damage(e, d.damage, owner, d.abilityId);
         }
       }
-      if (d.life <= 0) d.alive = false;
+      if (d.life <= 0) {
+        d.alive = false;
+        this.enterBurnout(this.entities.find((e) => e.id === d.ownerId));
+      }
     }
     this.domains = this.domains.filter((d) => d.alive);
   }
@@ -1074,6 +1287,10 @@ export class Game3D {
   // ---- entity update ----
   updateEntity(e, dt) {
     if (!e.alive) return;
+    e.burnout = Math.max(0, (e.burnout || 0) - dt);
+    e.guardTimer = Math.max(0, (e.guardTimer || 0) - dt);
+    e.basicCooldown = Math.max(0, (e.basicCooldown || 0) - dt);
+    e.stun = Math.max(0, (e.stun || 0) - dt);
     let slowFactor = 1;
     for (const d of this.domains) {
       if (d.ownerId === e.id || d.team === e.team) continue;
@@ -1085,7 +1302,7 @@ export class Game3D {
       }
     }
 
-    const speed = e.speed * slowFactor * (e.sprinting && e.dashTimer <= 0 ? SPRINT.multiplier : 1);
+    const speed = e.speed * slowFactor * (e.stun > 0 ? 0 : 1) * (e.sprinting && e.dashTimer <= 0 ? SPRINT.multiplier : 1);
     if (e.dashTimer > 0) {
       e.dashTimer -= dt;
       e.x += e.dashVx * dt;
@@ -1140,6 +1357,11 @@ export class Game3D {
     const ai = this.entities.find((e) => !e.isPlayer && e.alive && !e.dummy);
     const target = this.entities.find((e) => e.isPlayer && e.alive);
     if (!ai || !target) return;
+    if (ai.burnout > 0) {
+      if (ai.hp > ai.maxHp * 0.4 && ai.burnout > 2 && target.hp > 20) this.tryForceRestore(ai);
+      else if (Math.hypot(target.x - ai.x, target.z - ai.z) < 3.2) this.tryBasicAttack(ai);
+    }
+    if (ai.stun > 0) { this.setMove(ai, 0, 0, 0); return; }
     const profile = DIFFICULTY[this.difficulty];
 
     // an unfinished combo window must expire, or the AI keeps reaching for a
@@ -1160,8 +1382,9 @@ export class Game3D {
 
     let mx = 0;
     let mz = 0;
-    if (dist > 17) { mx = nx; mz = nz; }
-    else if (dist < 9) { mx = -nx; mz = -nz; }
+    const closeCombat = ai.charId === "yuta" || ai.burnout > 0;
+    if (dist > (closeCombat ? 5 : 17)) { mx = nx; mz = nz; }
+    else if (dist < (closeCombat ? 2.8 : 9)) { mx = -nx; mz = -nz; }
     else { mx = -nz * ai.aiStrafe; mz = nx * ai.aiStrafe; }
     mx += nx * 0.25;
     mz += nz * 0.25;
@@ -1213,7 +1436,7 @@ export class Game3D {
     ai.aiCastCd -= dt;
     if (ai.aiCastCd <= 0) {
       const waited = this.elapsed - ai.aiWaitStarted;
-      const isPacedGojoAi = ai.charId === "gojo" && this.singleChar === "sukuna";
+      const isPacedGojoAi = this.mode === "single" && ai.charId === "gojo" && this.singleChar === "sukuna";
       const gojoAiTuning = isPacedGojoAi
         ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
         : null;
@@ -1247,6 +1470,8 @@ export class Game3D {
   aiAbilityReady(ai, idx) {
     const ability = CHARACTERS[ai.charId].abilities[idx];
     if (!ability) return false;
+    if (ai.burnout > 0 && !ability.physical) return false;
+    if (ability.needsDomain && (ai.domainLocked || (this.mode === "story" && this.storyStage === "borrowed" && this.storyTimer <= 0 && ai.charId === "yutaGojo"))) return false;
     if (ai.cooldowns[idx] > 0) return false;
     if (ability.needsCharge && ai.charge < 100) return false;
     if (ability.needsDomain && ai.domainCharge < 100) return false;
@@ -1258,6 +1483,11 @@ export class Game3D {
     const combos = CHARACTERS[ai.charId].combos || [];
     const ready = (idx) => this.aiAbilityReady(ai, idx);
 
+    const healIndex = abilities.findIndex((a) => a.type === "heal");
+    if (healIndex >= 0 && ai.hp < ai.maxHp * 0.55 && ready(healIndex)) return healIndex;
+    const guardIndex = abilities.findIndex((a) => a.type === "guard");
+    if (guardIndex >= 0 && ready(guardIndex) && this.domains.some((d) => d.alive && d.team !== ai.team)) return guardIndex;
+
     // 1) finish a combo that is one hit away (only if the finisher is actually castable)
     for (const c of combos) {
       const n = c.seq.length;
@@ -1268,18 +1498,22 @@ export class Game3D {
       if (idx >= 0 && ready(idx)) return idx;
     }
 
-    // 2) summon Mahoraga
+    // 2) summon assist (only when this loadout actually owns one)
     const hasSummon = this.entities.some((e) => e.summon && e.ownerId === ai.id && e.alive);
-    if (!hasSummon && ready(4) && this.elapsed > 6 && Math.random() < 0.6) return 4;
+    const summonIndex = abilities.findIndex((a) => a.type === "summon");
+    if (!hasSummon && summonIndex >= 0 && ready(summonIndex) && this.elapsed > 6 && Math.random() < 0.6) return summonIndex;
 
     // 3) domain when the target is inside its reach
-    if (ready(3) && dist < 18) return 3;
+    if (abilities[3]?.type === "domain" && ready(3) && dist < 18) return 3;
 
     // 4) ultimate when charged and roughly in line
-    if (ready(2) && dist < 42) return 2;
+    if (ready(2) && dist < 42) {
+      if (abilities[2]?.type === "copy") ai.copyIndex = Math.floor(Math.random() * COPY_TECHNIQUES.length);
+      return 2;
+    }
 
     // 5) mid-range secondary
-    if (ready(1) && dist < 30 && Math.random() < 0.65) return 1;
+    if (ready(1) && (abilities[1]?.type === "summon" || dist < 30) && Math.random() < 0.65) return 1;
 
     // 6) basic
     if (ready(0)) return 0;
@@ -1300,9 +1534,13 @@ export class Game3D {
     this.updateDialogue(dt);
     if (this.state !== "playing") { this.updateEffects(dt); return; }
     this.elapsed += dt;
+    if (this.mode === "story" && this.storyStage === "borrowed" && this.storyTimer > 0) {
+      this.storyTimer = Math.max(0, this.storyTimer - dt);
+      if (this.storyTimer === 0) this.announce("五分钟已过 · 乙骨术式减弱", "#b7e9ff", 2.2);
+    }
     if (this.hitStop > 0) { this.hitStop -= dt; this.updateEffects(dt * 0.3); return; }
     for (const e of this.entities) this.updateEntity(e, dt);
-    if (this.mode === "single") this.updateAI(dt);
+    if (this.mode === "single" || this.mode === "story") this.updateAI(dt);
     this.updateSummon(dt);
     if (this.practice && this.practiceDummy && !this.entities.some((e) => e.dummy && e.alive)) {
       this.dummyRespawn = (this.dummyRespawn || 0) - dt;
@@ -1314,6 +1552,9 @@ export class Game3D {
     }
     this.entities = this.entities.filter((e) => !(e.summon && !e.alive));
     this.resolveEntityCollisions();
+    // Collision separation can push a fighter below the floor after its own
+    // movement step has clamped altitude. Keep the camera above the arena.
+    for (const e of this.entities) e.y = clamp(e.y, 0, FLIGHT.maxAlt);
     if (this.mode === "single" && DIFFICULTY[this.difficulty].gojoRegen) {
       // the reverse cursed technique belongs to whoever is playing Gojo
       const gojo = this.entities.find((e) => e.alive && !e.summon && e.charId === "gojo");

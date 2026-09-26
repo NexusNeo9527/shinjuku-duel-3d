@@ -1,7 +1,14 @@
-import { CHARACTERS, DIFFICULTY } from "./config3d.js";
+import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY } from "./config3d.js";
+import { STORY_VICTORY_LINES } from "./storyDialogue.js";
 
 const SLOT_KEYS = ["LMB", "Q", "E", "R", "T"];
 const P2_KEYS = ["U", "O", "P", "[", "]"];
+const STORY_DIFFICULTY_TEXT = {
+  easy: "耐久 85 · 出招较慢",
+  normal: "耐久 100 · 预判移动 · 减伤",
+  shura: "耐久 125 · 反转术式",
+  abyss: "耐久 150 · 反应更快 · 伤害更高"
+};
 // 练习面板开关 -> Game3D 上的字段
 const PRACTICE_FLAGS = {
   infinite: "practiceInfinite",
@@ -12,7 +19,8 @@ const PRACTICE_FLAGS = {
 const practiceFlag = (game, key) => Boolean(game[PRACTICE_FLAGS[key]]);
 // 胜利者在结算页说的话（按角色 charId）
 const VICTORY_LINES = {
-  gojo: "我大概明天就会忘记你吧"
+  gojo: "我大概明天就会忘记你吧",
+  ...STORY_VICTORY_LINES
 };
 // 胜利插图（结算页顶部）
 const WIN_ART = {
@@ -32,6 +40,12 @@ export const ICONS = {
   shrine: `<path d="M3 5h18"/><path d="M5 8.2h14"/><path d="M7 8.2V20"/><path d="M17 8.2V20"/><path d="M4.5 20h15"/>`,
   mahoraga: `<circle cx="12" cy="12" r="8"/><path d="M12 4v16"/><path d="M4 12h16"/><path d="M6.4 6.4l11.2 11.2"/><path d="M17.6 6.4L6.4 17.6"/>`,
   dash: `<path d="M13 3l-7 9h6l-1 9 7-9h-6z"/>`
+  ,katana: `<path d="M4 20L20 4M9 21l3-3"/>`,
+  rika: `<circle cx="12" cy="9" r="5"/><path d="M5 21c0-5 14-5 14 0"/>`,
+  copy: `<path d="M5 3h11v13H5zM9 7h11v13H9z"/>`,
+  authenticLove: `<path d="M12 21L3 11a5 5 0 0 1 9-5 5 5 0 0 1 9 5z"/>`,
+  worldSlash: `<path d="M2 20L22 4M4 12l16-8M5 21l16-8"/>`,
+  wickerBasket: `<path d="M3 9h18l-3 11H6zM6 9l6-6 6 6"/>`
 };
 
 export class UI3D {
@@ -41,7 +55,19 @@ export class UI3D {
     this.slots = [];
     this.dom = {
       menu: document.querySelector("#menu"),
+      gojoMenu: document.querySelector("#gojoMenu"),
+      gojoBackBtn: document.querySelector("#gojoBackBtn"),
+      gojoModeBtns: [...document.querySelectorAll("[data-gojo-mode]")],
       difficultyMenu: document.querySelector("#difficultyMenu"),
+      storyMenu: document.querySelector("#storyMenu"),
+      storyBackBtn: document.querySelector("#storyBackBtn"),
+      storyStageBtns: [...document.querySelectorAll("[data-story-stage]")],
+      storySideBtns: [...document.querySelectorAll("[data-story-side]")],
+      storySideSelect: document.querySelector("#storySideSelect"),
+      singleCharSelect: document.querySelector("#singleCharSelect"),
+      difficultyHelp: document.querySelector("#difficultyHelp"),
+      continueStoryBtn: document.querySelector("#continueStoryBtn"),
+      battleStatus: document.querySelector("#battleStatus"),
       pauseMenu: document.querySelector("#pauseMenu"),
       resumeBtn: document.querySelector("#resumeBtn"),
       restartBtn: document.querySelector("#restartBtn"),
@@ -83,6 +109,7 @@ export class UI3D {
       playerSigil: document.querySelector("#playerSigil"),
       altLabel: document.querySelector("#altLabel"),
       summonRow: document.querySelector("#summonRow"),
+      summonTag: document.querySelector("#summonRow .summon-tag"),
       summonHp: document.querySelector("#summonHp"),
       summonHpText: document.querySelector("#summonHpText"),
       abilityBar: document.querySelector("#abilityBar"),
@@ -111,6 +138,14 @@ export class UI3D {
   bind() {
     const h = this.handlers;
     this.dom.modeButtons.forEach((b) => b.addEventListener("click", () => h.onMode(b.dataset.mode)));
+    this.dom.gojoModeBtns.forEach((b) => b.addEventListener("click", () => h.onGojoMode(b.dataset.gojoMode)));
+    this.dom.gojoBackBtn.addEventListener("click", () => h.onHome());
+    this.dom.storyStageBtns.forEach((b) => b.addEventListener("click", () => h.onStoryStage(b.dataset.storyStage)));
+    this.dom.storySideBtns.forEach((b) => b.addEventListener("click", () => {
+      h.onStorySide(b.dataset.storySide);
+    }));
+    this.dom.storyBackBtn.addEventListener("click", () => h.onHome());
+    this.dom.continueStoryBtn.addEventListener("click", () => h.onContinueStory());
     this.dom.difficultyButtons.forEach((b) => b.addEventListener("click", () => {
       this.dom.difficultyButtons.forEach((x) => x.classList.toggle("selected", x === b));
       h.onDifficulty(b.dataset.difficulty);
@@ -126,7 +161,6 @@ export class UI3D {
     this.dom.practiceChars.forEach((b) => b.addEventListener("click", () => h.onPracticeChar(b.dataset.pchar)));
     this.dom.singleCharBtns.forEach((b) => b.addEventListener("click", () => {
       h.onSingleChar(b.dataset.singleChar);
-      this.dom.singleCharBtns.forEach((x) => x.classList.toggle("active", x === b));
     }));
     this.dom.themeChips.forEach((b) => b.addEventListener("click", () => h.onTheme(b.dataset.theme)));
     this.dom.practiceToggles.forEach((b) => b.addEventListener("click", () => {
@@ -193,7 +227,7 @@ export class UI3D {
 
   updateSplitPanel(panel, ent, game) {
     this.applyCharColor(panel.el, ent.charId);
-    panel.sigil.textContent = ent.charId === "gojo" ? "五" : "宿";
+    panel.sigil.textContent = ent.charId.startsWith("yuta") ? "乙" : ent.charId === "gojo" ? "五" : "宿";
     panel.name.textContent = ent.name;
     panel.hpNum.textContent = Math.ceil(Math.max(0, ent.hp));
     panel.hp.style.transform = `scaleX(${Math.max(0, ent.hp / ent.maxHp)})`;
@@ -222,8 +256,14 @@ export class UI3D {
       this._cutArt = c.art;
       this.dom.cutInImg.src = `${import.meta.env.BASE_URL}assets/${c.art.includes(".") ? c.art : `${c.art}.png`}`;
       this.dom.cutIn.classList.toggle("contain", c.fit === "contain");
+      this.dom.cutIn.classList.toggle("compact", c.presentation === "compact");
       this.dom.cutIn.style.setProperty("--cut-tint", c.tint || "rgba(176, 92, 255, 0.32)");
       this.dom.cutIn.style.setProperty("--cut-shadow", c.shadow || "rgba(120, 60, 220, 0.5)");
+    }
+    // Keep the arena visible while a newly selected illustration is loading.
+    if (!this.dom.cutInImg.complete || !this.dom.cutInImg.naturalWidth) {
+      this.dom.cutIn.classList.add("hidden");
+      return;
     }
     const p = 1 - c.life / c.maxLife;
     const alpha = Math.min(1, p / 0.14) * Math.min(1, c.life / 0.3);
@@ -247,10 +287,10 @@ export class UI3D {
   // HP colour follows the character (五条悟 = blue, 宿傩 = red), not the player slot
   applyCharColor(el, charId) {
     if (!el) return;
-    const cls = charId === "sukuna" ? "char-sukuna" : "char-gojo";
+    const cls = charId?.startsWith("sukuna") ? "char-sukuna" : charId?.startsWith("yuta") ? "char-yuta" : "char-gojo";
     if (el.dataset.char === cls) return;
     el.dataset.char = cls;
-    el.classList.remove("char-gojo", "char-sukuna");
+    el.classList.remove("char-gojo", "char-sukuna", "char-yuta");
     el.classList.add(cls);
   }
 
@@ -297,7 +337,23 @@ export class UI3D {
     this.updateHitBorder(game);
     this.updateCutIn(game);
     this.dom.menu.classList.toggle("hidden", s !== "menu");
+    this.dom.gojoMenu.classList.toggle("hidden", s !== "gojoSelect");
+    this.dom.storyMenu.classList.toggle("hidden", s !== "storySelect");
     this.dom.difficultyMenu.classList.toggle("hidden", s !== "difficulty");
+    this.dom.storySideSelect.classList.toggle("hidden", game.pendingMode !== "story");
+    this.dom.singleCharSelect.classList.toggle("hidden", game.pendingMode === "story");
+    this.dom.storySideBtns[0].textContent = game.storyStage === "borrowed" ? "乙骨·五条之身" : "乙骨忧太";
+    this.dom.storySideBtns.forEach((button) => button.classList.toggle("active", button.dataset.storySide === game.storySide));
+    this.dom.singleCharBtns.forEach((button) => button.classList.toggle("active", button.dataset.singleChar === game.singleChar));
+    this.dom.difficultyHelp.textContent = game.pendingMode === "story"
+      ? "难度影响电脑对手的反应、伤害和耐久；此剧情战斗没有魔虚罗。"
+      : "难度会改变对手的瞄准精度、反应速度、伤害、减伤、机动与魔虚罗强度。";
+    for (const button of this.dom.difficultyButtons) {
+      const small = button.querySelector("small");
+      if (!small.dataset.original) small.dataset.original = small.textContent;
+      const caption = game.pendingMode === "story" ? STORY_DIFFICULTY_TEXT[button.dataset.difficulty] : small.dataset.original;
+      if (small.textContent !== caption) small.textContent = caption;
+    }
     this.dom.pauseMenu.classList.toggle("hidden", s !== "paused");
     this.dom.result.classList.toggle("hidden", s !== "ended");
     this.dom.hud.classList.toggle("hidden", s !== "playing" && s !== "ended" && s !== "paused");
@@ -310,7 +366,7 @@ export class UI3D {
         this.rebuildAbilityBar(player.charId);
       }
       this.dom.playerName.textContent = player.name;
-      this.dom.playerSigil.textContent = player.charId === "gojo" ? "五" : "宿";
+      this.dom.playerSigil.textContent = player.charId.startsWith("yuta") ? "乙" : player.charId === "gojo" ? "五" : "宿";
       this.applyCharColor(this.dom.sideP1, player.charId);
       this.applyCharColor(this.dom.playerHp, player.charId);
       this.dom.playerHp.style.transform = `scaleX(${Math.max(0, player.hp / player.maxHp)})`;
@@ -347,6 +403,7 @@ export class UI3D {
     const summon = game.entities.find((e) => e.summon && e.alive);
     if (summon) {
       this.dom.summonRow.classList.remove("hidden");
+      this.dom.summonTag.textContent = summon.name;
       this.dom.summonHp.style.transform = `scaleX(${Math.max(0, summon.hp / summon.maxHp)})`;
       this.dom.summonHpText.textContent = Math.ceil(Math.max(0, summon.hp));
     } else {
@@ -371,9 +428,24 @@ export class UI3D {
     this.updateDialogue(game);
     this.updateResult(game);
 
-    const modeLabel = game.mode === "single" ? `单人对决 · ${DIFFICULTY[game.difficulty].label}`
+    const modeLabel = s === "menu" ? "选择对战模式"
+      : s === "gojoSelect" ? "五条悟 VS 宿傩"
+      : s === "storySelect" ? "乙骨忧太 VS 宿傩"
+      : s === "difficulty" ? "选择难度"
+      : game.mode === "single" ? `单人对决 · ${DIFFICULTY[game.difficulty].label}`
+      : game.mode === "story" ? `剧情 · ${STORY_STAGES[game.storyStage].label} · ${DIFFICULTY[game.difficulty].label}`
       : game.mode === "dual" ? "双人同屏" : "练习终端";
     this.dom.modeStatus.textContent = modeLabel;
+    const status = [];
+    if (game.mode === "story" && game.storyStage === "borrowed") {
+      const secs = Math.ceil(game.storyTimer);
+      status.push(`五条之身 ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`);
+    }
+    if (player?.burnout > 0) status.push(`术式熔断 ${player.burnout.toFixed(1)}秒 · H 强行恢复`);
+    if (player?.domainLocked) status.push("本场领域已锁定");
+    if (player?.charId === "yuta") status.push(`G 切换复制：${COPY_TECHNIQUES[player.copyIndex].label}`);
+    this.dom.battleStatus.textContent = status.join("  ·  ");
+    this.dom.battleStatus.classList.toggle("hidden", !status.length || !["playing", "paused", "ended"].includes(s));
   }
 
   // gauge-gated skills fill up with 奥义/领域 instead of running a separate cooldown
@@ -394,9 +466,12 @@ export class UI3D {
       slot.cd.style.setProperty("--cd", String(this.slotShade(ab, player, game, cd)));
       const needCharge = ab.needsCharge && player.charge < 100 && !game.practice;
       const needDomain = ab.needsDomain && player.domainCharge < 100 && !game.practice;
-      slot.el.classList.toggle("locked", Boolean(needCharge || needDomain));
-      slot.lock.textContent = needCharge ? "需蓄力" : (needDomain ? "需领域" : "");
-      slot.el.classList.toggle("ready", cd <= 0.001 && !needCharge && !needDomain);
+      const burnout = player.burnout > 0 && !ab.physical;
+      const domainLocked = ab.needsDomain && (player.domainLocked || (game.mode === "story" && game.storyStage === "borrowed" && game.storyTimer <= 0 && player.charId === "yutaGojo"));
+      slot.el.classList.toggle("locked", Boolean(needCharge || needDomain || burnout || domainLocked));
+      slot.lock.textContent = burnout ? "熔断" : domainLocked ? "领域封锁" : needCharge ? "需蓄力" : (needDomain ? "需领域" : "");
+      slot.el.classList.toggle("ready", cd <= 0.001 && !needCharge && !needDomain && !burnout && !domainLocked);
+      if (ab.type === "copy") slot.el.querySelector(".slot-glyph").textContent = COPY_TECHNIQUES[player.copyIndex].label;
     }
   }
 
@@ -475,7 +550,8 @@ export class UI3D {
   updateResult(game) {
     if (game.state !== "ended") return;
     const w = game.winner;
-    this.dom.resultKicker.textContent = game.mode === "single" ? `BATTLE COMPLETE · ${DIFFICULTY[game.difficulty].label}` : "BATTLE COMPLETE";
+    this.dom.resultKicker.textContent = game.mode === "single" || game.mode === "story" ? `BATTLE COMPLETE · ${DIFFICULTY[game.difficulty].label}` : "BATTLE COMPLETE";
+    this.dom.continueStoryBtn.classList.toggle("hidden", !(game.mode === "story" && game.storyStage === "yuta" && w?.isPlayer));
     this.dom.resultTitle.textContent = `${w ? w.name : "平局"} 胜`;
     this.dom.resultTitle.style.color = w ? w.color : "#e8eefc";
     const loser = game.entities.find((e) => !e.alive && !e.summon);

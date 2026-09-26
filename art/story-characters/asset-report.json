@@ -1,0 +1,22 @@
+{
+  "yuta": {
+    "triangles": 33548,
+    "meshes": 35,
+    "bytes": 593060
+  },
+  "yuta_gojo": {
+    "triangles": 36148,
+    "meshes": 31,
+    "bytes": 633480
+  },
+  "rika": {
+    "triangles": 30096,
+    "meshes": 15,
+    "bytes": 555136
+  },
+  "sukuna_shinjuku": {
+    "triangles": 64068,
+    "meshes": 39,
+    "bytes": 1102356
+  }
+}

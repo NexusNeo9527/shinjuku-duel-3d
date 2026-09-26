@@ -1,4 +1,4 @@
-import { CHARACTERS } from "./config3d.js";
+import { CHARACTERS, COPY_TECHNIQUES } from "./config3d.js";
 import { ICONS } from "./ui3d.js";
 
 const STICK_RADIUS = 56;
@@ -39,6 +39,7 @@ class TouchPad {
     this.move.x = 0;
     this.move.y = 0;
     this.vertical = 0;
+    this.sprint = false;
     this.stick.id = null;
     this.look.id = null;
     this.stopRepeat();
@@ -178,9 +179,16 @@ class TouchPad {
       const s = this.slots[i];
       const cd = player.cooldowns[i] || 0;
       s.cd.style.setProperty("--cd", String(Math.min(1, cd / (s.ability.cooldown || 1))));
+      const expiredDomain = s.ability.needsDomain && game.mode === "story"
+        && game.storyStage === "borrowed" && game.storyTimer <= 0 && player.charId === "yutaGojo";
       const locked = (s.ability.needsCharge && player.charge < 100 && !game.practice)
-        || (s.ability.needsDomain && player.domainCharge < 100 && !game.practice);
+        || (s.ability.needsDomain && player.domainCharge < 100 && !game.practice)
+        || (player.burnout > 0 && !s.ability.physical)
+        || (s.ability.needsDomain && player.domainLocked)
+        || expiredDomain;
       s.el.classList.toggle("ready", cd <= 0.001 && !locked);
+      s.el.classList.toggle("locked", Boolean(locked));
+      if (s.ability.type === "copy") s.el.querySelector("b").textContent = COPY_TECHNIQUES[player.copyIndex].label;
     }
   }
 }
@@ -238,6 +246,11 @@ export class TouchControls {
     }
   }
 
+  reset() {
+    this.pad1.reset();
+    this.pad2?.reset();
+  }
+
   // local versus on touch: give player 2 their own mirrored pad
   setDual(on) {
     if (on === this.dual) return;
@@ -264,6 +277,8 @@ export class TouchControls {
         <button class="touch-btn small" type="button" data-slot="sprint">疾跑</button>
         <button class="touch-btn small" type="button" data-slot="dash">冲刺</button>
         <button class="touch-btn small switch" type="button" data-slot="switch">切换目标</button>
+        <button class="touch-btn small" type="button" data-slot="basic">近战</button>
+        <button class="touch-btn small hidden" type="button" data-slot="restore">强行恢复</button>
       </div>`;
     this.root.appendChild(stickBase);
     this.root.appendChild(cluster);
@@ -280,6 +295,16 @@ export class TouchControls {
       onDash: () => this.onDash(1)
     });
     this.pad2.el = { stickBase, cluster };
+    cluster.querySelector('[data-slot="basic"]').addEventListener("pointerdown", (event) => {
+      event.preventDefault(); event.stopPropagation();
+      const p2 = this.game.entities.find((e) => e.isPlayer && e !== this.game.player());
+      this.game.tryBasicAttack(p2);
+    });
+    cluster.querySelector('[data-slot="restore"]').addEventListener("pointerdown", (event) => {
+      event.preventDefault(); event.stopPropagation();
+      const p2 = this.game.entities.find((e) => e.isPlayer && e !== this.game.player());
+      this.game.tryForceRestore(p2);
+    });
   }
 
   removePad2() {
@@ -326,5 +351,10 @@ export class TouchControls {
 
   updateSlots(player, game) {
     this.pad1.updateSlots(player, game);
+    if (this.pad2) {
+      const p2 = game.entities.find((e) => e.isPlayer && e !== player);
+      const restore = this.pad2.el?.cluster.querySelector('[data-slot="restore"]');
+      if (restore) restore.classList.toggle("hidden", !p2 || p2.burnout <= 0 || p2.domainLocked);
+    }
   }
 }

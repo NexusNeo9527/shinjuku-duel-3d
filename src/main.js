@@ -21,14 +21,36 @@ const keys = new Set();
 const ui = new UI3D(game, {
   onMode: (mode) => {
     audio.ensure();
-    if (mode === "single") { game.state = "difficulty"; return; }
+    if (mode === "gojo") { setMusicScene("gojo"); setModeTitle("gojo"); applyTheme("gojo"); game.state = "gojoSelect"; return; }
+    if (mode === "story") {
+      setMusicScene("story");
+      game.setStory("yuta", "ally");
+      game.pendingMode = "story";
+      setModeTitle("story", game.storyStage);
+      applyTheme("yuta");
+      game.state = "storySelect";
+    }
+  },
+  onGojoMode: (mode) => {
+    setModeTitle("gojo");
+    if (mode === "single") { game.pendingMode = "single"; applyTheme(game.singleChar); game.state = "difficulty"; return; }
     startGame(mode, "normal");
   },
-  onDifficulty: (d) => startGame("single", d),
-  onSingleChar: (id) => game.setSingleChar(id),
-  onBack: () => { game.state = "menu"; },
+  onDifficulty: (d) => startGame(game.pendingMode === "story" ? "story" : "single", d),
+  onStoryStage: (stage) => { game.setStory(stage, game.storySide); game.pendingMode = "story"; setModeTitle("story", game.storyStage); applyTheme(game.storySide === "enemy" ? "sukuna" : "yuta"); game.state = "difficulty"; },
+  onStorySide: (side) => { game.setStory(game.storyStage, side); applyTheme(game.storySide === "enemy" ? "sukuna" : "yuta"); },
+  onContinueStory: () => { game.setStory("borrowed", game.storySide); startGame("story", game.difficulty); },
+  onSingleChar: (id) => { game.setSingleChar(id); applyTheme(game.singleChar); },
+  onBack: () => {
+    game.state = game.pendingMode === "story" ? "storySelect" : "gojoSelect";
+    setModeTitle(game.pendingMode === "story" ? "story" : "gojo", game.pendingMode === "story" ? game.storyStage : null);
+    applyTheme(game.pendingMode === "story" ? "yuta" : "gojo");
+  },
   onHome: () => {
     game.state = "menu";
+    setMusicScene("menu");
+    setModeTitle("gojo");
+    applyTheme("gojo");
     renderer.reset();
   },
   onAgain: () => startGame(game.mode, game.difficulty),
@@ -57,10 +79,56 @@ const ui = new UI3D(game, {
 });
 
 function applyTheme(charId) {
-  const id = charId === "sukuna" ? "sukuna" : "gojo";
+  const id = charId?.startsWith("sukuna") ? "sukuna" : charId?.startsWith("yuta") ? "yuta" : "gojo";
   document.body.classList.toggle("theme-gojo", id === "gojo");
   document.body.classList.toggle("theme-sukuna", id === "sukuna");
+  document.body.classList.toggle("theme-yuta", id === "yuta");
   ui.setThemeChip(id);
+}
+
+function setModeTitle(mode, stage = null) {
+  const story = mode === "story";
+  const borrowed = story && stage === "borrowed";
+  const practice = mode === "practice";
+  const title = practice
+    ? `${game.practiceChar === "sukuna" ? "宿傩" : "五条悟"} · 练习模式`
+    : story
+      ? borrowed ? "乙骨忧太（五条之身） VS 宿傩" : "乙骨忧太 VS 宿傩"
+      : "新宿决战";
+  const homeLead = practice
+    ? (game.practiceChar === "sukuna" ? "宿傩" : "五条悟")
+    : story
+      ? borrowed ? "乙骨忧太（五条之身）" : "乙骨忧太"
+      : "新宿";
+  const homeRest = practice ? " · 练习模式" : story ? " VS 宿傩" : "决战";
+  const context = practice
+    ? "CURSED TECHNIQUE PRACTICE"
+    : story
+      ? borrowed ? "YUTA IN GOJO'S BODY / DOMAIN REMATCH" : "YUTA / RIKA & COPIED TECHNIQUES"
+      : "SHINJUKU / CURSED ARENA";
+  const kicker = practice
+    ? "CURSED TECHNIQUE PRACTICE"
+    : story ? "YUTA VS SUKUNA" : "THIRD-PERSON CURSED TECHNIQUE ARENA";
+
+  document.title = title;
+  document.body.classList.toggle("story-title-active", story);
+  document.body.classList.toggle("borrowed-title-active", borrowed);
+  document.body.classList.toggle("practice-title-active", practice);
+  const homeTitle = document.querySelector("#homeTitle");
+  homeTitle?.classList.toggle("story-home-title", story);
+  homeTitle?.classList.toggle("borrowed-home-title", borrowed);
+  const brandTitle = document.querySelector("#brandTitle");
+  const brandContext = document.querySelector("#brandContext");
+  const homeTitleLead = document.querySelector("#homeTitleLead");
+  const homeTitleRest = document.querySelector("#homeTitleRest");
+  const homeKicker = document.querySelector("#homeKicker");
+  const storyMenuTitle = document.querySelector("#storyMenuTitle");
+  if (brandTitle) brandTitle.textContent = title;
+  if (brandContext) brandContext.textContent = context;
+  if (homeTitleLead) homeTitleLead.textContent = homeLead;
+  if (homeTitleRest) homeTitleRest.textContent = homeRest;
+  if (homeKicker) homeKicker.textContent = kicker;
+  if (storyMenuTitle && story) storyMenuTitle.textContent = title;
 }
 
 const secondPlayer = () => game.entities.find((e) => e.isPlayer && e !== game.player());
@@ -89,10 +157,21 @@ function switchTarget(e) {
 }
 btnLock?.addEventListener("pointerdown", switchTarget);
 btnSwitch?.addEventListener("pointerdown", switchTarget);
+for (const [selector, action] of [
+  ["#btnBasic", () => game.tryBasicAttack(game.player())],
+  ["#btnCopy", () => game.cycleCopy(game.player())],
+  ["#btnRestore", () => game.tryForceRestore(game.player())]
+]) document.querySelector(selector)?.addEventListener("pointerdown", (event) => {
+  event.preventDefault(); event.stopPropagation(); action();
+});
 
-// BGM version: 正常 <-> 司凤; the adjacent button owns sound on/off.
+// Each scene has a default track; the adjacent button owns sound on/off.
 const bgmBtn = document.querySelector("#bgmBtn");
 function refreshBgmBtn() { if (bgmBtn) bgmBtn.textContent = `♫ ${audio.bgmLabel()}`; }
+function setMusicScene(scene) {
+  audio.setScene(scene);
+  refreshBgmBtn();
+}
 refreshBgmBtn();
 bgmBtn?.addEventListener("click", () => {
   audio.cycleBgm();
@@ -101,9 +180,12 @@ bgmBtn?.addEventListener("click", () => {
 
 function startGame(mode, difficulty) {
   audio.ensure();
+  setMusicScene(mode === "story" ? "story" : mode === "practice" ? "practice" : "gojo");
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   game.start(mode, difficulty);
+  setModeTitle(mode === "story" ? "story" : mode === "practice" ? "practice" : "gojo", mode === "story" ? game.storyStage : null);
   renderer.reset();
+  renderer.setStoryStage(mode === "story" ? game.storyStage : null);
   // Dual rendering temporarily gives the main camera a half-screen aspect ratio.
   // Restore the actual canvas size synchronously before the first frame of any
   // new mode; ResizeObserver alone can otherwise leave practice looking flat.
@@ -142,7 +224,12 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "Escape") {
     if (game.state === "playing") { game.state = "paused"; }
     else if (game.state === "paused") { game.state = "playing"; }
-    else if (game.state === "difficulty") { game.state = "menu"; }
+    else if (game.state === "difficulty") {
+      game.state = game.pendingMode === "story" ? "storySelect" : "gojoSelect";
+      setModeTitle(game.pendingMode === "story" ? "story" : "gojo", game.pendingMode === "story" ? game.storyStage : null);
+      applyTheme(game.pendingMode === "story" ? "yuta" : "gojo");
+    }
+    else if (game.state === "storySelect" || game.state === "gojoSelect") { game.state = "menu"; setMusicScene("menu"); setModeTitle("gojo"); applyTheme("gojo"); }
     return;
   }
   if ([
@@ -163,6 +250,9 @@ window.addEventListener("keydown", (event) => {
     if (event.code === "KeyE" || event.code === "Digit3") game.tryCast(p1, 2);
     if (event.code === "KeyR" || event.code === "Digit4") game.tryCast(p1, 3);
     if (event.code === "KeyT" || event.code === "Digit5") game.tryCast(p1, 4);
+    if (event.code === "KeyG") game.cycleCopy(p1);
+    if (event.code === "KeyH") game.tryForceRestore(p1);
+    if (event.code === "KeyV") game.tryBasicAttack(p1);
     if (event.code === "AltLeft") game.cycleLock(p1);
     if (event.code === "KeyF") {
       game.tryDash(p1, p1.moveInput.x, p1.moveInput.y, p1.moveInput.z);
@@ -174,6 +264,8 @@ window.addEventListener("keydown", (event) => {
     if (event.code === "KeyP") game.tryCast(p2, 2);
     if (event.code === "BracketLeft") game.tryCast(p2, 3);
     if (event.code === "BracketRight") game.tryCast(p2, 4);
+    if (event.code === "Semicolon") game.tryBasicAttack(p2);
+    if (event.code === "Quote") game.tryForceRestore(p2);
     if (event.code === "KeyB") game.tryDash(p2, p2.moveInput.x, p2.moveInput.y, p2.moveInput.z);
   }
 });
@@ -209,7 +301,23 @@ window.addEventListener("resize", fitCanvas);
 window.addEventListener("orientationchange", () => { fitCanvas(); setTimeout(fitCanvas, 120); setTimeout(fitCanvas, 450); });
 if (window.visualViewport) window.visualViewport.addEventListener("resize", fitCanvas);
 if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe(arena);
-window.addEventListener("focus", fitCanvas);
+function restoreVisibleCanvas() {
+  requestAnimationFrame(() => {
+    fitCanvas();
+    renderer.recoverGraphicsState();
+  });
+}
+function releaseActiveInputs() {
+  keys.clear();
+  touch.reset();
+}
+window.addEventListener("blur", releaseActiveInputs);
+window.addEventListener("focus", restoreVisibleCanvas);
+window.addEventListener("pageshow", restoreVisibleCanvas);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) releaseActiveInputs();
+  else restoreVisibleCanvas();
+});
 document.addEventListener("fullscreenchange", () => { setTimeout(fitCanvas, 120); });
 setTimeout(fitCanvas, 250);
 
@@ -274,6 +382,8 @@ function applyInput() {
   document.body.classList.toggle("split-mode", game.mode === "dual" && inBattle && !touch.enabled);
 
   if (p1 && inBattle) {
+    document.querySelector("#btnCopy")?.classList.toggle("hidden", p1.charId !== "yuta");
+    document.querySelector("#btnRestore")?.classList.toggle("hidden", p1.burnout <= 0 || p1.domainLocked);
     const yaw = renderer.camYaw;
     const fwd = { x: Math.sin(yaw), z: Math.cos(yaw) };
     const right = { x: -Math.cos(yaw), z: Math.sin(yaw) };
@@ -353,6 +463,11 @@ function applyInput() {
 let previousTime = performance.now();
 function frame(now) {
   const rawDt = Math.max(0, (now - previousTime) / 1000);
+  if (document.hidden) {
+    previousTime = now;
+    requestAnimationFrame(frame);
+    return;
+  }
   // simulation steps are capped so a hitch cannot teleport the fighters…
   const realDt = Math.min(0.033, rawDt);
   previousTime = now;
@@ -362,7 +477,7 @@ function frame(now) {
   if (game.timeStop > 0) game.timeStop = Math.max(0, game.timeStop - rawDt);
   if (game.cutIn) { game.cutIn.life -= rawDt; if (game.cutIn.life <= 0) game.cutIn = null; }
   // freeze the whole scene behind the menus / during a time-stop
-  const frozen = game.state === "menu" || game.state === "difficulty" || game.state === "paused" || game.timeStop > 0;
+  const frozen = game.state === "menu" || game.state === "difficulty" || game.state === "paused" || game.timeStop > 0 || renderer._renderUnavailable;
   const dt = frozen ? 0 : realDt;
   game.update(dt);
   for (const ev of game.drainEvents()) audio.handle(ev);
@@ -375,6 +490,7 @@ function frame(now) {
 const rect = arena.getBoundingClientRect();
 renderer.resize(rect.width, rect.height);
 applyTheme("gojo");
+setModeTitle("gojo");
 requestAnimationFrame(frame);
 
 window.__arena3d = {

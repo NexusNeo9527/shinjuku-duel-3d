@@ -14,12 +14,12 @@
       <div class="brand">
         <span class="brand-mark">✦</span>
         <div class="brand-text">
-          <strong>新宿决战</strong>
-          <span>SHINJUKU / CURSED ARENA</span>
+          <strong id="brandTitle">新宿决战</strong>
+          <span id="brandContext">SHINJUKU / CURSED ARENA</span>
         </div>
       </div>
       <div class="topbar-actions">
-        <button id="bgmBtn" class="ghost-button wide" type="button" aria-label="切换音乐版本" title="切换音乐版本：正常 / 司凤">♫ 正常</button>
+        <button id="bgmBtn" class="ghost-button wide" type="button" aria-label="切换背景音乐" title="场景默认：五条对战用正常，练习用司凤，乙骨剧情用心似烟火；点击可切换">♫ 正常</button>
         <button id="soundBtn" class="ghost-button wide" type="button" aria-label="关闭声音" aria-pressed="true" title="开关声音">♪ 开</button>
         <button id="fullBtn" class="ghost-button" type="button" aria-label="全屏">⛶</button>
         <button id="homeBtn" class="ghost-button" type="button" aria-label="返回">⏻</button>
@@ -100,6 +100,7 @@
 
         <!-- bottom-center: ability tiles -->
         <div id="abilityBar" class="ability-bar"></div>
+        <div id="battleStatus" class="battle-status hidden" aria-live="polite"></div>
       </div>
 
       <div id="cutIn" class="cut-in hidden">
@@ -139,6 +140,9 @@
             <button id="btnSprint" class="touch-btn small" type="button" data-slot="sprint">疾跑</button>
             <button id="btnDash" class="touch-btn small" type="button" data-slot="dash">冲刺</button>
             <button id="btnSwitch" class="touch-btn small switch" type="button" data-slot="switch">切换目标</button>
+            <button id="btnBasic" class="touch-btn small" type="button" data-slot="basic">近战</button>
+            <button id="btnCopy" class="touch-btn small hidden" type="button" data-slot="copy">切换复制</button>
+            <button id="btnRestore" class="touch-btn small hidden" type="button" data-slot="restore">强行恢复</button>
           </div>
         </div>
       </div>
@@ -170,17 +174,34 @@
           <div class="mb-grid"></div>
         </div>
         <div class="overlay-panel">
-          <div class="kicker">THIRD-PERSON CURSED TECHNIQUE ARENA</div>
-          <h1><span>新宿</span>决战</h1>
+          <div class="kicker" id="homeKicker">THIRD-PERSON CURSED TECHNIQUE ARENA</div>
+          <h1 id="homeTitle"><span id="homeTitleLead">新宿</span><span id="homeTitleRest">决战</span></h1>
           <p>在立体战场上自由移动、升空缠斗，用术式与领域击溃对手。</p>
-          <div class="mode-grid">
-            <button class="mode-card" data-mode="single" type="button">
-              <span class="mode-no">01</span><span class="mode-label">单人对决</span><small>五条悟 VS 电脑宿傩</small>
+          <div class="mode-grid home-mode-grid">
+            <button class="mode-card home-mode-card gojo-mode-card" data-mode="gojo" type="button">
+              <span class="mode-no">01 · ORIGINAL</span><span class="mode-label">五条悟 VS 宿傩</span><small>原本对战 · 单人 / 双人 / 练习</small>
             </button>
-            <button class="mode-card" data-mode="dual" type="button">
+            <button class="mode-card home-mode-card yuta-mode-card" data-mode="story" type="button">
+              <span class="mode-no">02 · SHINJUKU STORY</span><span class="mode-label">乙骨忧太 VS 宿傩</span><small>双阶段剧情 · 里香与复制术式</small>
+            </button>
+          </div>
+          <div class="build-version" aria-label="当前游戏版本">版本 v0.1.4</div>
+        </div>
+      </div>
+
+      <div id="gojoMenu" class="overlay hidden">
+        <div class="overlay-panel">
+          <div class="kicker">ORIGINAL DUEL</div>
+          <h2>五条悟 VS 宿傩</h2>
+          <p>选择原本的对战玩法。</p>
+          <div class="mode-grid">
+            <button class="mode-card" data-gojo-mode="single" type="button">
+              <span class="mode-no">01</span><span class="mode-label">单人对决</span><small>选择五条悟或宿傩对战电脑</small>
+            </button>
+            <button class="mode-card" data-gojo-mode="dual" type="button">
               <span class="mode-no">02</span><span class="mode-label">双人同屏</span><small>本地对战 · 共用镜头</small>
             </button>
-            <button class="mode-card" data-mode="practice" type="button">
+            <button class="mode-card" data-gojo-mode="practice" type="button">
               <span class="mode-no">03</span><span class="mode-label">练习终端</span><small>无限术式 · 随意试验</small>
             </button>
           </div>
@@ -195,7 +216,21 @@
             <br /><b>玩家2（宿傩）</b>：IJKL 移动 · 右Shift 疾跑 · N 升空 / M 下降 · U 解 · O 捌 · P 开 · [ 领域 · ] 魔虚罗 · B 冲刺
             <br /><b>连招</b>：苍→苍→苍 / 苍→赫 / 赫→茈（宿傩：解→解 / 解→捌 / 捌→开），1.3 秒内按顺序<b>命中</b>才触发强化
           </div>
-          <div class="build-version" aria-label="当前游戏版本">版本 v0.1.4</div>
+          <button id="gojoBackBtn" class="text-button" type="button">← 返回主页</button>
+        </div>
+      </div>
+
+      <div id="storyMenu" class="overlay hidden">
+        <div class="overlay-panel">
+          <div class="kicker">SHINJUKU STORY</div>
+          <h2 id="storyMenuTitle">乙骨忧太 VS 宿傩</h2>
+          <p>选择一场战斗。第一场胜利后可继续第二场。</p>
+          <div class="mode-grid">
+            <button class="mode-card" data-story-stage="yuta" type="button"><span class="mode-no">01</span><span class="mode-label">真赝相爱</span><small>乙骨本体 · 里香与复制术式</small></button>
+            <button class="mode-card" data-story-stage="borrowed" type="button"><span class="mode-no">02</span><span class="mode-label">五条之身</span><small>无量空处 · 领域再战</small></button>
+          </div>
+          <div class="controls-note"><b>乙骨操作</b>：G 切换复制术式 · V 近身攻击 · H 扣血强行恢复术式熔断（本场锁定领域）；手机有对应触屏按钮。</div>
+          <button id="storyBackBtn" class="text-button" type="button">← 返回主页</button>
         </div>
       </div>
 
@@ -203,14 +238,21 @@
         <div class="overlay-panel">
           <div class="kicker">SINGLE PLAYER</div>
           <h2>选择难度</h2>
-          <div class="single-char">
+          <div id="singleCharSelect" class="single-char">
             <span>操控角色</span>
             <div class="single-char-btns">
               <button data-single-char="gojo" class="sc-btn active" type="button">五条悟</button>
               <button data-single-char="sukuna" class="sc-btn" type="button">宿傩</button>
             </div>
           </div>
-          <p>难度会改变对手的瞄准精度、反应速度、伤害、减伤、机动与魔虚罗强度。</p>
+          <div id="storySideSelect" class="single-char hidden">
+            <span>操控阵营</span>
+            <div class="single-char-btns">
+              <button data-story-side="ally" class="sc-btn active" type="button">乙骨忧太</button>
+              <button data-story-side="enemy" class="sc-btn" type="button">宿傩</button>
+            </div>
+          </div>
+          <p id="difficultyHelp">难度会改变对手的瞄准精度、反应速度、伤害、减伤、机动与魔虚罗强度。</p>
           <div class="difficulty-grid">
             <button class="difficulty-card" data-difficulty="easy" type="button"><span>01</span><strong>简单</strong><small>耐久 85 · 魔虚罗 55 · 出招较慢</small></button>
             <button class="difficulty-card selected" data-difficulty="normal" type="button"><span>02</span><strong>普通</strong><small>耐久 100 · 魔虚罗 72 · 预判移动 · 减伤</small></button>
@@ -232,6 +274,7 @@
               <p id="resultQuoteText"></p>
             </blockquote>
             <div class="result-actions">
+              <button id="continueStoryBtn" class="action-button hidden" type="button">继续第二场</button>
               <button id="againBtn" class="action-button" type="button">再战一局</button>
               <button id="modeBtn" class="text-button" type="button">返回模式选择</button>
             </div>

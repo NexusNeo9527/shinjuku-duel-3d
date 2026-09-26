@@ -2,24 +2,23 @@ const ASSET = import.meta.env.BASE_URL;
 
 export const BGM_TRACKS = [
   { id: "normal", label: "正常", src: `${ASSET}assets/bgm-rain-normal.mp3` },
-  { id: "sifeng", label: "司凤", src: `${ASSET}assets/bgm-rain-sifeng.mp3` }
+  { id: "sifeng", label: "司凤", src: `${ASSET}assets/bgm-rain-sifeng.mp3` },
+  { id: "yuta", label: "乙骨 · 心似烟火", src: `${ASSET}assets/bgm-yuta-shinjuku.mp3` }
 ];
-// 进入游戏时默认播放的曲目
-export const DEFAULT_BGM = "normal";
-const BGM_KEY = "sd3d.bgm";
+export const SCENE_BGM = { menu: "normal", gojo: "normal", practice: "sifeng", story: "yuta" };
+const BGM_KEY = "sd3d.bgm.scene.";
 
-// remember the player's choice instead of snapping back to the default
-function loadBgmId() {
+// Manual choices belong to a scene; a new scene gets its own default track.
+function loadBgmId(scene) {
   try {
-    const saved = localStorage.getItem(BGM_KEY);
-    if (saved === "") return null;                                   // explicitly off
+    const saved = localStorage.getItem(BGM_KEY + scene);
     if (saved && BGM_TRACKS.some((t) => t.id === saved)) return saved;
   } catch (_) { /* storage unavailable */ }
-  return DEFAULT_BGM;
+  return SCENE_BGM[scene];
 }
 
-function saveBgmId(id) {
-  try { localStorage.setItem(BGM_KEY, id || ""); } catch (_) { /* ignore */ }
+function saveBgmId(scene, id) {
+  try { localStorage.setItem(BGM_KEY + scene, id); } catch (_) { /* ignore */ }
 }
 
 export class AudioEngine {
@@ -28,7 +27,8 @@ export class AudioEngine {
     this.ctx = null;
     this.master = null;
     this.bgm = null;
-    this.bgmId = loadBgmId();   // 上次选择（默认正常版，首次手势后开始播放）
+    this.bgmScene = "menu";
+    this.bgmId = loadBgmId(this.bgmScene);
     this.bgmVolume = 0.55;
     this._bgmFade = 0;
   }
@@ -81,11 +81,20 @@ export class AudioEngine {
   }
 
   setBgm(id) {
+    if (!BGM_TRACKS.some((t) => t.id === id)) return;
     this.bgmId = id;
-    saveBgmId(id);
+    saveBgmId(this.bgmScene, id);
     const el = this.ensureBgm();
     clearInterval(this._bgmFade);
-    if (!id) { el.pause(); el.volume = 0; return; }
+    this.startBgm();
+  }
+
+  setScene(scene) {
+    if (!Object.hasOwn(SCENE_BGM, scene) || scene === this.bgmScene) return;
+    this.bgmScene = scene;
+    const id = loadBgmId(scene);
+    if (this.bgmId === id) return;
+    this.bgmId = id;
     this.startBgm();
   }
 
@@ -99,13 +108,16 @@ export class AudioEngine {
     return this.bgmLabel();
   }
 
-  // 回到默认曲目（保留给需要"恢复默认"的入口使用）
+  // Restore the default for the current scene.
   resetBgm() {
-    if (this.bgmId === DEFAULT_BGM) {
+    const defaultId = SCENE_BGM[this.bgmScene];
+    try { localStorage.removeItem(BGM_KEY + this.bgmScene); } catch (_) { /* ignore */ }
+    if (this.bgmId === defaultId) {
       if (this.bgm?.paused) this.startBgm();
       return;
     }
-    this.setBgm(DEFAULT_BGM);
+    this.bgmId = defaultId;
+    this.startBgm();
   }
 
   bgmLabel() {
