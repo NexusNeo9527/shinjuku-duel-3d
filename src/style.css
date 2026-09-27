@@ -981,3 +981,111 @@ body.theme-yuta {
 .duel-line.char-yuta .dl-copy strong { color: #c7b8ff; }
 .split-panel.char-yuta { --char: #c7b8ff; --char-2: #7058b8; }
 .result-quote.char-yuta { border-left-color: #c7b8ff; }
+
+/* ---------- home, guide, and settings ---------- */
+.home-panel {
+  width: min(540px, 100%);
+  padding: clamp(28px, 5vw, 54px) clamp(22px, 6vw, 62px) 22px;
+  background: linear-gradient(155deg, rgba(8, 14, 26, .92), rgba(5, 7, 15, .94));
+  box-shadow: 0 30px 100px rgba(0, 0, 0, .54), 0 0 70px -44px var(--accent);
+}
+.home-panel h1 { margin: 2px 0 8px; }
+.home-panel > p { color: var(--muted); font-size: 13px; line-height: 1.8; }
+.home-actions { width: min(330px, 100%); margin-top: 27px; display: grid; gap: 12px; }
+.home-start {
+  width: 100%; min-height: 56px; display: flex; justify-content: space-between; align-items: center;
+  padding: 0 24px; border-radius: 12px; border-color: transparent;
+  background: linear-gradient(105deg, var(--btn-a), var(--btn-b));
+}
+.home-start span { font-size: 21px; font-weight: 400; }
+.home-secondary-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.home-secondary-actions .text-button { margin: 0; min-height: 44px; border: 1px solid var(--line-strong); border-radius: 10px; background: rgba(255, 255, 255, .025); }
+.home-secondary-actions .text-button:hover { border-color: var(--accent); }
+.build-version { margin-top: 24px; }
+.selection-panel { width: min(760px, 100%); padding: clamp(25px, 4vw, 42px); }
+.selection-panel > p { margin-bottom: 2px; }
+.selection-panel .home-mode-grid { width: 100%; margin: 23px 0 3px; }
+.home-mode-card { width: min(310px, calc(50% - 10px)); min-height: 164px; display: flex; flex-direction: column; justify-content: center; }
+.home-mode-card .mode-label { line-height: 1.35; }
+.home-mode-card small { line-height: 1.7; }
+.mode-card:focus-visible, .action-button:focus-visible, .text-button:focus-visible,
+.settings-quiet-button:focus-visible, .key-binding-button:focus-visible, .story-play-mode:focus-visible {
+  outline: 2px solid var(--accent-2); outline-offset: 3px;
+}
+.story-play-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: min(600px, 100%); margin: 16px 0 3px; }
+.story-play-mode {
+  min-height: 62px; padding: 9px 11px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px;
+  text-align: left; color: var(--text); cursor: pointer; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--card-a);
+}
+.story-play-mode strong { font-size: 13px; }
+.story-play-mode small { color: var(--muted); font-size: 11px; }
+.story-play-mode:hover, .story-play-mode.active { border-color: var(--accent); box-shadow: 0 0 20px -12px var(--accent); }
+.story-play-mode.active strong { color: var(--accent); }
+.story-play-help { margin: 8px 0 0 !important; text-align: center; font-size: 12px !important; }
+.guide-panel, .settings-panel {
+  width: min(680px, 100%); max-height: calc(100% - 20px); overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+}
+.guide-panel { align-items: stretch; text-align: left; }
+.guide-panel h2, .settings-panel > h2 { text-align: center; }
+.guide-content { display: grid; gap: 12px; margin-top: 17px; }
+.guide-section { padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, .025); }
+.guide-section h3, .settings-section h3 { margin-bottom: 7px; color: var(--accent); font-size: 14px; letter-spacing: .04em; }
+.guide-section p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.guide-section b { color: var(--text); }
+.guide-panel > .text-button, .settings-panel > .text-button { align-self: center; }
+.settings-panel { align-items: stretch; text-align: left; gap: 13px; }
+.settings-panel .kicker { text-align: center; }
+.settings-section { padding: 15px 17px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, .025); }
+.settings-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.settings-section-head h3 { margin: 0; }
+.settings-section-head p { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.settings-section-head output { color: var(--accent); font: 600 13px var(--font-mono); }
+.volume-settings input[type="range"] { width: 100%; margin: 17px 0 10px; accent-color: var(--accent); cursor: pointer; }
+.settings-quiet-button { min-height: 34px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--muted); background: var(--chip); cursor: pointer; }
+.settings-quiet-button:hover { color: var(--accent); border-color: var(--accent); }
+.settings-status { min-height: 18px; margin: 8px 0; color: var(--muted); font-size: 11px; }
+.key-binding-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.key-binding-group { border: 1px solid var(--line); border-radius: 9px; background: rgba(0, 0, 0, .12); }
+.key-binding-group summary { padding: 10px 11px; color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer; }
+.key-binding-rows { padding: 0 9px 9px; }
+.key-binding-row { min-height: 34px; display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+.key-binding-button { min-width: 64px; max-width: 122px; min-height: 28px; padding: 3px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--text); background: var(--chip); cursor: pointer; }
+.key-binding-button:hover, .key-binding-button.listening { color: var(--accent); border-color: var(--accent); }
+.touch-layout-preview { position: relative; height: clamp(145px, 28vw, 205px); margin: 13px 0 10px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 12px; background: linear-gradient(135deg, rgba(68, 217, 255, .055), rgba(12, 15, 28, .82) 51%, rgba(199, 184, 255, .05)); touch-action: none; }
+.touch-layout-preview::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; border-left: 1px dashed var(--line-strong); }
+.touch-preview-move, .touch-preview-look { position: absolute; top: 12px; color: var(--muted); font: 10px var(--font-mono); letter-spacing: .12em; }
+.touch-preview-move { left: 10px; }
+.touch-preview-look { right: 10px; }
+.touch-position-handle { position: absolute; left: 20%; top: 76%; width: 54px; height: 54px; transform: translate(-50%, -50%); border: 1px solid var(--accent); border-radius: 50%; cursor: grab; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 38%, transparent), color-mix(in srgb, var(--accent) 9%, transparent) 68%); box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 8%, transparent), 0 0 24px -7px var(--accent); touch-action: none; }
+.touch-position-handle:active { cursor: grabbing; }
+.mode-audio-controls { display: flex; gap: 8px; }
+@media (pointer: coarse) { .touch-position-settings { display: block; } }
+@media (max-width: 600px) {
+  .overlay { padding: 12px; }
+  .home-panel { padding: 30px 22px 18px; }
+  .home-panel > p { max-width: 310px; }
+  .selection-panel { padding: 27px 18px 20px; }
+  .selection-panel > p { max-width: 340px; line-height: 1.65; }
+  .selection-panel .home-mode-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .home-mode-card { width: 100%; min-height: 116px; padding: 16px 18px; }
+  .story-play-modes { gap: 6px; }
+  .story-play-mode { padding: 8px 7px; min-height: 58px; }
+  .story-play-mode strong { font-size: 11px; }
+  .story-play-mode small { font-size: 10px; }
+  .guide-panel, .settings-panel { padding: 24px 16px; }
+  .key-binding-groups { grid-template-columns: 1fr; }
+}
+@media (max-height: 620px) {
+  .home-panel { padding-top: 24px; padding-bottom: 15px; }
+  .home-actions { margin-top: 17px; }
+  .build-version { margin-top: 14px; }
+  .guide-panel, .settings-panel { max-height: calc(100% - 8px); padding-top: 20px; padding-bottom: 18px; }
+  .guide-content { gap: 8px; margin-top: 10px; }
+  .guide-section, .settings-section { padding: 11px 13px; }
+  .settings-panel { gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-start, .mode-card, .story-play-mode, .text-button { transition: none; }
+  .home-start:hover, .mode-card:hover { transform: none; }
+}

@@ -7,6 +7,14 @@ export const BGM_TRACKS = [
 ];
 export const SCENE_BGM = { menu: null, gojo: "normal", practice: "sifeng", story: "yuta" };
 const BGM_KEY = "sd3d.bgm.scene.";
+const MASTER_VOLUME_KEY = "sd3d.master-volume.v1";
+
+function loadMasterVolume() {
+  try {
+    const value = Number(localStorage.getItem(MASTER_VOLUME_KEY));
+    return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+  } catch (_) { return 1; }
+}
 
 // Manual choices belong to a scene; a new scene gets its own default track.
 function loadBgmId(scene) {
@@ -24,6 +32,7 @@ function saveBgmId(scene, id) {
 export class AudioEngine {
   constructor() {
     this.muted = false;
+    this.masterVolume = loadMasterVolume();
     this.ctx = null;
     this.master = null;
     this.bgm = null;
@@ -44,7 +53,7 @@ export class AudioEngine {
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.9;
+    this.master.gain.value = this.outputGain();
     const comp = this.ctx.createDynamicsCompressor();
     comp.threshold.value = -18;
     comp.knee.value = 14;
@@ -87,7 +96,7 @@ export class AudioEngine {
     el.muted = this.muted;
     const p = el.play();
     if (p && p.catch) p.catch(() => { /* autoplay blocked until a gesture */ });
-    this.fadeBgm(this.bgmVolume);
+    this.fadeBgm(this.bgmVolume * this.masterVolume);
   }
 
   setBgm(id) {
@@ -159,9 +168,22 @@ export class AudioEngine {
   setMuted(muted) {
     this.muted = muted;
     if (this.master && this.ctx) {
-      this.master.gain.setTargetAtTime(muted ? 0 : 0.9, this.ctx.currentTime, 0.025);
+      this.master.gain.setTargetAtTime(this.outputGain(), this.ctx.currentTime, 0.025);
     }
     if (this.bgm) this.bgm.muted = muted;
+  }
+
+  outputGain() {
+    return this.muted ? 0 : this.masterVolume * 0.9;
+  }
+
+  setVolume(value) {
+    this.masterVolume = Math.max(0, Math.min(1, Number(value) || 0));
+    try { localStorage.setItem(MASTER_VOLUME_KEY, String(this.masterVolume)); } catch (_) { /* ignore */ }
+    if (this.master && this.ctx) {
+      this.master.gain.setTargetAtTime(this.outputGain(), this.ctx.currentTime, 0.025);
+    }
+    if (this.bgmId && this.bgm && !this.bgm.paused) this.fadeBgm(this.bgmVolume * this.masterVolume, 180);
   }
 
   tone(frequency, duration = 0.08, type = "sine", volume = 0.035, endFrequency = null) {

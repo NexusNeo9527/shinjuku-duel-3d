@@ -75,12 +75,15 @@ class TouchPad {
     this.dashBtn?.addEventListener("pointerdown", stop((e) => { capture(this.dashBtn, e); this.onDash(); }));
   }
 
-  beginStick(e) {
+  beginStick(e, x, y) {
     this.stick.id = e.pointerId;
-    this.stick.ox = e.clientX;
-    this.stick.oy = e.clientY;
-    this.stickBase.style.left = `${e.clientX}px`;
-    this.stickBase.style.top = `${e.clientY}px`;
+    const rect = this.root.getBoundingClientRect();
+    const centerX = rect.left + rect.width * x;
+    const centerY = rect.top + rect.height * y;
+    this.stick.ox = centerX;
+    this.stick.oy = centerY;
+    this.stickBase.style.left = `${centerX - rect.left}px`;
+    this.stickBase.style.top = `${centerY - rect.top}px`;
     this.stickBase.classList.remove("hidden");
     this.stickKnob.style.transform = "";
   }
@@ -179,7 +182,7 @@ class TouchPad {
       const s = this.slots[i];
       const cd = player.cooldowns[i] || 0;
       s.cd.style.setProperty("--cd", String(Math.min(1, cd / (s.ability.cooldown || 1))));
-      const expiredDomain = s.ability.needsDomain && game.mode === "story"
+      const expiredDomain = s.ability.needsDomain && game.isStoryCombat()
         && game.storyStage === "borrowed" && game.storyTimer <= 0 && player.charId === "yutaGojo";
       const locked = (s.ability.needsCharge && player.charge < 100 && !game.practice)
         || (s.ability.needsDomain && player.domainCharge < 100 && !game.practice)
@@ -194,13 +197,14 @@ class TouchPad {
 }
 
 export class TouchControls {
-  constructor({ game, renderer, onCast, onDash }) {
+  constructor({ game, renderer, onCast, onDash, movePosition }) {
     this.game = game;
     this.renderer = renderer;
     this.onCast = onCast;
     this.onDash = onDash;
     this.enabled = false;
     this.dual = false;
+    this.movePosition = movePosition || { x: 0.2, y: 0.76 };
     this.root = document.querySelector("#touchUI");
     this.pad1 = new TouchPad({
       root: this.root,
@@ -249,6 +253,10 @@ export class TouchControls {
   reset() {
     this.pad1.reset();
     this.pad2?.reset();
+  }
+
+  setMovePosition(position) {
+    this.movePosition = position;
   }
 
   // local versus on touch: give player 2 their own mirrored pad
@@ -316,22 +324,34 @@ export class TouchControls {
 
   onDown(e) {
     if (!this.enabled) return;
-    const left = e.clientX < window.innerWidth * 0.5;
+    const rect = this.root.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    const left = x < 0.5;
     if (left) {
       if (this.pad1.stick.id === null) {
-        this.pad1.beginStick(e);
+        if (!this.nearMoveAnchor(e, this.movePosition.x, this.movePosition.y, rect)) return;
+        this.pad1.beginStick(e, this.movePosition.x, this.movePosition.y);
         try { this.root.setPointerCapture(e.pointerId); } catch (_) { /* synthetic pointer */ }
       }
       return;
     }
     if (this.dual) {
       if (this.pad2 && this.pad2.stick.id === null) {
-        this.pad2.beginStick(e);
+        const mirrored = { x: 1 - this.movePosition.x, y: this.movePosition.y };
+        if (!this.nearMoveAnchor(e, mirrored.x, mirrored.y, rect)) return;
+        this.pad2.beginStick(e, mirrored.x, mirrored.y);
         try { this.root.setPointerCapture(e.pointerId); } catch (_) { /* synthetic pointer */ }
       }
       return;
     }
     if (this.pad1.look.id === null) this.pad1.beginLook(e);
+  }
+
+  nearMoveAnchor(event, x, y, rect) {
+    const anchorX = rect.left + rect.width * x;
+    const anchorY = rect.top + rect.height * y;
+    return Math.hypot(event.clientX - anchorX, event.clientY - anchorY) <= Math.max(104, Math.min(150, rect.width * 0.13));
   }
 
   onMove(e) {

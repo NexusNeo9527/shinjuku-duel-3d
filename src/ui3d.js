@@ -1,8 +1,8 @@
 import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY } from "./config3d.js";
 import { STORY_VICTORY_LINES } from "./storyDialogue.js";
 
-const SLOT_KEYS = ["LMB", "Q", "E", "R", "T"];
-const P2_KEYS = ["U", "O", "P", "[", "]"];
+const SLOT_KEYS = ["p1.cast1", "p1.cast2", "p1.cast3", "p1.cast4", "p1.cast5"];
+const P2_KEYS = ["p2.cast1", "p2.cast2", "p2.cast3", "p2.cast4", "p2.cast5"];
 const STORY_DIFFICULTY_TEXT = {
   easy: "耐久 85 · 出招较慢",
   normal: "耐久 100 · 预判移动 · 减伤",
@@ -57,6 +57,17 @@ export class UI3D {
     this.slots = [];
     this.dom = {
       menu: document.querySelector("#menu"),
+      modeSelectMenu: document.querySelector("#modeSelectMenu"),
+      modeSelectBackBtn: document.querySelector("#modeSelectBackBtn"),
+      startGameBtn: document.querySelector("#startGameBtn"),
+      openGuideBtn: document.querySelector("#openGuideBtn"),
+      openSettingsBtn: document.querySelector("#openSettingsBtn"),
+      guideMenu: document.querySelector("#guideMenu"),
+      guideBackBtn: document.querySelector("#guideBackBtn"),
+      settingsMenu: document.querySelector("#settingsMenu"),
+      settingsBackBtn: document.querySelector("#settingsBackBtn"),
+      storyPlayModeBtns: [...document.querySelectorAll("[data-story-play-mode]")],
+      storyPlayHelp: document.querySelector("#storyPlayHelp"),
       gojoMenu: document.querySelector("#gojoMenu"),
       gojoBackBtn: document.querySelector("#gojoBackBtn"),
       gojoModeBtns: [...document.querySelectorAll("[data-gojo-mode]")],
@@ -90,6 +101,7 @@ export class UI3D {
       resultQuoteText: document.querySelector("#resultQuoteText"),
       homeBtn: document.querySelector("#homeBtn"),
       soundBtn: document.querySelector("#soundBtn"),
+      modeAudioControls: document.querySelector("#modeAudioControls"),
       againBtn: document.querySelector("#againBtn"),
       modeBtn: document.querySelector("#modeBtn"),
       playerName: document.querySelector("#playerName"),
@@ -139,14 +151,24 @@ export class UI3D {
 
   bind() {
     const h = this.handlers;
+    this.dom.startGameBtn.addEventListener("click", () => h.onStart());
+    this.dom.openGuideBtn.addEventListener("click", () => h.onOpenGuide());
+    this.dom.openSettingsBtn.addEventListener("click", () => h.onOpenSettings());
+    this.dom.modeSelectBackBtn.addEventListener("click", () => h.onBackToHome());
+    this.dom.guideBackBtn.addEventListener("click", () => h.onBackToHome());
+    this.dom.settingsBackBtn.addEventListener("click", () => h.onBackToHome());
     this.dom.modeButtons.forEach((b) => b.addEventListener("click", () => h.onMode(b.dataset.mode)));
     this.dom.gojoModeBtns.forEach((b) => b.addEventListener("click", () => h.onGojoMode(b.dataset.gojoMode)));
-    this.dom.gojoBackBtn.addEventListener("click", () => h.onHome());
+    this.dom.gojoBackBtn.addEventListener("click", () => h.onBackToModeSelect());
+    this.dom.storyPlayModeBtns.forEach((b) => b.addEventListener("click", () => {
+      this.dom.storyPlayModeBtns.forEach((button) => button.classList.toggle("active", button === b));
+      h.onStoryPlayMode(b.dataset.storyPlayMode);
+    }));
     this.dom.storyStageBtns.forEach((b) => b.addEventListener("click", () => h.onStoryStage(b.dataset.storyStage)));
     this.dom.storySideBtns.forEach((b) => b.addEventListener("click", () => {
       h.onStorySide(b.dataset.storySide);
     }));
-    this.dom.storyBackBtn.addEventListener("click", () => h.onHome());
+    this.dom.storyBackBtn.addEventListener("click", () => h.onBackToModeSelect());
     this.dom.continueStoryBtn.addEventListener("click", () => h.onContinueStory());
     this.dom.difficultyButtons.forEach((b) => b.addEventListener("click", () => {
       this.dom.difficultyButtons.forEach((x) => x.classList.toggle("selected", x === b));
@@ -218,7 +240,7 @@ export class UI3D {
       el.className = "ability-slot";
       el.style.color = ab.color;
       el.innerHTML = `
-        <span class="slot-key">${panel.keys[i] || ""}</span>
+        <span class="slot-key">${this.getKeyLabel(panel.keys[i])}</span>
         <svg class="slot-icon" viewBox="0 0 24 24">${ICONS[ab.id] || ICONS.blue}</svg>
         <span class="slot-glyph">${ab.label}</span>
         <span class="slot-cd"></span>`;
@@ -300,6 +322,30 @@ export class UI3D {
     for (const b of this.dom.themeChips) b.classList.toggle("active", b.dataset.theme === charId);
   }
 
+  getKeyLabel(bindingId) {
+    return this.handlers.getKeyLabel?.(bindingId) || bindingId || "";
+  }
+
+  refreshKeyLabels() {
+    this.slots.forEach((slot, i) => {
+      const label = slot.el.querySelector(".slot-key");
+      if (label) label.textContent = this.getKeyLabel(SLOT_KEYS[i]);
+    });
+    const dashLabel = this.dashSlot?.el.querySelector(".slot-key");
+    if (dashLabel) dashLabel.textContent = this.getKeyLabel("p1.dash");
+    for (const panel of [this.splitP1, this.splitP2]) {
+      panel?.slots.forEach((slot, i) => {
+        const label = slot.el.querySelector(".slot-key");
+        if (label) label.textContent = this.getKeyLabel(panel.keys[i]);
+      });
+    }
+    const controls1 = document.querySelector(".split-controls-p1");
+    const controls2 = document.querySelector(".split-controls-p2");
+    if (controls1) controls1.textContent = `P1 · ${this.getKeyLabel("p1.up")}${this.getKeyLabel("p1.left")}${this.getKeyLabel("p1.down")}${this.getKeyLabel("p1.right")} 移动 · ${this.getKeyLabel("p1.sprint")} 疾跑 · ${this.getKeyLabel("p1.ascend")} 升空 · ${this.getKeyLabel("p1.descend")} 下降 · ${SLOT_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p1.dash")} 冲刺`;
+    if (controls2) controls2.textContent = `P2 · ${this.getKeyLabel("p2.up")}${this.getKeyLabel("p2.left")}${this.getKeyLabel("p2.down")}${this.getKeyLabel("p2.right")} 移动 · ${this.getKeyLabel("p2.sprint")} 疾跑 · ${this.getKeyLabel("p2.ascend")} 升空 · ${this.getKeyLabel("p2.descend")} 下降 · ${P2_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p2.dash")} 冲刺`;
+    if (this.dom.hint) this.dom.hint.textContent = `${this.getKeyLabel("p1.up")}${this.getKeyLabel("p1.left")}${this.getKeyLabel("p1.down")}${this.getKeyLabel("p1.right")} 移动 · ${this.getKeyLabel("p1.sprint")} 疾跑 · ${this.getKeyLabel("p1.ascend")} 升空 · ${this.getKeyLabel("p1.descend")} 下降 · ${SLOT_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p1.dash")} 冲刺 · 滚轮缩放`;
+  }
+
   rebuildAbilityBar(charId) {
     const char = CHARACTERS[charId] || CHARACTERS.gojo;
     this.dom.abilityBar.innerHTML = "";
@@ -308,7 +354,7 @@ export class UI3D {
       el.className = "ability-slot";
       el.style.color = ab.color;
       el.innerHTML = `
-        <span class="slot-key">${SLOT_KEYS[i]}</span>
+        <span class="slot-key">${this.getKeyLabel(SLOT_KEYS[i])}</span>
         <svg class="slot-icon" viewBox="0 0 24 24">${ICONS[ab.id] || ICONS.blue}</svg>
         <span class="slot-glyph">${ab.label}</span>
         <span class="slot-cd"></span>
@@ -320,7 +366,7 @@ export class UI3D {
     const dashEl = document.createElement("div");
     dashEl.className = "ability-slot dash-slot";
     dashEl.innerHTML = `
-      <span class="slot-key">F</span>
+      <span class="slot-key">${this.getKeyLabel("p1.dash")}</span>
       <svg class="slot-icon" viewBox="0 0 24 24">${ICONS.dash}</svg>
       <span class="slot-glyph">冲刺</span>
       <span class="slot-cd"></span>`;
@@ -339,9 +385,23 @@ export class UI3D {
     this.updateHitBorder(game);
     this.updateCutIn(game);
     this.dom.menu.classList.toggle("hidden", s !== "menu");
+    this.dom.modeSelectMenu.classList.toggle("hidden", s !== "modeSelect");
+    this.dom.guideMenu.classList.toggle("hidden", s !== "guide");
+    this.dom.settingsMenu.classList.toggle("hidden", s !== "settings");
     this.dom.gojoMenu.classList.toggle("hidden", s !== "gojoSelect");
     this.dom.storyMenu.classList.toggle("hidden", s !== "storySelect");
     this.dom.difficultyMenu.classList.toggle("hidden", s !== "difficulty");
+    const homeSurface = ["menu", "modeSelect", "guide", "settings"].includes(s);
+    this.dom.homeBtn.classList.toggle("hidden", homeSurface);
+    this.dom.modeAudioControls.classList.toggle("hidden", homeSurface);
+    this.dom.storyPlayModeBtns.forEach((button) => button.classList.toggle("active", button.dataset.storyPlayMode === game.storyPlayMode));
+    if (this.dom.storyPlayHelp) {
+      this.dom.storyPlayHelp.textContent = game.storyPlayMode === "dual"
+        ? "选择阶段后，双方分别操控乙骨与宿傩。"
+        : game.storyPlayMode === "practice"
+          ? "选择阶段与角色后进入练习，可随时更换角色。"
+          : "选择剧情阶段后开始单人战斗。";
+    }
     this.dom.storySideSelect.classList.toggle("hidden", game.pendingMode !== "story");
     this.dom.singleCharSelect.classList.toggle("hidden", game.pendingMode === "story");
     this.dom.storySideBtns[0].textContent = game.storyStage === "borrowed" ? "乙骨·五条之身" : "乙骨忧太";
@@ -430,22 +490,26 @@ export class UI3D {
     this.updateDialogue(game);
     this.updateResult(game);
 
-    const modeLabel = s === "menu" ? "选择对战模式"
+    const modeLabel = s === "menu" ? "新宿决战"
+      : s === "modeSelect" ? "选择战场"
+      : s === "guide" ? "游戏说明"
+      : s === "settings" ? "设置"
       : s === "gojoSelect" ? "五条悟 VS 宿傩"
       : s === "storySelect" ? "乙骨忧太 VS 宿傩"
       : s === "difficulty" ? "选择难度"
       : game.mode === "single" ? `单人对决 · ${DIFFICULTY[game.difficulty].label}`
       : game.mode === "story" ? `剧情 · ${STORY_STAGES[game.storyStage].label} · ${DIFFICULTY[game.difficulty].label}`
-      : game.mode === "dual" ? "双人同屏" : "练习终端";
+      : game.mode === "dual" ? `${game.modeFamily === "story" ? "乙骨篇 · " : ""}双人同屏`
+      : `${game.modeFamily === "story" ? "乙骨篇 · " : ""}练习终端`;
     this.dom.modeStatus.textContent = modeLabel;
     const status = [];
-    if (game.mode === "story" && game.storyStage === "borrowed") {
+    if (game.isStoryCombat() && game.storyStage === "borrowed") {
       const secs = Math.ceil(game.storyTimer);
       status.push(`五条之身 ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`);
     }
-    if (player?.burnout > 0) status.push(`术式熔断 ${player.burnout.toFixed(1)}秒 · H 强行恢复`);
+    if (player?.burnout > 0) status.push(`术式熔断 ${player.burnout.toFixed(1)}秒 · ${this.getKeyLabel("p1.restore")} 强行恢复`);
     if (player?.domainLocked) status.push("本场领域已锁定");
-    if (player?.charId === "yuta") status.push(`G 切换复制：${COPY_TECHNIQUES[player.copyIndex].label}`);
+    if (player?.charId === "yuta") status.push(`${this.getKeyLabel("p1.copy")} 切换复制：${COPY_TECHNIQUES[player.copyIndex].label}`);
     this.dom.battleStatus.textContent = status.join("  ·  ");
     this.dom.battleStatus.classList.toggle("hidden", !status.length || !["playing", "paused", "ended"].includes(s));
   }
@@ -469,7 +533,7 @@ export class UI3D {
       const needCharge = ab.needsCharge && player.charge < 100 && !game.practice;
       const needDomain = ab.needsDomain && player.domainCharge < 100 && !game.practice;
       const burnout = player.burnout > 0 && !ab.physical;
-      const domainLocked = ab.needsDomain && (player.domainLocked || (game.mode === "story" && game.storyStage === "borrowed" && game.storyTimer <= 0 && player.charId === "yutaGojo"));
+      const domainLocked = ab.needsDomain && (player.domainLocked || (game.isStoryCombat() && game.storyStage === "borrowed" && game.storyTimer <= 0 && player.charId === "yutaGojo"));
       slot.el.classList.toggle("locked", Boolean(needCharge || needDomain || burnout || domainLocked));
       slot.lock.textContent = burnout ? "熔断" : domainLocked ? "领域封锁" : needCharge ? "需蓄力" : (needDomain ? "需领域" : "");
       slot.el.classList.toggle("ready", cd <= 0.001 && !needCharge && !needDomain && !burnout && !domainLocked);

@@ -3,6 +3,8 @@ import { Renderer3D } from "./three/Renderer3D.js";
 import { AudioEngine } from "./audio.js";
 import { UI3D } from "./ui3d.js";
 import { TouchControls } from "./touch.js";
+import { STORY_STAGES } from "./config3d.js";
+import { BINDINGS, DEFAULT_TOUCH_MOVE_POSITION, clampTouchMovePosition, displayKey, loadInputSettings, saveInputSettings } from "./inputSettings.js";
 
 const canvas = document.querySelector("#gameCanvas");
 const arena = document.querySelector("#arena");
@@ -10,6 +12,9 @@ const arena = document.querySelector("#arena");
 const game = new Game3D();
 const renderer = new Renderer3D(canvas);
 const audio = new AudioEngine();
+const inputSettings = loadInputSettings();
+let bindingCodes = new Map();
+let bindingCapture = null;
 const isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0;
 const coarseTouch = isTouchDevice && Boolean(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
 let touchUsed = false;
@@ -20,13 +25,40 @@ const PRACTICE_CHARACTER_NAMES = {
   gojo: "五条悟",
   sukuna: "宿傩",
   yuta: "乙骨忧太",
-  sukunaStory1: "四手宿傩"
+  sukunaStory1: "四手宿傩",
+  yutaGojo: "乙骨·五条之身",
+  sukunaStory2: "完全体宿傩"
 };
+
+function rebuildBindingCodes() {
+  bindingCodes = new Map();
+  for (const binding of BINDINGS) {
+    const code = inputSettings.bindings[binding.id];
+    if (!bindingCodes.has(code)) bindingCodes.set(code, []);
+    bindingCodes.get(code).push(binding.id);
+  }
+}
+rebuildBindingCodes();
+const keyCode = (id) => inputSettings.bindings[id];
+const actionBoundTo = (code, id) => (bindingCodes.get(code) || []).includes(id);
 
 
 const ui = new UI3D(game, {
+  getKeyLabel: (id) => displayKey(inputSettings.bindings[id]),
+  onStart: () => { game.state = "modeSelect"; },
+  onOpenGuide: () => { game.state = "guide"; },
+  onOpenSettings: () => { game.state = "settings"; },
+  onBackToHome: () => { game.state = "menu"; },
+  onBackToModeSelect: () => {
+    game.state = "modeSelect";
+    setMusicScene("menu");
+    setModeTitle("gojo");
+    applyTheme("gojo");
+  },
   onMode: (mode) => {
     audio.ensure();
+    game.modeFamily = mode === "story" ? "story" : "gojo";
+    game.storyPlayMode = "story";
     if (mode === "gojo") { setMusicScene("gojo"); setModeTitle("gojo"); applyTheme("gojo"); game.state = "gojoSelect"; return; }
     if (mode === "story") {
       setMusicScene("story");
@@ -38,12 +70,31 @@ const ui = new UI3D(game, {
     }
   },
   onGojoMode: (mode) => {
+    game.modeFamily = "gojo";
     setModeTitle("gojo");
     if (mode === "single") { game.pendingMode = "single"; applyTheme(game.singleChar); game.state = "difficulty"; return; }
     startGame(mode, "normal");
   },
   onDifficulty: (d) => startGame(game.pendingMode === "story" ? "story" : "single", d),
-  onStoryStage: (stage) => { game.setStory(stage, game.storySide); game.pendingMode = "story"; setModeTitle("story", game.storyStage); applyTheme(game.storySide === "enemy" ? "sukuna" : "yuta"); game.state = "difficulty"; },
+  onStoryPlayMode: (mode) => { game.storyPlayMode = mode; },
+  onStoryStage: (stage) => {
+    game.setStory(stage, game.storySide);
+    const stageInfo = STORY_STAGES[game.storyStage];
+    if (game.storyPlayMode === "story") {
+      game.pendingMode = "story";
+      setModeTitle("story", game.storyStage);
+      applyTheme(game.storySide === "enemy" ? "sukuna" : "yuta");
+      game.state = "difficulty";
+      return;
+    }
+    if (game.storyPlayMode === "practice") {
+      game.setPracticeChar(game.storySide === "enemy" ? stageInfo.enemy : stageInfo.ally);
+      applyTheme(game.practiceChar);
+      startGame("practice", "normal");
+      return;
+    }
+    startGame("dual", "normal");
+  },
   onStorySide: (side) => { game.setStory(game.storyStage, side); applyTheme(game.storySide === "enemy" ? "sukuna" : "yuta"); },
   onContinueStory: () => { game.setStory("borrowed", game.storySide); startGame("story", game.difficulty); },
   onSingleChar: (id) => { game.setSingleChar(id); applyTheme(game.singleChar); },
@@ -55,6 +106,8 @@ const ui = new UI3D(game, {
   onHome: () => {
     game.state = "menu";
     setMusicScene("menu");
+    game.modeFamily = "gojo";
+    game.storyPlayMode = "story";
     setModeTitle("gojo");
     applyTheme("gojo");
     renderer.reset();
@@ -77,12 +130,21 @@ const ui = new UI3D(game, {
   onSound: (btn) => {
     const muted = !audio.muted;
     audio.setMuted(muted);
-    btn.textContent = muted ? "♪ 关" : "♪ 开";
-    btn.setAttribute("aria-pressed", String(!muted));
-    btn.setAttribute("aria-label", muted ? "开启声音" : "关闭声音");
+    refreshSoundButtons();
     if (!muted) audio.ensure();
   }
 });
+
+function refreshSoundButtons() {
+  const muted = audio.muted;
+  for (const button of [document.querySelector("#soundBtn"), document.querySelector("#settingsMuteBtn")]) {
+    if (!button) continue;
+    const label = button.id === "settingsMuteBtn" ? (muted ? "开启声音" : "关闭声音") : (muted ? "♪ 关" : "♪ 开");
+    button.textContent = label;
+    button.setAttribute("aria-pressed", String(muted));
+    button.setAttribute("aria-label", muted ? "开启声音" : "关闭声音");
+  }
+}
 
 function applyTheme(charId) {
   const id = charId?.startsWith("sukuna") ? "sukuna" : charId?.startsWith("yuta") ? "yuta" : "gojo";
@@ -93,15 +155,15 @@ function applyTheme(charId) {
 }
 
 function setModeTitle(mode, stage = null) {
-  const story = mode === "story";
+  const story = mode === "story" || (mode === "dual" && game.modeFamily === "story");
   const borrowed = story && stage === "borrowed";
   const practice = mode === "practice";
   const practiceName = PRACTICE_CHARACTER_NAMES[game.practiceChar] || "五条悟";
   const title = practice
     ? `${practiceName} · 练习模式`
     : story
-      ? borrowed ? "乙骨忧太（五条之身） VS 宿傩" : "乙骨忧太 VS 宿傩"
-      : "新宿决战";
+      ? `${borrowed ? "乙骨忧太（五条之身）" : "乙骨忧太"}${mode === "dual" ? " 双人对战" : " VS 宿傩"}`
+      : mode === "dual" ? "五条悟 VS 宿傩 · 双人对战" : "新宿决战";
   const homeLead = practice
     ? practiceName
     : story
@@ -142,6 +204,7 @@ const secondPlayer = () => game.entities.find((e) => e.isPlayer && e !== game.pl
 const touch = new TouchControls({
   game,
   renderer,
+  movePosition: inputSettings.touchMovePosition,
   onCast: (pad, i) => {
     audio.ensure();
     const p = pad === 1 ? secondPlayer() : game.player();
@@ -187,12 +250,12 @@ bgmBtn?.addEventListener("click", () => {
 
 function startGame(mode, difficulty) {
   audio.ensure();
-  setMusicScene(mode === "story" ? "story" : mode === "practice" ? "practice" : "gojo");
+  setMusicScene(game.modeFamily === "story" ? "story" : mode === "practice" ? "practice" : "gojo");
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   game.start(mode, difficulty);
-  setModeTitle(mode === "story" ? "story" : mode === "practice" ? "practice" : "gojo", mode === "story" ? game.storyStage : null);
+  setModeTitle(mode, game.modeFamily === "story" ? game.storyStage : null);
   renderer.reset();
-  const stageReady = renderer.setStoryStage(mode === "story" ? game.storyStage : null);
+  const stageReady = renderer.setStoryStage(game.modeFamily === "story" ? game.storyStage : null);
   game.setWorldObstacles(renderer.getWorldCollisionBoxes());
   stageReady.then(() => game.setWorldObstacles(renderer.getWorldCollisionBoxes()));
   // Dual rendering temporarily gives the main camera a half-screen aspect ratio.
@@ -228,6 +291,150 @@ function startGame(mode, difficulty) {
   }
 }
 
+function setBindingStatus(message) {
+  const status = document.querySelector("#bindingStatus");
+  if (status) status.textContent = message;
+}
+
+function renderBindingEditor() {
+  const host = document.querySelector("#keyBindings");
+  if (!host) return;
+  const openGroups = new Set([...host.querySelectorAll("details[open]")].map((section) => section.dataset.group));
+  host.replaceChildren();
+  const groups = new Map();
+  for (const binding of BINDINGS) {
+    const groupName = `${binding.player} · ${binding.group}`;
+    if (!groups.has(groupName)) groups.set(groupName, []);
+    groups.get(groupName).push(binding);
+  }
+  for (const [name, bindings] of groups) {
+    const section = document.createElement("details");
+    section.className = "key-binding-group";
+    section.dataset.group = name;
+    section.open = openGroups.size ? openGroups.has(name) : name === "玩家 1 · 移动";
+    const summary = document.createElement("summary");
+    summary.textContent = name;
+    const rows = document.createElement("div");
+    rows.className = "key-binding-rows";
+    for (const binding of bindings) {
+      const row = document.createElement("div");
+      row.className = "key-binding-row";
+      const label = document.createElement("span");
+      label.textContent = binding.label;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "key-binding-button";
+      button.dataset.bindingId = binding.id;
+      button.textContent = displayKey(inputSettings.bindings[binding.id]);
+      button.addEventListener("click", () => {
+        if (bindingCapture?.button) bindingCapture.button.classList.remove("listening");
+        bindingCapture = { id: binding.id, button };
+        button.classList.add("listening");
+        button.textContent = "按下按键";
+        setBindingStatus(`${binding.player} · ${binding.label}：按下新按键，Esc 取消。`);
+      });
+      row.append(label, button);
+      rows.appendChild(row);
+    }
+    section.append(summary, rows);
+    host.appendChild(section);
+  }
+}
+
+function persistInputSettings() {
+  saveInputSettings(inputSettings);
+  rebuildBindingCodes();
+  ui.refreshKeyLabels();
+}
+
+window.addEventListener("keydown", (event) => {
+  if (!bindingCapture) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (event.code === "Escape") {
+    bindingCapture.button.classList.remove("listening");
+    bindingCapture = null;
+    renderBindingEditor();
+    setBindingStatus("已取消修改。键位会保存在本机。");
+    return;
+  }
+  if (!event.code || event.code === "Unidentified") {
+    setBindingStatus("无法识别这个按键，请换一个再试。仍在等待按键。");
+    return;
+  }
+  const duplicate = BINDINGS.find((binding) => binding.id !== bindingCapture.id && inputSettings.bindings[binding.id] === event.code);
+  if (duplicate) {
+    setBindingStatus(`${displayKey(event.code)} 已用于${duplicate.player}的「${duplicate.label}」，请换一个按键。`);
+    return;
+  }
+  inputSettings.bindings[bindingCapture.id] = event.code;
+  bindingCapture.button.classList.remove("listening");
+  bindingCapture = null;
+  persistInputSettings();
+  renderBindingEditor();
+  setBindingStatus("键位已保存到本机。");
+});
+
+renderBindingEditor();
+const volumeSlider = document.querySelector("#masterVolume");
+const volumeValue = document.querySelector("#volumeValue");
+function refreshVolumeLabel() {
+  if (volumeSlider) volumeSlider.value = String(Math.round(audio.masterVolume * 100));
+  if (volumeValue) volumeValue.value = `${Math.round(audio.masterVolume * 100)}%`;
+}
+refreshVolumeLabel();
+volumeSlider?.addEventListener("input", () => {
+  audio.setVolume(Number(volumeSlider.value) / 100);
+  refreshVolumeLabel();
+});
+document.querySelector("#settingsMuteBtn")?.addEventListener("click", () => {
+  audio.setMuted(!audio.muted);
+  refreshSoundButtons();
+  if (!audio.muted) audio.ensure();
+});
+refreshSoundButtons();
+
+const touchMoveSettings = document.querySelector("#touchMoveSettings");
+const touchLayoutPreview = document.querySelector("#touchLayoutPreview");
+const touchPositionHandle = document.querySelector("#touchPositionHandle");
+let draggingTouchPosition = false;
+function renderTouchPosition() {
+  const position = inputSettings.touchMovePosition;
+  touchPositionHandle?.style.setProperty("left", `${position.x * 100}%`);
+  touchPositionHandle?.style.setProperty("top", `${position.y * 100}%`);
+}
+function updateTouchPosition(event) {
+  if (!touchLayoutPreview) return;
+  const rect = touchLayoutPreview.getBoundingClientRect();
+  inputSettings.touchMovePosition = clampTouchMovePosition({
+    x: (event.clientX - rect.left) / rect.width,
+    y: (event.clientY - rect.top) / rect.height
+  });
+  touch.setMovePosition(inputSettings.touchMovePosition);
+  renderTouchPosition();
+  saveInputSettings(inputSettings);
+}
+if (touchMoveSettings) touchMoveSettings.classList.toggle("hidden", !isTouchDevice);
+touchPositionHandle?.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  draggingTouchPosition = true;
+  try { touchPositionHandle.setPointerCapture(event.pointerId); } catch (_) { /* synthetic pointer */ }
+  updateTouchPosition(event);
+});
+touchPositionHandle?.addEventListener("pointermove", (event) => {
+  if (draggingTouchPosition) updateTouchPosition(event);
+});
+const stopTouchPositionDrag = () => { draggingTouchPosition = false; };
+touchPositionHandle?.addEventListener("pointerup", stopTouchPositionDrag);
+touchPositionHandle?.addEventListener("pointercancel", stopTouchPositionDrag);
+document.querySelector("#resetTouchPositionBtn")?.addEventListener("click", () => {
+  inputSettings.touchMovePosition = { ...DEFAULT_TOUCH_MOVE_POSITION };
+  touch.setMovePosition(inputSettings.touchMovePosition);
+  saveInputSettings(inputSettings);
+  renderTouchPosition();
+});
+renderTouchPosition();
+
 // ---- input ----
 window.addEventListener("keydown", (event) => {
   if (event.code === "Escape") {
@@ -238,44 +445,43 @@ window.addEventListener("keydown", (event) => {
       setModeTitle(game.pendingMode === "story" ? "story" : "gojo", game.pendingMode === "story" ? game.storyStage : null);
       applyTheme(game.pendingMode === "story" ? "yuta" : "gojo");
     }
-    else if (game.state === "storySelect" || game.state === "gojoSelect") { game.state = "menu"; setMusicScene("menu"); setModeTitle("gojo"); applyTheme("gojo"); }
+    else if (game.state === "storySelect" || game.state === "gojoSelect") {
+      game.state = "modeSelect";
+      setMusicScene("menu");
+      setModeTitle("gojo");
+      applyTheme("gojo");
+    }
+    else if (["modeSelect", "guide", "settings"].includes(game.state)) {
+      game.state = "menu";
+      setMusicScene("menu");
+      setModeTitle("gojo");
+      applyTheme("gojo");
+    }
     return;
   }
-  if ([
-    "KeyW", "KeyA", "KeyS", "KeyD", "KeyZ", "KeyX", "KeyC", "ShiftLeft", "Space", "AltLeft",
-    "KeyI", "KeyJ", "KeyK", "KeyL", "KeyN", "KeyM", "ShiftRight",
-    "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"
-  ].includes(event.code)) {
-    event.preventDefault();
-  }
+  if (bindingCodes.has(event.code)) event.preventDefault();
   if (event.repeat) return;
   keys.add(event.code);
   const p1 = game.player();
   const p2 = game.entities.find((e) => e.isPlayer && e !== p1);
   const c = game.state === "playing";
   if (c && p1) {
-    if (event.code === "Digit1") game.tryCast(p1, 0);
-    if (event.code === "KeyQ" || event.code === "Digit2") game.tryCast(p1, 1);
-    if (event.code === "KeyE" || event.code === "Digit3") game.tryCast(p1, 2);
-    if (event.code === "KeyR" || event.code === "Digit4") game.tryCast(p1, 3);
-    if (event.code === "KeyT" || event.code === "Digit5") game.tryCast(p1, 4);
-    if (event.code === "KeyG") game.cycleCopy(p1);
-    if (event.code === "KeyH") game.tryForceRestore(p1);
-    if (event.code === "KeyV") game.tryBasicAttack(p1);
-    if (event.code === "AltLeft") game.cycleLock(p1);
-    if (event.code === "KeyF") {
-      game.tryDash(p1, p1.moveInput.x, p1.moveInput.y, p1.moveInput.z);
-    }
+    const actions = bindingCodes.get(event.code) || [];
+    const cast = actions.find((id) => /^p1\.cast[1-5]$/.test(id));
+    if (cast) game.tryCast(p1, Number(cast.at(-1)) - 1);
+    if (actions.includes("p1.copy")) game.cycleCopy(p1);
+    if (actions.includes("p1.restore")) game.tryForceRestore(p1);
+    if (actions.includes("p1.melee")) game.tryBasicAttack(p1);
+    if (actions.includes("p1.lock")) game.cycleLock(p1);
+    if (actions.includes("p1.dash")) game.tryDash(p1, p1.moveInput.x, p1.moveInput.y, p1.moveInput.z);
   }
   if (c && p2) {
-    if (event.code === "KeyU") game.tryCast(p2, 0);
-    if (event.code === "KeyO") game.tryCast(p2, 1);
-    if (event.code === "KeyP") game.tryCast(p2, 2);
-    if (event.code === "BracketLeft") game.tryCast(p2, 3);
-    if (event.code === "BracketRight") game.tryCast(p2, 4);
-    if (event.code === "Semicolon") game.tryBasicAttack(p2);
-    if (event.code === "Quote") game.tryForceRestore(p2);
-    if (event.code === "KeyB") game.tryDash(p2, p2.moveInput.x, p2.moveInput.y, p2.moveInput.z);
+    const actions = bindingCodes.get(event.code) || [];
+    const cast = actions.find((id) => /^p2\.cast[1-5]$/.test(id));
+    if (cast) game.tryCast(p2, Number(cast.at(-1)) - 1);
+    if (actions.includes("p2.melee")) game.tryBasicAttack(p2);
+    if (actions.includes("p2.restore")) game.tryForceRestore(p2);
+    if (actions.includes("p2.dash")) game.tryDash(p2, p2.moveInput.x, p2.moveInput.y, p2.moveInput.z);
   }
 });
 window.addEventListener("keyup", (event) => {
@@ -399,18 +605,15 @@ function applyInput() {
     let mx = 0;
     let mz = 0;
     let my = 0;
-    if (keys.has("KeyW")) { mx += fwd.x; mz += fwd.z; }
-    if (keys.has("KeyS")) { mx -= fwd.x; mz -= fwd.z; }
-    if (keys.has("KeyD")) { mx += right.x; mz += right.z; }
-    if (keys.has("KeyA")) { mx -= right.x; mz -= right.z; }
+    if (keys.has(keyCode("p1.up"))) { mx += fwd.x; mz += fwd.z; }
+    if (keys.has(keyCode("p1.down"))) { mx -= fwd.x; mz -= fwd.z; }
+    if (keys.has(keyCode("p1.right"))) { mx += right.x; mz += right.z; }
+    if (keys.has(keyCode("p1.left"))) { mx -= right.x; mz -= right.z; }
     // vertical: descend wins over ascend so the two can never cancel out
-    let up = 0;
-    if (keys.has("KeyZ")) up = 1;
-    // hold Space to fly up (target switching is on Left Alt)
-    if (keys.has("Space")) up = 1;
-    const down = keys.has("KeyX") || keys.has("KeyC");
+    const up = keys.has(keyCode("p1.ascend")) ? 1 : 0;
+    const down = keys.has(keyCode("p1.descend"));
     my = down ? -1 : up;
-    let sprint = keys.has("ShiftLeft");
+    let sprint = keys.has(keyCode("p1.sprint"));
 
     if (touch.enabled) {
       if (touch.stickActive) {
@@ -441,14 +644,14 @@ function applyInput() {
     let mx = 0;
     let mz = 0;
     // P2 faces the mirrored camera, so its forward axis is opposite P1's.
-    if (keys.has("KeyI")) { mx -= fwd.x; mz -= fwd.z; }
-    if (keys.has("KeyK")) { mx += fwd.x; mz += fwd.z; }
-    if (keys.has("KeyJ")) { mx += right.x; mz += right.z; }
-    if (keys.has("KeyL")) { mx -= right.x; mz -= right.z; }
+    if (keys.has(keyCode("p2.up"))) { mx -= fwd.x; mz -= fwd.z; }
+    if (keys.has(keyCode("p2.down"))) { mx += fwd.x; mz += fwd.z; }
+    if (keys.has(keyCode("p2.left"))) { mx += right.x; mz += right.z; }
+    if (keys.has(keyCode("p2.right"))) { mx -= right.x; mz -= right.z; }
     let my = 0;
-    if (keys.has("KeyM")) my = -1;
-    else if (keys.has("KeyN")) my = 1;
-    let sprint2 = keys.has("ShiftRight");
+    if (keys.has(keyCode("p2.descend"))) my = -1;
+    else if (keys.has(keyCode("p2.ascend"))) my = 1;
+    let sprint2 = keys.has(keyCode("p2.sprint"));
     if (pad2) {
       if (pad2.stickActive) {
         mx = fwd.x * pad2.move.y + right.x * pad2.move.x;
@@ -486,7 +689,8 @@ function frame(now) {
   if (game.timeStop > 0) game.timeStop = Math.max(0, game.timeStop - rawDt);
   if (game.cutIn) { game.cutIn.life -= rawDt; if (game.cutIn.life <= 0) game.cutIn = null; }
   // freeze the whole scene behind the menus / during a time-stop
-  const frozen = game.state === "menu" || game.state === "difficulty" || game.state === "paused" || game.timeStop > 0 || renderer._renderUnavailable;
+  const frozen = ["menu", "modeSelect", "guide", "settings", "gojoSelect", "storySelect", "difficulty", "paused"].includes(game.state)
+    || game.timeStop > 0 || renderer._renderUnavailable;
   const dt = frozen ? 0 : realDt;
   game.update(dt);
   for (const ev of game.drainEvents()) audio.handle(ev);

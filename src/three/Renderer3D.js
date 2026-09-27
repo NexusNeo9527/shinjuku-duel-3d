@@ -431,7 +431,7 @@ export class Renderer3D {
   syncStoryHits(game) {
     if (!game.sceneHits?.length) return;
     const scene = this.storyScene;
-    if (!scene || game.mode !== "story") { game.sceneHits.length = 0; return; }
+    if (!scene || !game.isStoryCombat()) { game.sceneHits.length = 0; return; }
     const candidates = [];
     scene.traverse((o) => { if (o.isMesh && o.visible && o.name.startsWith("breakable_")) candidates.push(o); });
     const pos = new THREE.Vector3();

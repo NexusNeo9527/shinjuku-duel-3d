@@ -4,12 +4,14 @@ import { STORY_DIALOGUE } from "./storyDialogue.js";
 const ENTITY_RADIUS = 0.7;
 const ENTITY_HEIGHT = 2;
 const CHEST = 1.0;
-const PRACTICE_CHAR_IDS = new Set(["gojo", "sukuna", "yuta", "sukunaStory1"]);
+const PRACTICE_CHAR_IDS = new Set(["gojo", "sukuna", "yuta", "sukunaStory1", "yutaGojo", "sukunaStory2"]);
 const PRACTICE_DUMMIES = {
   gojo: "sukuna",
   sukuna: "gojo",
   yuta: "sukunaStory1",
-  sukunaStory1: "yuta"
+  sukunaStory1: "yuta",
+  yutaGojo: "sukunaStory2",
+  sukunaStory2: "yutaGojo"
 };
 
 const ABILITY_ART = {
@@ -36,6 +38,8 @@ const ABILITY_ART = {
 export class Game3D {
   constructor() {
     this.mode = "single";
+    this.modeFamily = "gojo";
+    this.storyPlayMode = "story";
     this.difficulty = "normal";
     this.state = "menu";
     this.entities = [];
@@ -92,6 +96,10 @@ export class Game3D {
     return overrides ? { ...profile, ...overrides } : profile;
   }
 
+  isStoryCombat() {
+    return this.modeFamily === "story" && (this.mode === "story" || this.mode === "dual");
+  }
+
   queueDialogue(speaker, text, duration = 2.4, priority = 0) {
     const key = `${speaker}:${text}`;
     if (this.activeDialogue?.key === key || this.dialogueQueue.some((l) => l.key === key)) return;
@@ -100,7 +108,7 @@ export class Game3D {
   }
 
   storyDialogueLine(charId, cue) {
-    if (this.mode !== "story") return null;
+    if (!this.isStoryCombat()) return null;
     return STORY_DIALOGUE[charId]?.[cue] || null;
   }
 
@@ -116,7 +124,7 @@ export class Game3D {
   }
 
   queueStoryMoveDialogue(entity, ability) {
-    if (this.mode !== "story" || !entity || !ability) return false;
+    if (!this.isStoryCombat() || !entity || !ability) return false;
     const line = STORY_DIALOGUE[entity.charId]?.moves?.[ability.id];
     if (!line) return false;
     const key = `story:${entity.id}:move:${ability.id}`;
@@ -194,6 +202,12 @@ export class Game3D {
       const aiChar = this.storySide === "enemy" ? stage.ally : stage.enemy;
       this.entities.push(this.makeEntity(playerChar, 0, 15, true));
       this.entities.push(this.makeEntity(aiChar, 0, -15, false));
+    } else if (mode === "dual" && this.modeFamily === "story") {
+      const stage = STORY_STAGES[this.storyStage] || STORY_STAGES.yuta;
+      const playerChar = this.storySide === "enemy" ? stage.enemy : stage.ally;
+      const secondChar = this.storySide === "enemy" ? stage.ally : stage.enemy;
+      this.entities.push(this.makeEntity(playerChar, 0, 15, true));
+      this.entities.push(this.makeEntity(secondChar, 0, -15, true));
     } else {
       // single player may pick either side; the other one is the AI
       const playerChar = mode === "single" && this.singleChar === "sukuna" ? "sukuna" : "gojo";
@@ -232,9 +246,9 @@ export class Game3D {
       });
     }
     this.clearDialogue();
-    if (this.mode === "story") {
+    if (this.isStoryCombat()) {
       const player = this.entities.find((e) => e.isPlayer && !e.summon);
-      const opponent = this.entities.find((e) => !e.isPlayer && !e.summon);
+      const opponent = this.entities.find((e) => e !== player && !e.summon);
       this.queueStoryDialogue(player, "opening", 3.2, 5);
       this.queueStoryDialogue(opponent, "opening", 2.8, 4);
     } else if (this.mode !== "practice") {
@@ -348,7 +362,7 @@ export class Game3D {
   }
 
   isStorySukuna(entity) {
-    return this.mode === "story" && (entity?.charId === "sukunaStory1" || entity?.charId === "sukunaStory2");
+    return this.isStoryCombat() && (entity?.charId === "sukunaStory1" || entity?.charId === "sukunaStory2");
   }
 
   setWorldObstacles(obstacles = []) {
@@ -529,7 +543,7 @@ export class Game3D {
     const ability = char.abilities[index];
     if (!ability) return false;
     if (entity.burnout > 0 && !ability.physical) return false;
-    if (ability.needsDomain && (entity.domainLocked || (this.mode === "story" && this.storyStage === "borrowed" && this.storyTimer <= 0 && entity.charId === "yutaGojo"))) return false;
+    if (ability.needsDomain && (entity.domainLocked || (this.isStoryCombat() && this.storyStage === "borrowed" && this.storyTimer <= 0 && entity.charId === "yutaGojo"))) return false;
     if (!this.practice && this.inVoidStun(entity) && !ability.needsDomain) {
       this.emit("sfx", { kind: "empty" });
       return false;
@@ -563,7 +577,7 @@ export class Game3D {
     else if (ability.type === "guard") this.castGuard(entity, ability);
     else if (ability.type === "heal") this.castHeal(entity, ability);
     if (selected.type !== "domain" && selected.type !== "melee") this.showAbilityArt(entity, selected);
-    if (this.mode === "story") this.queueStoryMoveDialogue(entity, selected);
+    if (this.isStoryCombat()) this.queueStoryMoveDialogue(entity, selected);
     return true;
   }
 
@@ -702,7 +716,7 @@ export class Game3D {
   }
 
   castBeam(entity, ability, dir) {
-    if (this.mode === "story") this.sceneHits.push({ x: entity.x + dir.x * 16, z: entity.z + dir.z * 16, radius: 8 });
+    if (this.isStoryCombat()) this.sceneHits.push({ x: entity.x + dir.x * 16, z: entity.z + dir.z * 16, radius: 8 });
     for (const domain of this.domains) {
       if (!domain.alive || domain.team === entity.team) continue;
       const tx = domain.x - entity.x;
@@ -744,7 +758,7 @@ export class Game3D {
     this.burst(entity.x + dir.x * 1.2, entity.y + CHEST, entity.z + dir.z * 1.2, ability.color, 34, 9, dir);
     this.emit("sfx", { kind: "ability", ability: ability.id });
     this.announce(`${CHARACTERS[entity.charId].name} · ${ability.label}`, ability.color, 1.2);
-    if (this.mode !== "story") {
+    if (!this.isStoryCombat()) {
       this.queueDialogue(entity.charId, entity.charId === "gojo" ? "这一击，可别移开视线。" : "让我看看你能撑到什么时候。", 2.4, 2);
     }
   }
@@ -784,7 +798,7 @@ export class Game3D {
   }
 
   castDomain(entity, ability) {
-    if (this.mode === "story") this.sceneHits.push({ x: entity.x, z: entity.z, radius: 24 });
+    if (this.isStoryCombat()) this.sceneHits.push({ x: entity.x, z: entity.z, radius: 24 });
     const opposing = this.domains.find((d) => d.alive && d.team !== entity.team);
     if (opposing) {
       const existingOwner = this.entities.find((e) => e.id === opposing.ownerId);
@@ -809,7 +823,7 @@ export class Game3D {
       this.emit("sfx", { kind: "domain", owner: "clash" });
       this.announce("领域对抗", "#f4f1ff", 1.5);
       this.triggerCutIn("domain-clash", 0.42, 0.68, 2.6);
-      if (this.mode === "story") {
+      if (this.isStoryCombat()) {
         this.queueStoryDialogue(entity, "clash", 2.7, 4);
         this.queueStoryDialogue(existingOwner, "clash", 2.7, 4);
       }
@@ -842,7 +856,7 @@ export class Game3D {
     if (entity.charId === "yuta") this.triggerCutIn("yuta-authentic-love", 0.42, 0.66, 2.4, { life: 1.3 });
     else if (entity.charId === "gojo" || entity.charId === "yutaGojo") this.triggerCutIn("gojo-void", 0.42, 0.66, 2.4);
     else if (entity.charId.startsWith("sukuna")) this.triggerCutIn("sukuna-domain", 0.42, 0.66, 2.4);
-    if (this.mode !== "story") this.queueDialogue(entity.charId, `领域展开——${ability.label}。`, 3.0, 5);
+    if (!this.isStoryCombat()) this.queueDialogue(entity.charId, `领域展开——${ability.label}。`, 3.0, 5);
   }
 
   castSummon(entity, ability) {
@@ -909,7 +923,7 @@ export class Game3D {
     this.emit("sfx", { kind: "thunderHit" });
     this.announce(`${m.name} 参战`, m.color, 1.5);
     this.burst(m.x, m.y + CHEST, m.z, "#e4c866", 44, 9);
-    if (this.mode !== "story") this.queueDialogue(entity.charId, rika ? "里香，帮我。" : "魔虚罗，适应他。", 2.5, 4);
+    if (!this.isStoryCombat()) this.queueDialogue(entity.charId, rika ? "里香，帮我。" : "魔虚罗，适应他。", 2.5, 4);
   }
 
   updateSummon(dt) {
@@ -1007,7 +1021,7 @@ export class Game3D {
     }
     if (blackFlash) dealt *= BLACK_FLASH.multiplier;
     if (isDomainTick && target.guardTimer > 0) dealt *= 0.2;
-    if (this.mode === "story" && this.storyStage === "borrowed" && this.storyTimer <= 0 && source?.charId === "yutaGojo") dealt *= 0.65;
+    if (this.isStoryCombat() && this.storyStage === "borrowed" && this.storyTimer <= 0 && source?.charId === "yutaGojo") dealt *= 0.65;
     dealt = Math.max(1, Math.round(dealt));
 
     let adapted = false;
@@ -1170,7 +1184,7 @@ export class Game3D {
           e.vz += (p.vz / len) * p.knock * kb;
           const owner = this.entities.find((x) => x.id === p.ownerId);
           this.damage(e, p.damage, owner, p.abilityId);
-          if (this.mode === "story") this.sceneHits.push({ x: p.x, z: p.z, radius: 6 });
+          if (this.isStoryCombat()) this.sceneHits.push({ x: p.x, z: p.z, radius: 6 });
           this.burst(p.x, p.y, p.z, p.color, 16, 5.5);
           p.alive = false;
           break;
@@ -1265,7 +1279,7 @@ export class Game3D {
         }
         this.announce(equalPower ? "术式相杀" : "术式突破", equalPower ? "#ffffff" : "#cfe0ff", 0.9);
         if (equalPower) {
-          if (this.mode === "story") {
+          if (this.isStoryCombat()) {
             const speaker = (ownerA?.isPlayer ? ownerA : null) || (ownerB?.isPlayer ? ownerB : null) || ownerA || ownerB;
             this.queueStoryDialogue(speaker, "clash", 2.7, 3);
           } else if (!this.dialogueFlags.has("gojo_challenger")) {
@@ -1628,7 +1642,7 @@ export class Game3D {
     this.updateDialogue(dt);
     if (this.state !== "playing") { this.updateEffects(dt); return; }
     this.elapsed += dt;
-    if (this.mode === "story" && this.storyStage === "borrowed" && this.storyTimer > 0) {
+    if (this.isStoryCombat() && this.storyStage === "borrowed" && this.storyTimer > 0) {
       this.storyTimer = Math.max(0, this.storyTimer - dt);
       if (this.storyTimer === 0) this.announce("五分钟已过 · 乙骨术式减弱", "#b7e9ff", 2.2);
     }

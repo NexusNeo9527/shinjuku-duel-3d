@@ -19,8 +19,10 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <button id="bgmBtn" class="ghost-button wide" type="button" aria-label="切换背景音乐" title="场景默认：主页面静音，五条对战用正常，练习用司凤，乙骨剧情用心似烟火；点击可切换">♫ 关</button>
-        <button id="soundBtn" class="ghost-button wide" type="button" aria-label="关闭声音" aria-pressed="true" title="开关声音">♪ 开</button>
+        <div id="modeAudioControls" class="mode-audio-controls hidden">
+          <button id="bgmBtn" class="ghost-button wide" type="button" aria-label="切换背景音乐" title="切换当前模式音乐">♫ 关</button>
+          <button id="soundBtn" class="ghost-button wide" type="button" aria-label="关闭声音" aria-pressed="false" title="开关声音">♪ 开</button>
+        </div>
         <button id="fullBtn" class="ghost-button" type="button" aria-label="全屏">⛶</button>
         <button id="homeBtn" class="ghost-button" type="button" aria-label="返回">⏻</button>
       </div>
@@ -157,6 +159,8 @@
             <button data-pchar="sukuna" type="button">宿傩</button>
             <button data-pchar="yuta" type="button">乙骨忧太</button>
             <button data-pchar="sukunaStory1" type="button">四手宿傩</button>
+            <button data-pchar="yutaGojo" type="button">乙骨·五条之身</button>
+            <button data-pchar="sukunaStory2" type="button">完全体宿傩</button>
           </div>
         </div>
         <div class="pp-row"><span>无限术式</span><button data-ptoggle="infinite" class="pp-toggle" type="button">开</button></div>
@@ -175,19 +179,35 @@
           <div class="mb-sigil">呪</div>
           <div class="mb-grid"></div>
         </div>
-        <div class="overlay-panel">
+        <div class="overlay-panel home-panel">
           <div class="kicker" id="homeKicker">THIRD-PERSON CURSED TECHNIQUE ARENA</div>
           <h1 id="homeTitle"><span id="homeTitleLead">新宿</span><span id="homeTitleRest">决战</span></h1>
           <p>在立体战场上自由移动、升空缠斗，用术式与领域击溃对手。</p>
+          <div class="home-actions">
+            <button id="startGameBtn" class="action-button home-start" type="button">开始游戏 <span aria-hidden="true">→</span></button>
+            <div class="home-secondary-actions">
+              <button id="openGuideBtn" class="text-button" type="button">游戏说明</button>
+              <button id="openSettingsBtn" class="text-button" type="button">设置</button>
+            </div>
+          </div>
+          <div class="build-version" aria-label="当前游戏版本">版本 v0.1.8</div>
+        </div>
+      </div>
+
+      <div id="modeSelectMenu" class="overlay hidden">
+        <div class="overlay-panel selection-panel">
+          <div class="kicker">CHOOSE YOUR BATTLE</div>
+          <h2>选择战场</h2>
+          <p>进入不同的决战篇章，每个模式都支持单人、双人和练习。</p>
           <div class="mode-grid home-mode-grid">
             <button class="mode-card home-mode-card gojo-mode-card" data-mode="gojo" type="button">
-              <span class="mode-no">01 · ORIGINAL</span><span class="mode-label">五条悟 VS 宿傩</span><small>原本对战 · 单人 / 双人 / 练习</small>
+              <span class="mode-no">无限与斩击</span><span class="mode-label">五条悟 VS 宿傩</span><small>原本对战 · 单人 / 双人 / 练习</small>
             </button>
             <button class="mode-card home-mode-card yuta-mode-card" data-mode="story" type="button">
-              <span class="mode-no">02 · SHINJUKU STORY</span><span class="mode-label">乙骨忧太 VS 宿傩</span><small>双阶段剧情 · 里香与复制术式</small>
+              <span class="mode-no">新宿决战篇</span><span class="mode-label">乙骨忧太 VS 宿傩</span><small>双阶段战斗 · 单人 / 双人 / 练习</small>
             </button>
           </div>
-          <div class="build-version" aria-label="当前游戏版本">版本 v0.1.7</div>
+          <button id="modeSelectBackBtn" class="text-button" type="button">← 返回主页</button>
         </div>
       </div>
 
@@ -212,13 +232,7 @@
             <button class="ts-chip" data-theme="gojo" type="button"><i></i>五条悟 · 苍蓝</button>
             <button class="ts-chip" data-theme="sukuna" type="button"><i></i>宿傩 · 血咒</button>
           </div>
-          <div class="controls-note">
-            <b>操作已简化 · 无需瞄准</b>：攻击会自动锁定并飞向目标，单屏视角自动对准目标，双人为左右分屏。
-            <br /><b>玩家1（五条悟）</b>：WASD 移动 · Shift 疾跑 · <b>空格 升空</b> / Z 升空 / X·C 下降 · <b>左Alt 切换目标</b> · 左键/1 苍 · Q/2 赫 · E/3 茈 · R/4 领域 · T/5 魔虚罗 · F 冲刺 · 滚轮缩放
-            <br /><b>玩家2（宿傩）</b>：IJKL 移动 · 右Shift 疾跑 · N 升空 / M 下降 · U 解 · O 捌 · P 开 · [ 领域 · ] 魔虚罗 · B 冲刺
-            <br /><b>连招</b>：苍→苍→苍 / 苍→赫 / 赫→茈（宿傩：解→解 / 解→捌 / 捌→开），1.3 秒内按顺序<b>命中</b>才触发强化
-          </div>
-          <button id="gojoBackBtn" class="text-button" type="button">← 返回主页</button>
+          <button id="gojoBackBtn" class="text-button" type="button">← 返回战场选择</button>
         </div>
       </div>
 
@@ -226,13 +240,64 @@
         <div class="overlay-panel">
           <div class="kicker">SHINJUKU STORY</div>
           <h2 id="storyMenuTitle">乙骨忧太 VS 宿傩</h2>
-          <p>选择一场战斗。第一场胜利后可继续第二场。</p>
+          <p>选择玩法与战斗阶段。单人剧情可在首战胜利后继续第二场。</p>
+          <div class="story-play-modes" role="group" aria-label="乙骨篇玩法">
+            <button class="story-play-mode active" data-story-play-mode="story" type="button"><strong>单人剧情</strong><small>对战电脑</small></button>
+            <button class="story-play-mode" data-story-play-mode="dual" type="button"><strong>双人同屏</strong><small>本地对战</small></button>
+            <button class="story-play-mode" data-story-play-mode="practice" type="button"><strong>练习模式</strong><small>自由试招</small></button>
+          </div>
+          <p id="storyPlayHelp" class="story-play-help">选择剧情阶段后开始单人战斗。</p>
           <div class="mode-grid">
             <button class="mode-card" data-story-stage="yuta" type="button"><span class="mode-no">01</span><span class="mode-label">真赝相爱</span><small>乙骨本体 · 里香与复制术式</small></button>
             <button class="mode-card" data-story-stage="borrowed" type="button"><span class="mode-no">02</span><span class="mode-label">五条之身</span><small>无量空处 · 领域再战</small></button>
           </div>
-          <div class="controls-note"><b>乙骨操作</b>：G 切换复制术式 · V 近身攻击 · H 扣血强行恢复术式熔断（本场锁定领域）；手机有对应触屏按钮。</div>
-          <button id="storyBackBtn" class="text-button" type="button">← 返回主页</button>
+          <button id="storyBackBtn" class="text-button" type="button">← 返回战场选择</button>
+        </div>
+      </div>
+
+      <div id="guideMenu" class="overlay hidden">
+        <div class="overlay-panel guide-panel">
+          <div class="kicker">FIELD GUIDE</div>
+          <h2>游戏说明</h2>
+          <div class="guide-content">
+            <section class="guide-section">
+              <h3>两个战场</h3>
+              <p><b>五条悟 VS 宿傩</b>：操控五条悟或宿傩挑战电脑，也可双人同屏或进入练习。</p>
+              <p><b>乙骨忧太 VS 宿傩</b>：选择乙骨本体或五条之身，可玩单人剧情、双人同屏或练习。</p>
+            </section>
+            <section class="guide-section">
+              <h3>操作方式</h3>
+              <p>键盘控制移动、升降与术式；攻击会自动锁定目标。打开“设置”可查看和修改所有键位。</p>
+              <p>手机和平板使用触屏摇杆移动、拖动画面转向，右侧按钮释放术式。练习模式可打开无限术式、无敌或木桩。</p>
+            </section>
+          </div>
+          <button id="guideBackBtn" class="text-button" type="button">← 返回主页</button>
+        </div>
+      </div>
+
+      <div id="settingsMenu" class="overlay hidden">
+        <div class="overlay-panel settings-panel">
+          <div class="kicker">GAME SETTINGS</div>
+          <h2>设置</h2>
+          <section class="settings-section volume-settings">
+            <div class="settings-section-head"><div><h3>音量</h3><p>同时调整背景音乐与战斗音效</p></div><output id="volumeValue" for="masterVolume">100%</output></div>
+            <input id="masterVolume" type="range" min="0" max="100" value="100" aria-label="游戏音量" />
+            <button id="settingsMuteBtn" class="settings-quiet-button" type="button" aria-pressed="false">关闭声音</button>
+          </section>
+          <section class="settings-section key-settings">
+            <div class="settings-section-head"><div><h3>键位设置</h3><p>点击按键后按下新的键位，Esc 取消</p></div></div>
+            <p id="bindingStatus" class="settings-status" role="status" aria-live="polite">键位会保存在本机。</p>
+            <div id="keyBindings" class="key-binding-groups"></div>
+          </section>
+          <section id="touchMoveSettings" class="settings-section touch-position-settings hidden">
+            <div class="settings-section-head"><div><h3>触屏移动位置</h3><p>拖动摇杆圆点调整位置，双人模式会自动镜像</p></div></div>
+            <div id="touchLayoutPreview" class="touch-layout-preview" aria-label="拖动预览中的圆点调整移动摇杆位置">
+              <span class="touch-preview-move">移动</span><span class="touch-preview-look">视角</span>
+              <button id="touchPositionHandle" class="touch-position-handle" type="button" aria-label="拖动移动摇杆位置" title="拖动调整位置"></button>
+            </div>
+            <button id="resetTouchPositionBtn" class="settings-quiet-button" type="button">恢复默认位置</button>
+          </section>
+          <button id="settingsBackBtn" class="text-button" type="button">← 返回主页</button>
         </div>
       </div>
 
