@@ -259,7 +259,7 @@ export class Renderer3D {
     this.renderer.setRenderTarget(null);
     this.renderer.setScissorTest(false);
     this.renderer.setViewport(0, 0, this.width, this.height);
-    this.scene.background = new THREE.Color("#070a12");
+    this.setArenaAtmosphere(this.storyScene && this.storyStage === "opening");
     this.scene.overrideMaterial = null;
     this.camera.layers.set(0);
     this.camera.layers.enable(1);
@@ -304,6 +304,7 @@ export class Renderer3D {
     this.baseArena = new THREE.Group();
     this.scene.add(this.baseArena);
     this.storyAssets = new Map();
+    this.storyLoads = new Map();
     this.storyStage = null;
     this.storyScene = null;
     this.baseCollisionBoxes = [];
@@ -374,24 +375,30 @@ export class Renderer3D {
   }
 
   async setStoryStage(stage) {
+    stage = stage || "opening";
     this.storyStage = stage;
     for (const asset of this.storyAssets.values()) asset.visible = false;
-    if (!stage) {
-      this.baseArena.visible = true;
-      this.storyScene = null;
-      this.collisionBoxes = this.baseCollisionBoxes;
-      return;
-    }
+    this.baseArena.visible = true;
+    this.storyScene = null;
+    this.storyDomainProps = [];
+    this.setArenaAtmosphere(false);
     this.collisionBoxes = this.baseCollisionBoxes;
     let scene = this.storyAssets.get(stage);
     if (!scene) {
-      this.baseArena.visible = true;
-      scene = await loadStoryScene(stage);
+      if (!this.storyLoads.has(stage)) {
+        this.storyLoads.set(stage, loadStoryScene(stage).then((asset) => {
+          if (asset) {
+            asset.visible = false;
+            this.storyAssets.set(stage, asset);
+            this.scene.add(asset);
+            this.storyCollisionBoxes.set(stage, this.collectStoryCollisionBoxes(asset));
+          }
+          this.storyLoads.delete(stage);
+          return asset;
+        }));
+      }
+      scene = await this.storyLoads.get(stage);
       if (!scene) return;
-      scene.visible = false;
-      this.storyAssets.set(stage, scene);
-      this.scene.add(scene);
-      this.storyCollisionBoxes.set(stage, this.collectStoryCollisionBoxes(scene));
     }
     if (this.storyStage !== stage) return;
     this.storyScene = scene;
@@ -407,6 +414,16 @@ export class Renderer3D {
       }
     });
     this.baseArena.visible = false;
+    this.setArenaAtmosphere(stage === "opening");
+  }
+
+  setArenaAtmosphere(opening) {
+    const color = opening ? 0x899ba9 : 0x070a12;
+    this.scene.background = new THREE.Color(color);
+    this.scene.fog = new THREE.FogExp2(color, opening ? 0.0035 : 0.011);
+    // Daylit concrete and road paint should not bloom like cursed energy.
+    this.post.bloomPass.threshold = opening ? 1.8 : 0.52;
+    this.post.bloomPass.strength = opening ? 0.22 : 0.42;
   }
 
   getWorldCollisionBoxes() {
@@ -418,7 +435,8 @@ export class Renderer3D {
     const bounds = new THREE.Box3();
     const boxes = [];
     scene.traverse((object) => {
-      if (!object.isMesh || !object.name.startsWith("tower_") || !object.name.includes("_core")) return;
+      if (!object.isMesh) return;
+      if (!object.userData.arenaCollider && !(object.name.startsWith("tower_") && object.name.includes("_core"))) return;
       bounds.setFromObject(object);
       if (bounds.isEmpty()) return;
       const { min, max } = bounds;

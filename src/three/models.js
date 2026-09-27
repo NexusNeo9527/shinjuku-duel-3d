@@ -350,9 +350,10 @@ export async function loadGltf(id) {
 }
 
 export async function loadStoryScene(stage) {
-  if (stage !== "yuta" && stage !== "borrowed") return null;
+  if (!["opening", "yuta", "borrowed"].includes(stage)) return null;
   try {
-    const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/story_${stage}.glb`);
+    const filename = stage === "opening" ? "shinjuku-opening" : `story_${stage}`;
+    const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${filename}.glb`);
     gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     return gltf.scene;
   } catch (error) {
