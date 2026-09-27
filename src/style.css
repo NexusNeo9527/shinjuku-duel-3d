@@ -279,6 +279,9 @@ body.story-title-active .brand-text strong { max-width: 48vw; overflow: hidden; 
 .pp-head { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em; color: var(--accent); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .pp-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; gap: 8px; }
 .pp-btns { display: flex; gap: 5px; }
+.pp-character-row { align-items: flex-start; flex-direction: column; gap: 5px; }
+.pp-character-row .pp-btns { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.pp-character-row button { width: 100%; padding: 4px 5px; white-space: nowrap; }
 .practice-panel button { border-radius: 7px; border: 1px solid var(--line-strong); background: var(--chip); color: var(--text); font-size: 11px; padding: 4px 9px; cursor: pointer; }
 .practice-panel button.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 10px -3px var(--accent); }
 .practice-panel .pp-toggle { min-width: 44px; }
@@ -844,11 +847,12 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
 
 /* narrow phones: compact the practice panel so it clears the thumb cluster */
 @media (orientation: portrait) and (max-width: 420px) {
-  .practice-panel { width: 178px; padding: 6px 8px; top: 244px; max-height: 106px; overflow-y: auto; }
+  .practice-panel { width: 178px; padding: 6px 8px; top: 244px; max-height: 132px; overflow-y: auto; }
   .practice-panel .pp-head { margin-bottom: 5px; padding-bottom: 4px; font-size: 9px; }
   .practice-panel .pp-row { font-size: 9px; margin-bottom: 4px; gap: 5px; }
   .practice-panel .pp-hint { display: none; }
   .practice-panel button { font-size: 10px; padding: 3px 7px; }
+  .practice-panel .pp-character-row button { padding: 3px 4px; }
 }
 
 /* ---------- tablets ----------

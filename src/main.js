@@ -16,6 +16,12 @@ let touchUsed = false;
 window.addEventListener("pointerdown", (e) => { if (e.pointerType === "touch") touchUsed = true; }, { capture: true, passive: true });
 
 const keys = new Set();
+const PRACTICE_CHARACTER_NAMES = {
+  gojo: "五条悟",
+  sukuna: "宿傩",
+  yuta: "乙骨忧太",
+  sukunaStory1: "四手宿傩"
+};
 
 
 const ui = new UI3D(game, {
@@ -57,12 +63,12 @@ const ui = new UI3D(game, {
   onResume: () => { if (game.state === "paused") game.state = "playing"; },
   onRestart: () => startGame(game.mode, game.difficulty),
   onPracticeChar: (c) => {
-    game.practiceChar = c === "sukuna" ? "sukuna" : "gojo";
+    game.setPracticeChar(c);
     applyTheme(game.practiceChar);
     startGame("practice", "normal");
   },
   onTheme: (c) => {
-    game.practiceChar = c === "sukuna" ? "sukuna" : "gojo";
+    game.setPracticeChar(c);
     applyTheme(game.practiceChar);
   },
   onPracticeOption: (key, value) => {
@@ -90,13 +96,14 @@ function setModeTitle(mode, stage = null) {
   const story = mode === "story";
   const borrowed = story && stage === "borrowed";
   const practice = mode === "practice";
+  const practiceName = PRACTICE_CHARACTER_NAMES[game.practiceChar] || "五条悟";
   const title = practice
-    ? `${game.practiceChar === "sukuna" ? "宿傩" : "五条悟"} · 练习模式`
+    ? `${practiceName} · 练习模式`
     : story
       ? borrowed ? "乙骨忧太（五条之身） VS 宿傩" : "乙骨忧太 VS 宿傩"
       : "新宿决战";
   const homeLead = practice
-    ? (game.practiceChar === "sukuna" ? "宿傩" : "五条悟")
+    ? practiceName
     : story
       ? borrowed ? "乙骨忧太（五条之身）" : "乙骨忧太"
       : "新宿";

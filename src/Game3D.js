@@ -4,6 +4,13 @@ import { STORY_DIALOGUE } from "./storyDialogue.js";
 const ENTITY_RADIUS = 0.7;
 const ENTITY_HEIGHT = 2;
 const CHEST = 1.0;
+const PRACTICE_CHAR_IDS = new Set(["gojo", "sukuna", "yuta", "sukunaStory1"]);
+const PRACTICE_DUMMIES = {
+  gojo: "sukuna",
+  sukuna: "gojo",
+  yuta: "sukunaStory1",
+  sukunaStory1: "yuta"
+};
 
 const ABILITY_ART = {
   blue: { art: "limitless-blue", compact: true },
@@ -254,8 +261,7 @@ export class Game3D {
   }
 
   setPracticeChar(charId) {
-    this.practiceChar = charId === "sukuna" ? "sukuna" : "gojo";
-    if (this.practice) this.start("practice", "normal");
+    this.practiceChar = PRACTICE_CHAR_IDS.has(charId) ? charId : "gojo";
   }
 
   setPracticeOption(key, value) {
@@ -272,7 +278,7 @@ export class Game3D {
 
   spawnDummy() {
     if (this.entities.some((e) => e.dummy)) return;
-    const other = this.practiceChar === "gojo" ? "sukuna" : "gojo";
+    const other = PRACTICE_DUMMIES[this.practiceChar] || "sukuna";
     const dummy = this.makeEntity(other, 0, -14, false);
     dummy.dummy = true;
     dummy.moveInput = { x: 0, z: 0 };
