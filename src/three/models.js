@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { articulateHands, installCombatAnimation } from "./combatRig.js";
 
 const loader = new GLTFLoader();
 
@@ -267,6 +268,11 @@ function buildCharacter(id) {
   };
 
   root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  const actionJoints = { torso, head: headJoint, hips,
+    armL: armL.shoulder, armR: armR.shoulder, foreL: armL.elbow, foreR: armR.elbow,
+    legL: legL.hip, legR: legR.hip, shinL: legL.knee, shinR: legR.knee };
+  installCombatAnimation(root, Object.fromEntries(Object.entries(actionJoints).map(([name, node]) =>
+    [name, { node, rest: node.quaternion.clone() }])));
   return root;
 }
 
@@ -334,6 +340,8 @@ export async function loadGltf(id) {
       rotate('wheel', t * 1.2, zAxis);
     };
     wrapper.userData.assetId = id;
+    const hands = articulateHands(model, id, parts);
+    installCombatAnimation(wrapper, parts, hands);
     return wrapper;
   } catch (error) {
     console.warn(`Unable to load fighter model: ${id}`, error);

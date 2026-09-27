@@ -1,5 +1,6 @@
 import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, YUTA_STORY_DIFFICULTY_OVERRIDES, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
 import { STORY_DIALOGUE } from "./storyDialogue.js";
+import { beginCombatMotion } from "./combatMotion.js";
 
 const ENTITY_RADIUS = 0.7;
 const ENTITY_HEIGHT = 2;
@@ -568,6 +569,9 @@ export class Game3D {
 
     const dir = this.fireDir(entity);
     entity.yaw = Math.atan2(dir.x, dir.z);
+    const previousCutIn = this.cutIn;
+
+    if (ability.type !== "melee" && ability.type !== "summon") beginCombatMotion(entity, selected.id, this.elapsed);
 
     if (selected.type === "orb") this.castOrb(entity, selected, dir);
     else if (selected.type === "beam") this.castBeam(entity, selected, dir);
@@ -577,12 +581,19 @@ export class Game3D {
     else if (ability.type === "guard") this.castGuard(entity, ability);
     else if (ability.type === "heal") this.castHeal(entity, ability);
     if (selected.type !== "domain" && selected.type !== "melee") this.showAbilityArt(entity, selected);
+    // Full-screen art outlasts the simulation freeze. Keep the gesture visible
+    // after it clears without delaying damage, cooldowns, or domain activation.
+    if (entity.combatAction && this.cutIn !== previousCutIn && this.cutIn?.presentation === "full") {
+      entity.combatAction.startedAt += Math.max(0, this.cutIn.life - this.timeStop);
+    }
     if (this.isStoryCombat()) this.queueStoryMoveDialogue(entity, selected);
     return true;
   }
 
   castMelee(entity, ability) {
     const target = this.enemyList(entity).find((e) => !e.summon && e.alive);
+    if (target) entity.yaw = Math.atan2(target.x - entity.x, target.z - entity.z);
+    beginCombatMotion(entity, ability.id, this.elapsed);
     if (target && Math.hypot(target.x - entity.x, target.y - entity.y, target.z - entity.z) <= ability.range) {
       this.damage(target, ability.damage, entity, ability.id);
     }
@@ -860,6 +871,7 @@ export class Game3D {
   }
 
   castSummon(entity, ability) {
+    beginCombatMotion(entity, ability.id, this.elapsed);
     const existing = this.entities.find((e) => e.summon && e.ownerId === entity.id && e.alive);
     if (existing) existing.life = 0;
     // the difficulty decides how strong Mahoraga is
@@ -951,12 +963,16 @@ export class Game3D {
       const mDmg = m.damageScale || 1;
       if (d3 < ENTITY_RADIUS * 2 + 0.35 && this.elapsed - m.contactAt > 1.1) {
         m.contactAt = this.elapsed;
+        m.yaw = Math.atan2(dx, dz);
+        beginCombatMotion(m, "mahoragaContact", this.elapsed);
         this.damage(target, 6 * mDmg, m, "mahoragaContact");
         this.burst(target.x, target.y + CHEST, target.z, "#e4c866", 12, 5);
       }
       if (m.charId === "mahoraga" && this.elapsed - m.shotAt > 1.3 && dist < 28) {
         m.shotAt = this.elapsed;
         const d = this.fireDir(m);
+        m.yaw = Math.atan2(d.x, d.z);
+        beginCombatMotion(m, "mahoragaSlash", this.elapsed);
         this.projectiles.push({
           ownerId: m.id,
           team: m.team,
@@ -1045,7 +1061,10 @@ export class Game3D {
     }
 
     target.hp = clamp(target.hp - dealt, 0, target.maxHp);
-    if (abilityId === "cursedSpeech") target.stun = Math.max(target.stun || 0, 0.75);
+    if (abilityId === "cursedSpeech") {
+      target.stun = Math.max(target.stun || 0, 0.75);
+      target.combatAction = null;
+    }
     target.hurtAt = this.elapsed;
     target.invuln = 0.06;
     const label = blackFlash ? `-${dealt} 黑闪` : (combo ? `-${dealt} ${combo.name}` : (adapted ? `-${dealt} 适应` : `-${dealt}`));
@@ -1646,7 +1665,15 @@ export class Game3D {
       this.storyTimer = Math.max(0, this.storyTimer - dt);
       if (this.storyTimer === 0) this.announce("五分钟已过 · 乙骨术式减弱", "#b7e9ff", 2.2);
     }
-    if (this.hitStop > 0) { this.hitStop -= dt; this.updateEffects(dt * 0.3); return; }
+    if (this.hitStop > 0) {
+      // Gameplay is frozen here, so hold attack progress with it.
+      for (const entity of this.entities) {
+        if (entity.combatAction) entity.combatAction.startedAt += dt;
+      }
+      this.hitStop = Math.max(0, this.hitStop - dt);
+      this.updateEffects(dt * 0.3);
+      return;
+    }
     for (const e of this.entities) this.updateEntity(e, dt);
     if (this.mode === "single" || this.mode === "story") this.updateAI(dt);
     this.updateSummon(dt);

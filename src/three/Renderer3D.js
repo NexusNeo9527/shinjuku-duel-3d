@@ -704,7 +704,9 @@ export class Renderer3D {
       entry.group.visible = true;
       entry.group.position.set(e.x, e.y + (e.moving ? Math.abs(Math.sin(game.elapsed * 8)) * 0.06 : 0), e.z);
       entry.group.rotation.y = e.yaw;
-      if (entry.model?.userData?.animate) entry.model.userData.animate(game.elapsed, e.moving ? 1 : 0);
+      if (entry.model?.userData?.animate) entry.model.userData.animate(
+        game.elapsed, e.moving ? 1 : 0, e.stun > 0 ? null : e.combatAction,
+        e.guardTimer > 0 && e.stun <= 0);
       const hurt = game.elapsed - e.hurtAt < 0.12;
       if (entry.hurt !== hurt) {
         entry.hurt = hurt;

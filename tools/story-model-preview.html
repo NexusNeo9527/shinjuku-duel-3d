@@ -13,15 +13,19 @@
 </head>
 <body>
   <header><h1>新宿决战 · 角色模型</h1>
-    <select id="character" aria-label="查看角色"><option value="all">全员对照</option><option value="yuta">乙骨忧太</option><option value="rika">里香</option><option value="sukunaStory1">四臂宿傩</option><option value="yutaGojo">乙骨 · 五条之身</option></select>
+    <select id="character" aria-label="查看角色"><option value="all">全员对照</option><option value="gojo">五条悟</option><option value="sukuna">宿傩</option><option value="mahoraga">魔虚罗</option><option value="yuta">乙骨忧太</option><option value="rika">里香</option><option value="sukunaStory1">四臂宿傩</option><option value="yutaGojo">乙骨 · 五条之身</option></select>
     <button id="animate" aria-pressed="false">播放行走动作</button><button id="front">重置正面</button><a href="/">返回游戏</a>
+    <select id="motion" aria-label="查看招式"></select><button id="playMotion">播放招式</button>
+    <label>动作进度 <input id="scrub" aria-label="动作进度" type="range" min="0" max="100" value="30"></label>
   </header>
   <main id="stage"></main>
-  <footer><div>拖动旋转 · 滚轮缩放 · 选择单个角色查看细节。此页加载游戏实际使用的 GLB。</div><div id="status">正在加载四个角色…</div></footer>
+  <footer><div>拖动旋转 · 滚轮缩放 · 选择单个角色查看细节。此页加载游戏实际使用的 GLB。</div><div id="status">正在加载七个角色…</div></footer>
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { loadGltf } from '../src/three/models.js';
+    import { CHARACTERS, COPY_TECHNIQUES } from '../src/config3d.js';
+    import { beginCombatMotion, COMBAT_MOTIONS } from '../src/combatMotion.js';
     const host=document.querySelector('#stage');
     const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));host.append(renderer.domElement);
     const scene=new THREE.Scene();scene.background=new THREE.Color('#171b23');
@@ -29,17 +33,23 @@
     const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.minDistance=65;controls.maxDistance=1000;
     scene.add(new THREE.HemisphereLight(0xd9e4ff,0x554638,2));
     for(const [x,y,z,intensity] of [[-180,240,240,2.4],[250,160,60,1.4],[-70,180,-220,2]]){const l=new THREE.DirectionalLight(0xffffff,intensity);l.position.set(x,y,z);scene.add(l);}
-    const specs=[['yuta',-165,1],['rika',-50,1.55],['sukunaStory1',75,1.18],['yutaGojo',180,1.08]];
-    const models=new Map();let moving=false,selected='all';
-    function reset(){const all=selected==='all',rika=selected==='rika';const y=all||rika?67:48;const distance=all?Math.max(350,240/(Math.tan(17*Math.PI/180)*camera.aspect)):rika?300:235;controls.target.set(0,y,0);camera.position.set(0,y+20,distance);controls.update();}
+    const specs=[['gojo',-320,1],['sukuna',-215,1],['mahoraga',-110,1.45],['yuta',0,1],['rika',110,1.55],['sukunaStory1',235,1.18],['yutaGojo',340,1.08]];
+    const models=new Map(),actions=new Map();let moving=false,selected='all',lastTime=0,scrubbing=false;
+    function reset(){const all=selected==='all',rika=selected==='rika';const y=all||rika?67:48;const distance=all?Math.max(350,400/(Math.tan(17*Math.PI/180)*camera.aspect)):rika?300:235;controls.target.set(0,y,0);camera.position.set(0,y+20,distance);controls.update();}
     function size(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();reset();}
     new ResizeObserver(size).observe(host);reset();size();
     for(const [id,x,scale] of specs){const model=await loadGltf(id);if(!model)throw new Error('模型加载失败：'+id);model.position.x=x;model.scale.setScalar(scale);scene.add(model);models.set(id,model);model.traverse(o=>{if(o.userData.isAura)o.visible=false;});}
-    const status=document.querySelector('#status');status.textContent='已加载：乙骨忧太、里香、四臂宿傩、乙骨·五条之身';status.dataset.loaded='4';
-    document.querySelector('#character').addEventListener('change',e=>{selected=e.target.value;for(const [id,x] of specs){const m=models.get(id);m.visible=selected==='all'||id===selected;m.position.x=selected==='all'?x:0;}reset();});
+    const status=document.querySelector('#status');status.textContent='已加载七个角色，可选择角色、招式并拖动进度查看手势。';status.dataset.loaded='7';
+    const motion=document.querySelector('#motion'),scrub=document.querySelector('#scrub');
+    function moves(){const abilities=CHARACTERS[selected]?.abilities||[];const entries=[['basicAttack','普通攻击'],...abilities.flatMap(a=>a.id==='copy'?COPY_TECHNIQUES.map(c=>[c.id,c.label]):[[a.id,a.label]])];if(selected==='mahoraga')entries.push(['mahoragaSlash','退魔之剑']);if(selected==='all')entries.push(['void','无量空处'],['shrine','伏魔御厨子'],['flame','火焰箭']);motion.replaceChildren(...entries.map(([id,label])=>new Option(label,id)));}
+    function play(inspect=false){scrubbing=inspect;for(const [id] of specs){const entity={charId:id,yaw:0};beginCombatMotion(entity,motion.value,inspect?0:lastTime);actions.set(id,entity.combatAction);}}
+    moves();
+    document.querySelector('#character').addEventListener('change',e=>{selected=e.target.value;actions.clear();scrubbing=false;for(const [id,x] of specs){const m=models.get(id);m.visible=selected==='all'||id===selected;m.position.x=selected==='all'?x:0;}moves();reset();});
+    document.querySelector('#playMotion').addEventListener('click',()=>play());
+    motion.addEventListener('change',()=>play(true));scrub.addEventListener('input',()=>play(true));
     document.querySelector('#front').addEventListener('click',reset);
     document.querySelector('#animate').addEventListener('click',e=>{moving=!moving;e.target.textContent=moving?'停止行走动作':'播放行走动作';e.target.setAttribute('aria-pressed',String(moving));});
-    renderer.setAnimationLoop(t=>{for(const m of models.values())m.userData.animate(t/1000,moving?1:0);controls.update();renderer.render(scene,camera);});
+    renderer.setAnimationLoop(t=>{lastTime=t/1000;for(const [id,m] of models){const action=actions.get(id);const time=scrubbing&&action?Number(scrub.value)/100*COMBAT_MOTIONS[action.id].duration:lastTime;m.userData.animate(time,moving?1:0,action);}controls.update();renderer.render(scene,camera);});
   </script>
 </body>
 </html>
