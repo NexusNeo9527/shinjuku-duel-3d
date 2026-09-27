@@ -97,7 +97,7 @@ export class Game3D {
   }
 
   isStoryCombat() {
-    return this.modeFamily === "story" && (this.mode === "story" || this.mode === "dual");
+    return this.mode === "story" || (this.mode === "dual" && this.modeFamily === "story");
   }
 
   queueDialogue(speaker, text, duration = 2.4, priority = 0) {
