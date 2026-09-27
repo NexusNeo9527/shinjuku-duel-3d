@@ -490,7 +490,7 @@ export class UI3D {
     this.updateDialogue(game);
     this.updateResult(game);
 
-    const modeLabel = s === "menu" ? "新宿决战"
+    const modeLabel = s === "menu" ? "咒术回战"
       : s === "modeSelect" ? "选择战场"
       : s === "guide" ? "游戏说明"
       : s === "settings" ? "设置"

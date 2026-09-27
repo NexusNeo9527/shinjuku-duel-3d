@@ -155,26 +155,31 @@ function applyTheme(charId) {
 }
 
 function setModeTitle(mode, stage = null) {
+  const home = game.state === "menu";
   const story = mode === "story" || (mode === "dual" && game.modeFamily === "story");
   const borrowed = story && stage === "borrowed";
   const practice = mode === "practice";
   const practiceName = PRACTICE_CHARACTER_NAMES[game.practiceChar] || "五条悟";
-  const title = practice
+  const title = home
+    ? "咒术回战"
+    : practice
     ? `${practiceName} · 练习模式`
     : story
       ? `${borrowed ? "乙骨忧太（五条之身）" : "乙骨忧太"}${mode === "dual" ? " 双人对战" : " VS 宿傩"}`
-      : mode === "dual" ? "五条悟 VS 宿傩 · 双人对战" : "新宿决战";
-  const homeLead = practice
+      : mode === "dual" ? "五条悟 VS 宿傩 · 双人对战" : "五条悟 VS 宿傩";
+  const homeLead = home
+    ? "咒术"
+    : practice
     ? practiceName
     : story
       ? borrowed ? "乙骨忧太（五条之身）" : "乙骨忧太"
-      : "新宿";
-  const homeRest = practice ? " · 练习模式" : story ? " VS 宿傩" : "决战";
+      : "五条悟";
+  const homeRest = home ? "回战" : practice ? " · 练习模式" : " VS 宿傩";
   const context = practice
     ? "CURSED TECHNIQUE PRACTICE"
     : story
       ? borrowed ? "YUTA IN GOJO'S BODY / DOMAIN REMATCH" : "YUTA / RIKA & COPIED TECHNIQUES"
-      : "SHINJUKU / CURSED ARENA";
+      : "GOJO VS SUKUNA / CURSED ARENA";
   const kicker = practice
     ? "CURSED TECHNIQUE PRACTICE"
     : story ? "YUTA VS SUKUNA" : "THIRD-PERSON CURSED TECHNIQUE ARENA";

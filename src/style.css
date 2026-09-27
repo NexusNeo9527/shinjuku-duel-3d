@@ -989,7 +989,7 @@ body.theme-yuta {
   background: linear-gradient(155deg, rgba(8, 14, 26, .92), rgba(5, 7, 15, .94));
   box-shadow: 0 30px 100px rgba(0, 0, 0, .54), 0 0 70px -44px var(--accent);
 }
-.home-panel h1 { margin: 2px 0 8px; }
+.home-panel h1 { margin: 2px 0 8px; font-size: clamp(30px, 5vw, 50px); letter-spacing: .06em; white-space: nowrap; }
 .home-panel > p { color: var(--muted); font-size: 13px; line-height: 1.8; }
 .home-actions { width: min(330px, 100%); margin-top: 27px; display: grid; gap: 12px; }
 .home-start {
