@@ -9,8 +9,8 @@ const swordDown = pose([-.75, .5, .45], [-.12, 0, 0], [-.25, 0, .35], [-1.2, 0, 
 const clip = (duration, frames, hands = {}) => ({ duration, frames, hands });
 
 export const COMBAT_MOTIONS = {
-  punch: clip(.42, [[0, ready], [.12, reach], [.28, reach], [1, ready]], { R: 'fist', L: 'fist' }),
-  katana: clip(.52, [[0, swordUp], [.28, swordDown], [.55, swordDown], [1, ready]], { R: 'grip', L: 'fist' }),
+  punch: clip(.48, [[0, ready], [.18, ready], [.4, reach], [.54, reach], [1, ready]], { R: 'fist', L: 'fist' }),
+  katana: clip(.64, [[0, ready], [.2, swordUp], [.46, swordDown], [.62, swordDown], [1, ready]], { R: 'grip', L: 'fist' }),
   slash: clip(.44, [[0, pose([-1.15, -.7, -.65], [-.8, 0, 0], [-.2, 0, .25], [-.7, 0, 0], [0, -.3, 0])],
     [.22, pose([-1.2, .55, .6], [-.05, 0, 0], [-.2, 0, .25], [-.7, 0, 0], [.08, .3, 0])], [1, ready]], { R: 'point', L: 'fist' }),
   cleave: clip(.62, [[0, swordUp], [.25, reach], [.55, reach], [1, ready]], { R: 'open', L: 'fist' }),

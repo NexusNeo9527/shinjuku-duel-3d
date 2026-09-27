@@ -157,7 +157,7 @@ export function installCombatAnimation(root, parts, hands = {}) {
       part.node.quaternion.slerp(target, weight);
     }
   }
-  root.userData.animate = (time, move = 0, action = null, guard = false) => {
+  function compose(time, move, action, guard) {
     for (const part of Object.values(parts)) part.node.quaternion.copy(part.rest);
     locomotion(time, move);
     const sample = sampleCombatMotion(action, time);
@@ -182,5 +182,42 @@ export function installCombatAnimation(root, parts, hands = {}) {
     }
     if (guard) { hands.L?.('seal'); hands.R?.('seal'); seal(1); }
     else if (['shrine', 'authenticLove', 'mahoraga', 'wickerBasket'].includes(action.id)) seal(sample.weight);
+  }
+
+  // Live playback blends from the last displayed pose on state changes. Direct
+  // sampling (no dt) stays deterministic for scrubbing and model inspection.
+  const animatedNodes = new Set(Object.values(parts).map(part => part.node));
+  root.traverse(node => {
+    if (node.name.startsWith('combatHand_')) node.traverse(child => animatedNodes.add(child));
+  });
+  const channels = [...animatedNodes].map(node => ({ node,
+    displayed: node.quaternion.clone(), outgoing: node.quaternion.clone(),
+    position: node.position.clone(), outgoingPosition: node.position.clone() }));
+  let previous = null, transitionAt = -Infinity;
+  root.userData.animate = (time, move = 0, action = null, guard = false, dt, owner) => {
+    const active = sampleCombatMotion(action, time) ? action : null;
+    const live = Number.isFinite(dt);
+    const reset = !live || !previous || time < previous.time || owner !== previous.owner;
+    if (reset) transitionAt = -Infinity;
+    else if (active !== previous.active || guard !== previous.guard || move !== previous.move) {
+      transitionAt = time;
+      for (const channel of channels) {
+        channel.outgoing.copy(channel.displayed);
+        channel.outgoingPosition.copy(channel.position);
+      }
+    }
+    compose(time, move, action, guard);
+    const progress = Math.min(1, Math.max(0, (time - transitionAt) / .12));
+    const blend = progress * progress * (3 - 2 * progress);
+    for (const channel of channels) {
+      if (live && blend < 1) {
+        target.copy(channel.node.quaternion);
+        channel.node.quaternion.slerpQuaternions(channel.outgoing, target, blend);
+        channel.node.position.lerpVectors(channel.outgoingPosition, channel.node.position, blend);
+      }
+      channel.displayed.copy(channel.node.quaternion);
+      channel.position.copy(channel.node.position);
+    }
+    previous = live ? { time, active, guard, move, owner } : null;
   };
 }

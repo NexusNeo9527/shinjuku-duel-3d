@@ -49,7 +49,7 @@
     motion.addEventListener('change',()=>play(true));scrub.addEventListener('input',()=>play(true));
     document.querySelector('#front').addEventListener('click',reset);
     document.querySelector('#animate').addEventListener('click',e=>{moving=!moving;e.target.textContent=moving?'停止行走动作':'播放行走动作';e.target.setAttribute('aria-pressed',String(moving));});
-    renderer.setAnimationLoop(t=>{lastTime=t/1000;for(const [id,m] of models){const action=actions.get(id);const time=scrubbing&&action?Number(scrub.value)/100*COMBAT_MOTIONS[action.id].duration:lastTime;m.userData.animate(time,moving?1:0,action);}controls.update();renderer.render(scene,camera);});
+    renderer.setAnimationLoop(t=>{const dt=Math.min(.05,Math.max(0,t/1000-lastTime));lastTime=t/1000;for(const [id,m] of models){const action=actions.get(id);const time=scrubbing&&action?Number(scrub.value)/100*COMBAT_MOTIONS[action.id].duration:lastTime;m.userData.animate(time,moving?1:0,action,false,scrubbing?undefined:dt,id);}controls.update();renderer.render(scene,camera);});
   </script>
 </body>
 </html>

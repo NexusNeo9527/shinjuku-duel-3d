@@ -724,7 +724,7 @@ export class Renderer3D {
       entry.group.rotation.y = e.yaw;
       if (entry.model?.userData?.animate) entry.model.userData.animate(
         game.elapsed, e.moving ? 1 : 0, e.stun > 0 ? null : e.combatAction,
-        e.guardTimer > 0 && e.stun <= 0);
+        e.guardTimer > 0 && e.stun <= 0, dt, e.id);
       const hurt = game.elapsed - e.hurtAt < 0.12;
       if (entry.hurt !== hurt) {
         entry.hurt = hurt;
