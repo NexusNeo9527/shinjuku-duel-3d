@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene } from "./models.js";
+import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene, loadDomainShrine } from "./models.js";
 import { Post } from "./Post.js";
 import { ParticlePool } from "./Particles.js";
 import { clamp, lerp } from "../config3d.js";
@@ -172,6 +172,7 @@ export class Renderer3D {
     this.buildArena();
 
     this.post = new Post(this.renderer, this.scene, this.camera);
+    this.shrineAsset = loadDomainShrine();
     this._flash = 0;
     this.loading = { gojo: false, sukuna: false };
     this._contextLost = false;
@@ -381,6 +382,8 @@ export class Renderer3D {
     this.baseArena.visible = true;
     this.storyScene = null;
     this.storyDomainProps = [];
+    this.storyExteriorProps = [];
+    this.storyLoveOpen = false;
     this.setArenaAtmosphere(false);
     this.collisionBoxes = this.baseCollisionBoxes;
     let scene = this.storyAssets.get(stage);
@@ -405,10 +408,15 @@ export class Renderer3D {
     scene.visible = true;
     this.collisionBoxes = this.storyCollisionBoxes.get(stage) || this.collectStoryCollisionBoxes(scene);
     this.storyDomainProps = [];
+    this.storyExteriorProps = [];
     scene.traverse((o) => {
       if (!o.isMesh) return;
       if (o.name.startsWith("breakable_")) o.visible = true;
-      if (o.name.startsWith("domain_sword_") || o.name.startsWith("domain_marker_")) {
+      if (o.userData.arenaLayer === "exterior") {
+        o.visible = true;
+        this.storyExteriorProps.push(o);
+      }
+      if (o.userData.arenaLayer === "authenticLove" || o.name.startsWith("domain_sword_") || o.name.startsWith("domain_marker_")) {
         o.visible = false;
         this.storyDomainProps.push(o);
       }
@@ -418,24 +426,28 @@ export class Renderer3D {
   }
 
   setArenaAtmosphere(opening) {
-    const color = opening ? 0x899ba9 : 0x070a12;
+    const expanded = this.storyExteriorProps?.length > 0 && !!this.storyScene;
+    const love = expanded && this.storyLoveOpen;
+    const color = love ? 0xaca99b : opening ? 0x899ba9 : expanded ? 0x69737b : 0x070a12;
     this.scene.background = new THREE.Color(color);
-    this.scene.fog = new THREE.FogExp2(color, opening ? 0.0035 : 0.011);
+    this.scene.fog = new THREE.FogExp2(color, love ? 0.004 : opening ? 0.0035 : expanded ? 0.005 : 0.011);
     // Daylit concrete and road paint should not bloom like cursed energy.
-    this.post.bloomPass.threshold = opening ? 1.8 : 0.52;
-    this.post.bloomPass.strength = opening ? 0.22 : 0.42;
+    this.post.bloomPass.threshold = opening || expanded ? 1.8 : 0.52;
+    this.post.bloomPass.strength = opening || expanded ? 0.22 : 0.42;
   }
 
   getWorldCollisionBoxes() {
     return this.collisionBoxes;
   }
 
-  collectStoryCollisionBoxes(scene) {
+  collectStoryCollisionBoxes(scene, loveOpen = false) {
     scene.updateMatrixWorld(true);
     const bounds = new THREE.Box3();
     const boxes = [];
     scene.traverse((object) => {
       if (!object.isMesh) return;
+      if (object.userData.arenaLayer === "authenticLove" && !loveOpen) return;
+      if (object.userData.arenaLayer === "exterior" && loveOpen) return;
       if (!object.userData.arenaCollider && !(object.name.startsWith("tower_") && object.name.includes("_core"))) return;
       bounds.setFromObject(object);
       if (bounds.isEmpty()) return;
@@ -972,21 +984,52 @@ export class Renderer3D {
     group.add(field);
     group.traverse((o) => o.layers.set(1));
     this.scene.add(group);
-    return { group, sphere, ring, field };
+    // Separate root: the building is metre-sized, not scaled by the domain radius.
+    const shrine = new THREE.Group();
+    shrine.visible = false;
+    this.scene.add(shrine);
+    this.shrineAsset.then((asset) => { if (asset) shrine.add(asset.clone(true)); });
+    return { group, sphere, ring, field, shrine, domainRef: null };
   }
 
   syncDomains(game) {
-    const loveOpen = game.domains.some((d) => d.alive && d.type === "authenticLove");
-    for (const prop of this.storyDomainProps || []) prop.visible = loveOpen;
+    const loveOpen = this.storyStage === "yuta" && game.domains.some((d) => d.alive && d.type === "authenticLove");
+    if (this.storyScene && loveOpen !== this.storyLoveOpen) {
+      this.storyLoveOpen = loveOpen;
+      for (const prop of this.storyDomainProps || []) prop.visible = loveOpen;
+      // Preserve impact damage when the exterior returns after the domain ends.
+      for (const prop of this.storyExteriorProps || []) {
+        if (loveOpen) { prop.userData.visibleBeforeDomain = prop.visible; prop.visible = false; }
+        else prop.visible = prop.userData.visibleBeforeDomain !== false;
+      }
+      this.collisionBoxes = this.collectStoryCollisionBoxes(this.storyScene, loveOpen);
+      game.setWorldObstacles(this.collisionBoxes);
+      this.setArenaAtmosphere(this.storyStage === "opening");
+    }
     while (this.domains.length < game.domains.length) this.domains.push(this.ensureDomain());
     for (let i = 0; i < this.domains.length; i += 1) {
       const dom = this.domains[i];
       const d = game.domains[i];
-      if (!d) { dom.group.visible = false; continue; }
+      dom.shrine.visible = !!d?.alive && d.type === "shrine";
+      if (!d || !d.alive) { dom.group.visible = false; continue; }
       dom.group.visible = true;
       const intro = clamp((d.maxLife - d.life) / 0.5, 0, 1);
       const outro = clamp(d.life / 0.6, 0, 1);
       const a = Math.min(intro, outro);
+      if (dom.shrine.visible) {
+        if (dom.domainRef !== d) {
+          dom.domainRef = d;
+          const owner = game.entities.find((entity) => entity.id === d.ownerId);
+          const yaw = owner?.yaw || 0;
+          dom.shrine.rotation.y = yaw;
+          dom.shrine.position.set(
+            clamp(d.x - Math.sin(yaw) * 8, -39, 39),
+            Math.max(0, d.y - 1.0),
+            clamp(d.z - Math.cos(yaw) * 8, -39, 39)
+          );
+        }
+        dom.shrine.scale.setScalar(Math.max(0.001, a));
+      }
       dom.group.position.set(d.x, d.y, d.z);
       dom.group.scale.set(d.radius, d.radius, d.radius);
       dom.sphere.material.color.set(d.color);
@@ -1342,7 +1385,11 @@ export class Renderer3D {
     }
     this.damageTextMap.clear();
     this.particlePool.clear();
-    for (const dom of this.domains) dom.group.visible = false;
+    for (const dom of this.domains) {
+      dom.group.visible = false;
+      dom.shrine.visible = false;
+      dom.domainRef = null;
+    }
     for (const tube of this.beams) tube.mesh.visible = false;
   }
 }

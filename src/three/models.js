@@ -349,6 +349,22 @@ export async function loadGltf(id) {
   }
 }
 
+export async function loadDomainShrine() {
+  try {
+    const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/malevolent-shrine.glb`);
+    gltf.scene.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+        o.material.side = THREE.DoubleSide;
+      }
+    });
+    return gltf.scene;
+  } catch (error) {
+    console.warn("Unable to load Malevolent Shrine", error);
+    return null;
+  }
+}
 export async function loadStoryScene(stage) {
   if (!["opening", "yuta", "borrowed"].includes(stage)) return null;
   try {

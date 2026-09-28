@@ -171,13 +171,22 @@ const trainee = game.player();
 game.enterBurnout(trainee);
 assert.equal(game.tryCast(trainee, 0), false, "practice infinite toggle does not bypass burnout");
 
-for (const name of ["yuta", "rika", "yuta_gojo", "sukuna_shinjuku", "story_yuta", "story_borrowed"]) {
+for (const name of ["yuta", "rika", "yuta_gojo", "sukuna_shinjuku", "story_yuta", "story_borrowed", "malevolent-shrine"]) {
   const bytes = readFileSync(new URL(`../public/models/${name}.glb`, import.meta.url));
   assert.equal(bytes.toString("ascii", 0, 4), "glTF", `${name} is a GLB`);
   assert.ok(bytes.length > 20000, `${name} has geometry`);
   const jsonSize = bytes.readUInt32LE(12);
   const gltf = JSON.parse(bytes.toString("utf8", 20, 20 + jsonSize));
-  if (name.startsWith("story_")) {
+  if (name === "malevolent-shrine") {
+    assert.equal(gltf.scenes.length, 1, `${name} exports one active scene`);
+    assert.equal(gltf.meshes.length, 12, `${name} keeps the twelve material batches`);
+    const shrinePrimitives = gltf.meshes.flatMap((mesh) => mesh.primitives);
+    assert.equal(shrinePrimitives.length, 12, `${name} keeps one primitive per material batch`);
+    for (const primitive of shrinePrimitives) {
+      assert.ok(primitive.attributes.POSITION !== undefined, `${name} has positions`);
+      assert.ok(primitive.attributes.COLOR_0 !== undefined, `${name} keeps portable vertex colors`);
+    }
+  } else if (name.startsWith("story_")) {
     assert.ok(gltf.nodes.some((node) => node.name?.startsWith("breakable_")), `${name} has breakable props`);
     assert.ok(gltf.nodes.filter((node) => node.name?.startsWith("tower_") && node.name.includes("_core")).length >= 10,
       `${name} retains named tower cores used for building collision`);
