@@ -420,13 +420,21 @@ window.addEventListener("keydown", (event) => {
 renderBindingEditor();
 const volumeSlider = document.querySelector("#masterVolume");
 const volumeValue = document.querySelector("#volumeValue");
+const bgmVolumeSlider = document.querySelector("#bgmVolume");
+const bgmVolumeValue = document.querySelector("#bgmVolumeValue");
 function refreshVolumeLabel() {
   if (volumeSlider) volumeSlider.value = String(Math.round(audio.masterVolume * 100));
   if (volumeValue) volumeValue.value = `${Math.round(audio.masterVolume * 100)}%`;
+  if (bgmVolumeSlider) bgmVolumeSlider.value = String(Math.round(audio.bgmVolume * 100));
+  if (bgmVolumeValue) bgmVolumeValue.value = `${Math.round(audio.bgmVolume * 100)}%`;
 }
 refreshVolumeLabel();
 volumeSlider?.addEventListener("input", () => {
   audio.setVolume(Number(volumeSlider.value) / 100);
+  refreshVolumeLabel();
+});
+bgmVolumeSlider?.addEventListener("input", () => {
+  audio.setBgmVolume(Number(bgmVolumeSlider.value) / 100);
   refreshVolumeLabel();
 });
 document.querySelector("#settingsMuteBtn")?.addEventListener("click", () => {

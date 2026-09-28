@@ -293,6 +293,8 @@
           <section class="settings-section volume-settings">
             <div class="settings-section-head"><div><h3>音量</h3><p>同时调整背景音乐与战斗音效</p></div><output id="volumeValue" for="masterVolume">100%</output></div>
             <input id="masterVolume" type="range" min="0" max="100" value="100" aria-label="游戏音量" />
+            <div class="settings-section-head"><div><h3>背景音乐</h3><p>默认 50%，同时受总音量控制</p></div><output id="bgmVolumeValue" for="bgmVolume">50%</output></div>
+            <input id="bgmVolume" type="range" min="0" max="100" value="50" aria-label="背景音乐音量" />
             <button id="settingsMuteBtn" class="settings-quiet-button" type="button" aria-pressed="false">关闭声音</button>
           </section>
           <section class="settings-section key-settings">

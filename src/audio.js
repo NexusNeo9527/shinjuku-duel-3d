@@ -8,10 +8,21 @@ export const BGM_TRACKS = [
 export const SCENE_BGM = { menu: null, gojo: "normal", practice: "sifeng", story: "yuta" };
 const BGM_KEY = "sd3d.bgm.scene.";
 const MASTER_VOLUME_KEY = "sd3d.master-volume.v1";
+const BGM_VOLUME_KEY = "sd3d.bgm-volume.v1";
+
+function loadBgmVolume() {
+  try {
+    const saved = localStorage.getItem(BGM_VOLUME_KEY);
+    const value = saved === null ? .5 : Number(saved);
+    return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : .5;
+  } catch (_) { return .5; }
+}
 
 function loadMasterVolume() {
   try {
-    const value = Number(localStorage.getItem(MASTER_VOLUME_KEY));
+    const saved = localStorage.getItem(MASTER_VOLUME_KEY);
+    if (saved === null) return 1;
+    const value = Number(saved);
     return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
   } catch (_) { return 1; }
 }
@@ -38,7 +49,7 @@ export class AudioEngine {
     this.bgm = null;
     this.bgmScene = "menu";
     this.bgmId = loadBgmId(this.bgmScene);
-    this.bgmVolume = 0.55;
+    this.bgmVolume = loadBgmVolume();
     this._bgmFade = 0;
   }
 
@@ -183,6 +194,12 @@ export class AudioEngine {
     if (this.master && this.ctx) {
       this.master.gain.setTargetAtTime(this.outputGain(), this.ctx.currentTime, 0.025);
     }
+    if (this.bgmId && this.bgm && !this.bgm.paused) this.fadeBgm(this.bgmVolume * this.masterVolume, 180);
+  }
+
+  setBgmVolume(value) {
+    this.bgmVolume = Math.max(0, Math.min(1, Number(value) || 0));
+    try { localStorage.setItem(BGM_VOLUME_KEY, String(this.bgmVolume)); } catch (_) { /* ignore */ }
     if (this.bgmId && this.bgm && !this.bgm.paused) this.fadeBgm(this.bgmVolume * this.masterVolume, 180);
   }
 
