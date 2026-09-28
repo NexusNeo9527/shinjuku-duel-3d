@@ -176,7 +176,7 @@ export class UI3D {
     }));
     this.dom.difficultyBackBtn.addEventListener("click", () => h.onBack());
     this.dom.homeBtn.addEventListener("click", () => h.onHome());
-    this.dom.modeBtn.addEventListener("click", () => h.onHome());
+    this.dom.modeBtn.addEventListener("click", () => h.onBackToModeSelect());
     this.dom.againBtn.addEventListener("click", () => h.onAgain());
     this.dom.resumeBtn.addEventListener("click", () => h.onResume());
     this.dom.restartBtn.addEventListener("click", () => h.onRestart());

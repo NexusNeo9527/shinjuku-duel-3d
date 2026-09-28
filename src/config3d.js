@@ -126,6 +126,7 @@ export const YUTA_STORY_DIFFICULTY_OVERRIDES = {
 
 export const BLACK_FLASH = { chance: 0.18, multiplier: 1.55, range: 6.5 };
 export const GOJO_REGEN_PER_SECOND = 0.5;
+export const PLAYER_HP_SETTINGS = Object.freeze({ default: 100, min: 25, max: 500, step: 25 });
 
 // 单人模式选择宿傩时，电脑五条悟保留原有招式节奏，但稍降耐久和输出。
 // 这只影响 AI，不会削弱玩家操控的五条悟或双人模式。

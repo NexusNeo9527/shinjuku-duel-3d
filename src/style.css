@@ -1088,7 +1088,7 @@ body.theme-yuta {
 .settings-section-head h3 { margin: 0; }
 .settings-section-head p { margin-top: 4px; color: var(--muted); font-size: 11px; }
 .settings-section-head output { color: var(--accent); font: 600 13px var(--font-mono); }
-.volume-settings input[type="range"] { width: 100%; margin: 17px 0 10px; accent-color: var(--accent); cursor: pointer; }
+.volume-settings input[type="range"], .health-settings input[type="range"] { width: 100%; margin: 17px 0 10px; accent-color: var(--accent); cursor: pointer; }
 .settings-quiet-button { min-height: 34px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--muted); background: var(--chip); cursor: pointer; }
 .settings-quiet-button:hover { color: var(--accent); border-color: var(--accent); }
 .settings-status { min-height: 18px; margin: 8px 0; color: var(--muted); font-size: 11px; }

@@ -3,8 +3,8 @@ import { Renderer3D } from "./three/Renderer3D.js";
 import { AudioEngine } from "./audio.js";
 import { UI3D } from "./ui3d.js";
 import { TouchControls } from "./touch.js";
-import { STORY_STAGES } from "./config3d.js";
-import { BINDINGS, DEFAULT_TOUCH_MOVE_POSITION, clampTouchMovePosition, displayKey, loadInputSettings, saveInputSettings } from "./inputSettings.js";
+import { PLAYER_HP_SETTINGS, STORY_STAGES } from "./config3d.js";
+import { BINDINGS, DEFAULT_TOUCH_MOVE_POSITION, clampPlayerMaxHp, clampTouchMovePosition, displayKey, loadInputSettings, saveInputSettings } from "./inputSettings.js";
 
 const canvas = document.querySelector("#gameCanvas");
 const arena = document.querySelector("#arena");
@@ -18,6 +18,7 @@ const game = new Game3D();
 const renderer = new Renderer3D(canvas);
 const audio = new AudioEngine();
 const inputSettings = loadInputSettings();
+game.setPlayerMaxHp(inputSettings.playerMaxHp);
 let bindingCodes = new Map();
 let bindingCapture = null;
 const isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0;
@@ -441,6 +442,26 @@ document.querySelector("#settingsMuteBtn")?.addEventListener("click", () => {
   audio.setMuted(!audio.muted);
   refreshSoundButtons();
   if (!audio.muted) audio.ensure();
+});
+
+const playerMaxHpSlider = document.querySelector("#playerMaxHp");
+const playerMaxHpValue = document.querySelector("#playerMaxHpValue");
+if (playerMaxHpSlider) {
+  playerMaxHpSlider.min = String(PLAYER_HP_SETTINGS.min);
+  playerMaxHpSlider.max = String(PLAYER_HP_SETTINGS.max);
+  playerMaxHpSlider.step = String(PLAYER_HP_SETTINGS.step);
+}
+function refreshPlayerMaxHpLabel() {
+  const hp = inputSettings.playerMaxHp;
+  if (playerMaxHpSlider) playerMaxHpSlider.value = String(hp);
+  if (playerMaxHpValue) playerMaxHpValue.value = `${hp} HP`;
+}
+refreshPlayerMaxHpLabel();
+playerMaxHpSlider?.addEventListener("input", () => {
+  inputSettings.playerMaxHp = clampPlayerMaxHp(Number(playerMaxHpSlider.value));
+  game.setPlayerMaxHp(inputSettings.playerMaxHp);
+  saveInputSettings(inputSettings);
+  refreshPlayerMaxHpLabel();
 });
 refreshSoundButtons();
 

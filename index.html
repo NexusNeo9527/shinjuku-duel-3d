@@ -201,7 +201,7 @@
               <button id="openSettingsBtn" class="text-button" type="button">设置</button>
             </div>
           </div>
-          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.0</div>
+          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.1</div>
         </div>
       </div>
 
@@ -296,6 +296,10 @@
             <div class="settings-section-head"><div><h3>背景音乐</h3><p>默认 50%，同时受总音量控制</p></div><output id="bgmVolumeValue" for="bgmVolume">50%</output></div>
             <input id="bgmVolume" type="range" min="0" max="100" value="50" aria-label="背景音乐音量" />
             <button id="settingsMuteBtn" class="settings-quiet-button" type="button" aria-pressed="false">关闭声音</button>
+          </section>
+          <section class="settings-section health-settings">
+            <div class="settings-section-head"><div><h3>玩家角色血量</h3><p>设置开局血量与生命上限；本地双人双方共用，电脑角色仍使用原血量规则</p></div><output id="playerMaxHpValue" for="playerMaxHp">100 HP</output></div>
+            <input id="playerMaxHp" type="range" min="25" max="500" step="25" value="100" aria-label="玩家角色最大血量" />
           </section>
           <section class="settings-section key-settings">
             <div class="settings-section-head"><div><h3>键位设置</h3><p>点击按键后按下新的键位，Esc 取消</p></div></div>

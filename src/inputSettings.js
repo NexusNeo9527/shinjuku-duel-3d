@@ -1,3 +1,5 @@
+import { PLAYER_HP_SETTINGS } from "./config3d.js";
+
 const STORAGE_KEY = "sd3d.input.settings.v1";
 
 export const DEFAULT_TOUCH_MOVE_POSITION = Object.freeze({ x: 0.2, y: 0.76 });
@@ -50,6 +52,7 @@ export function loadInputSettings() {
     const pos = saved.touchMovePosition;
     return {
       bindings,
+      playerMaxHp: clampPlayerMaxHp(saved.playerMaxHp),
       touchMovePosition: pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)
         ? clampTouchMovePosition(pos)
         : { ...DEFAULT_TOUCH_MOVE_POSITION }
@@ -57,9 +60,17 @@ export function loadInputSettings() {
   } catch (_) {
     return {
       bindings: Object.fromEntries(BINDINGS.map((binding) => [binding.id, binding.defaultCode])),
+      playerMaxHp: PLAYER_HP_SETTINGS.default,
       touchMovePosition: { ...DEFAULT_TOUCH_MOVE_POSITION }
     };
   }
+}
+
+export function clampPlayerMaxHp(value) {
+  if (!Number.isFinite(value)) return PLAYER_HP_SETTINGS.default;
+  const { min, max, step } = PLAYER_HP_SETTINGS;
+  const snapped = min + Math.round((value - min) / step) * step;
+  return Math.max(min, Math.min(max, snapped));
 }
 
 export function saveInputSettings(settings) {

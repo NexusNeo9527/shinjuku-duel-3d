@@ -1,4 +1,4 @@
-import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, YUTA_STORY_DIFFICULTY_OVERRIDES, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
+import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, YUTA_STORY_DIFFICULTY_OVERRIDES, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, PLAYER_HP_SETTINGS, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
 import { STORY_DIALOGUE } from "./storyDialogue.js";
 import { beginCombatMotion } from "./combatMotion.js";
 
@@ -60,6 +60,7 @@ export class Game3D {
     this.hitStop = 0;
     this.winner = null;
     this.practice = false;
+    this.playerMaxHp = PLAYER_HP_SETTINGS.default;
     this.practiceChar = "gojo";
     this.practiceInfinite = true;
     this.practiceInvincible = true;
@@ -272,6 +273,13 @@ export class Game3D {
     this.singleChar = charId === "sukuna" ? "sukuna" : "gojo";
   }
 
+  setPlayerMaxHp(value) {
+    const numeric = Number(value);
+    const hp = Number.isFinite(numeric) ? numeric : PLAYER_HP_SETTINGS.default;
+    this.playerMaxHp = clamp(Math.round(hp), PLAYER_HP_SETTINGS.min, PLAYER_HP_SETTINGS.max);
+    return this.playerMaxHp;
+  }
+
   setStory(stage, side) {
     this.storyStage = STORY_STAGES[stage] ? stage : "yuta";
     this.storySide = side === "enemy" ? "enemy" : "ally";
@@ -304,6 +312,7 @@ export class Game3D {
 
   makeEntity(charId, x, z, isPlayer) {
     const char = CHARACTERS[charId];
+    const hp = isPlayer ? this.playerMaxHp : char.hp;
     return {
       id: isPlayer ? charId : `${charId}_ai`,
       charId,
@@ -322,8 +331,8 @@ export class Game3D {
       y: 0,
       vy: 0,
       yaw: isPlayer ? Math.PI : 0,
-      hp: char.hp,
-      maxHp: char.hp,
+      hp,
+      maxHp: hp,
       vx: 0,
       vz: 0,
       speed: char.speed,
@@ -831,7 +840,7 @@ export class Game3D {
     }
     this.triggerCutIn(spec.art, spec.stop ?? 0, spec.flash ?? (spec.compact ? 0 : 0.65), spec.shake ?? (spec.compact ? 0 : 2.2), {
       life: spec.life ?? (spec.compact ? 0.75 : 1),
-      presentation: spec.compact ? "compact" : "full",
+      presentation: "compact",
       ownerPlayer: entity.isPlayer
     });
   }
@@ -928,9 +937,9 @@ export class Game3D {
     this.screenShake = Math.max(this.screenShake, 2.2);
     this.emit("sfx", { kind: "domain", owner: entity.charId });
     this.announce(`领域展开 · ${ability.label}`, ability.color, 1.6);
-    if (entity.charId === "yuta") this.triggerCutIn("yuta-authentic-love", 0.42, 0.66, 2.4, { life: 1.3 });
-    else if (entity.charId === "gojo" || entity.charId === "yutaGojo") this.triggerCutIn("gojo-void", 0.42, 0.66, 2.4);
-    else if (entity.charId.startsWith("sukuna")) this.triggerCutIn("sukuna-domain", 0.42, 0.66, 2.4);
+    if (entity.charId === "yuta") this.triggerCutIn("yuta-authentic-love", 0.42, 0.66, 2.4, { presentation: "compact", life: 1.3 });
+    else if (entity.charId === "gojo" || entity.charId === "yutaGojo") this.triggerCutIn("gojo-void", 0.42, 0.66, 2.4, { presentation: "compact" });
+    else if (entity.charId.startsWith("sukuna")) this.triggerCutIn("sukuna-domain", 0.42, 0.66, 2.4, { presentation: "compact" });
     if (!this.isStoryCombat()) this.queueDialogue(entity.charId, `领域展开——${ability.label}。`, 3.0, 5);
   }
 
