@@ -80,6 +80,7 @@ body { transition: background 0.25s ease; }
 }
 
 .game-shell { display: flex; flex-direction: column; width: 100%; height: 100%; }
+body.app-fullscreen .game-shell { position: fixed; inset: 0; z-index: 100; }
 
 /* ---------- topbar ---------- */
 .topbar {
@@ -854,9 +855,9 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
   .split-panel .sp-hpnum { font-size: 13px; }
   .sp-gauge span { font-size: 9px; }
 
-  /* practice panel drops below the versus header and stays clear of the thumb cluster */
+  /* practice panel drops below the versus header and stays clear of the left stick */
   .practice-panel {
-    left: max(8px, env(safe-area-inset-left)); right: auto; top: 66px;
+    left: auto; right: max(8px, env(safe-area-inset-right)); top: 66px;
     width: 176px; padding: 6px 8px;
   }
   .practice-panel .pp-head { margin-bottom: 5px; padding-bottom: 4px; font-size: 9px; }

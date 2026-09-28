@@ -604,20 +604,60 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) releaseActiveInputs();
   else restoreVisibleCanvas();
 });
-document.addEventListener("fullscreenchange", () => { setTimeout(fitCanvas, 120); });
+const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement || document.webkitCurrentFullScreenElement;
+function refreshFullscreenButton() {
+  const nativeFullscreen = Boolean(fullscreenElement());
+  if (nativeFullscreen) document.body.classList.remove("app-fullscreen");
+  const active = nativeFullscreen || document.body.classList.contains("app-fullscreen");
+  fullBtn?.setAttribute("aria-pressed", String(active));
+  fullBtn?.setAttribute("aria-label", active ? "退出全屏" : "全屏");
+  fullBtn?.setAttribute("title", active ? "退出全屏" : "进入全屏");
+}
+function resizeAfterFullscreenChange() {
+  setTimeout(() => { fitCanvas(); refreshFullscreenButton(); }, 120);
+}
+function ensureFullscreenFallback() {
+  setTimeout(() => {
+    if (!fullscreenElement()) document.body.classList.add("app-fullscreen");
+    refreshFullscreenButton();
+    fitCanvas();
+  }, 300);
+}
+document.addEventListener("fullscreenchange", resizeAfterFullscreenChange);
+document.addEventListener("webkitfullscreenchange", resizeAfterFullscreenChange);
 setTimeout(fitCanvas, 250);
 
 const fullBtn = document.querySelector("#fullBtn");
 fullBtn?.addEventListener("click", async () => {
+  const active = Boolean(fullscreenElement()) || document.body.classList.contains("app-fullscreen");
   try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+    if (!active) {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+        ensureFullscreenFallback();
+      } else if (document.documentElement.webkitRequestFullscreen) {
+        document.documentElement.webkitRequestFullscreen();
+        ensureFullscreenFallback();
+      } else {
+        // iOS Safari does not expose DOM fullscreen; keep the game edge-to-edge
+        // so the control still has a useful, reversible fallback there.
+        document.body.classList.add("app-fullscreen");
+      }
     } else {
-      await document.exitFullscreen();
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      else document.body.classList.remove("app-fullscreen");
     }
-  } catch (_) { /* fullscreen unsupported */ }
+  } catch (error) {
+    // A rejected native request should still leave mobile Safari-like browsers
+    // with the edge-to-edge fallback instead of making the button appear dead.
+    document.body.classList.toggle("app-fullscreen", !active);
+    console.warn("Fullscreen API unavailable; using app fullscreen fallback", error);
+  }
+  refreshFullscreenButton();
   setTimeout(fitCanvas, 150);
 });
+refreshFullscreenButton();
 
 // phones: suggest landscape once per visit, but never force it
 const rotateTip = document.querySelector("#rotateTip");
