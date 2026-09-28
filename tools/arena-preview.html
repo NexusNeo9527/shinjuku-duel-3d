@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>新宿决战 · 场景巡览</title>
+<style>
+body{margin:0;height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#20272c;color:#eee;font:14px system-ui}header{display:flex;gap:12px;align-items:center;padding:12px 20px;flex-wrap:wrap}h1{font-size:18px;margin:0}button,select,a{padding:8px 12px;color:#fff;background:#39454c;border:1px solid #73818a;border-radius:4px}main{min-height:0}canvas{display:block;width:100%;height:100%}footer{padding:12px 20px;color:#c6cdcf}
+</style>
+<header><h1>新宿决战 · 场景巡览</h1><select id="stage" aria-label="场景"><option value="opening">开战街区</option><option value="yuta">乙骨 · 新宿废墟</option><option value="love">真赝相爱</option><option value="borrowed">借用身体 · 后期战场</option></select><button id="ground">地面视角</button><button id="overview">全景视角</button><a href="/">进入游戏</a><span id="status">正在加载…</span></header>
+<main><canvas id="view"></canvas></main><footer>拖动旋转，滚轮缩放。地面细线标记 144×144 米活动边界；建筑位置与距离为游戏改编。</footer>
+<script type="module">
+import { Renderer3D } from '../src/three/Renderer3D.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const canvas=document.querySelector('#view'), view=new Renderer3D(canvas);
+const controls=new OrbitControls(view.camera,canvas);controls.maxDistance=360;controls.minDistance=3;controls.maxPolarAngle=Math.PI*.49;
+function overview(){view.camera.position.set(100,160,120);controls.target.set(0,6,0);controls.update();}
+function resize(){const rect=canvas.parentElement.getBoundingClientRect();view.resize(rect.width,rect.height);}
+new ResizeObserver(resize).observe(canvas.parentElement);resize();overview();
+let request=0;
+async function select(){const ticket=++request;const stage=document.querySelector('#stage').value;document.querySelector('#status').textContent='正在加载…';await view.setStoryStage(stage==='love'?'yuta':stage);if(ticket!==request)return;
+view.storyLoveOpen=stage==='love';
+for(const o of view.storyDomainProps)o.visible=view.storyLoveOpen;
+for(const o of view.storyExteriorProps)o.visible=!view.storyLoveOpen;
+view.collisionBoxes=view.collectStoryCollisionBoxes(view.storyScene,view.storyLoveOpen);
+view.setArenaAtmosphere(view.storyStage==='opening');
+document.querySelector('#status').textContent=`已加载 · ${view.getWorldCollisionBoxes().length} 处建筑碰撞`;}
+document.querySelector('#stage').addEventListener('change',select);
+document.querySelector('#ground').addEventListener('click',()=>{view.camera.position.set(0,3,25);controls.target.set(0,2,-35);controls.update();});
+document.querySelector('#overview').addEventListener('click',overview);
+await select();
+view.renderer.setAnimationLoop(()=>{controls.update();view.renderer.render(view.scene,view.camera);});
+</script>
+</html>

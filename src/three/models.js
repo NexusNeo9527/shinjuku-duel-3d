@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { articulateHands, installCombatAnimation } from "./combatRig.js";
+import { buildArenaDistrict } from "./arenaDistrict.js";
 
 const loader = new GLTFLoader();
 const rawGltfPromises = new Map();
@@ -410,6 +411,7 @@ export function loadStoryScene(stage) {
     storyScenePromises.set(stage, loadRawGltf(`${import.meta.env.BASE_URL}models/${filename}.glb`)
       .then((gltf) => {
         gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        gltf.scene.add(buildArenaDistrict(stage));
         return gltf.scene;
       })
       .catch((error) => {

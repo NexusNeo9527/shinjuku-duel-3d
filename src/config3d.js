@@ -1,6 +1,6 @@
 export const TAU = Math.PI * 2;
 
-export const ARENA = { half: 46 };
+export const ARENA = { half: 72 };
 
 export const FLIGHT = { speed: 9.4, maxAlt: 30, radius: 0.6 };
 export const SPRINT = { multiplier: 1.8 };

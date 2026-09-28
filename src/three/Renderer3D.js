@@ -4,7 +4,8 @@ import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene, loadDomainS
 import { Post } from "./Post.js";
 import { ParticlePool } from "./Particles.js";
 import { DomainBreaks } from "./DomainBreaks.js";
-import { clamp, lerp } from "../config3d.js";
+import { buildArenaDistrict } from "./arenaDistrict.js";
+import { ARENA, clamp, lerp } from "../config3d.js";
 
 function angLerp(a, b, t) {
   let d = b - a;
@@ -55,29 +56,6 @@ function makeTargetTexture() {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
-}
-
-function makeGroundTexture() {
-  const size = 512;
-  const c = document.createElement("canvas");
-  c.width = c.height = size;
-  const g = c.getContext("2d");
-  g.fillStyle = "#0a0f1a";
-  g.fillRect(0, 0, size, size);
-  g.strokeStyle = "rgba(70,110,160,0.28)";
-  g.lineWidth = 2;
-  for (let i = 0; i <= 8; i += 1) {
-    const p = (i / 8) * size;
-    g.beginPath(); g.moveTo(p, 0); g.lineTo(p, size); g.stroke();
-    g.beginPath(); g.moveTo(0, p); g.lineTo(size, p); g.stroke();
-  }
-  g.strokeStyle = "rgba(120,170,220,0.5)";
-  g.lineWidth = 3;
-  g.strokeRect(0, 0, size, size);
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
 }
 
 export class Renderer3D {
@@ -353,68 +331,8 @@ export class Renderer3D {
     this.baseCollisionBoxes = [];
     this.storyCollisionBoxes = new Map();
     this.collisionBoxes = this.baseCollisionBoxes;
-    const tex = makeGroundTexture();
-    tex.repeat.set(12, 12);
-    this.ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(220, 220),
-      new THREE.MeshStandardMaterial({ map: tex, color: 0x8fa4c4, roughness: 0.85, metalness: 0.25 })
-    );
-    this.ground.rotation.x = -Math.PI / 2;
-    this.ground.receiveShadow = true;
-    this.baseArena.add(this.ground);
-
-    // boundary glow ring
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(45.2, 46, 96),
-      new THREE.MeshBasicMaterial({ color: 0x3a6a9c, transparent: true, opacity: 0.7, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.02;
-    ring.layers.set(1);
-    this.baseArena.add(ring);
-
-    // ruined skyline around the arena
-    const colors = [0x121b29, 0x16202f, 0x101823, 0x1a2536];
-    for (let i = 0; i < 46; i += 1) {
-      const a = (i / 46) * Math.PI * 2 + Math.random() * 0.1;
-      const dist = 62 + Math.random() * 46;
-      const w = 6 + Math.random() * 12;
-      const h = 8 + Math.random() * 40;
-      const d = 6 + Math.random() * 12;
-      const b = new THREE.Mesh(
-        new THREE.BoxGeometry(w, h, d),
-        new THREE.MeshStandardMaterial({ color: colors[i % colors.length], roughness: 0.9, metalness: 0.1 })
-      );
-      b.position.set(Math.sin(a) * dist, h / 2, Math.cos(a) * dist);
-      b.rotation.y = Math.random() * Math.PI;
-      b.castShadow = true;
-      this.baseArena.add(b);
-      const c = Math.cos(b.rotation.y);
-      const s = Math.sin(b.rotation.y);
-      const halfX = Math.abs(c) * w / 2 + Math.abs(s) * d / 2;
-      const halfZ = Math.abs(s) * w / 2 + Math.abs(c) * d / 2;
-      this.baseCollisionBoxes.push({
-        minX: b.position.x - halfX, maxX: b.position.x + halfX,
-        minY: 0, maxY: h,
-        minZ: b.position.z - halfZ, maxZ: b.position.z + halfZ
-      });
-      const winN = Math.floor(Math.random() * 10);
-      for (let j = 0; j < winN; j += 1) {
-        const win = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.8, 1.2),
-          new THREE.MeshBasicMaterial({ color: Math.random() > 0.6 ? 0x6fb4e6 : 0x3a6a9c, transparent: true, opacity: 0.85 })
-        );
-        win.position.set(
-          b.position.x + (Math.random() - 0.5) * (w - 1),
-          b.position.y + (Math.random() - 0.5) * (h - 2),
-          b.position.z
-        );
-        win.lookAt(0, win.position.y, 0);
-        this.baseArena.add(win);
-      }
-    }
-    this.boundary = 46;
-    void this.boundary;
+    this.baseArena.add(buildArenaDistrict("yuta"));
+    this.boundary = ARENA.half;
   }
 
   async setStoryStage(stage) {
@@ -473,7 +391,7 @@ export class Renderer3D {
     const love = expanded && this.storyLoveOpen;
     const color = love ? 0xaca99b : opening ? 0x899ba9 : expanded ? 0x69737b : 0x070a12;
     this.scene.background = new THREE.Color(color);
-    this.scene.fog = new THREE.FogExp2(color, love ? 0.004 : opening ? 0.0035 : expanded ? 0.005 : 0.011);
+    this.scene.fog = new THREE.FogExp2(color, love ? 0.004 : opening ? 0.0035 : expanded ? 0.0032 : 0.004);
     // Daylit concrete and road paint should not bloom like cursed energy.
     this.post.bloomPass.threshold = opening || expanded ? 1.8 : 0.52;
     this.post.bloomPass.strength = opening || expanded ? 0.22 : 0.42;
@@ -491,7 +409,7 @@ export class Renderer3D {
       if (!object.isMesh) return;
       if (object.userData.arenaLayer === "authenticLove" && !loveOpen) return;
       if (object.userData.arenaLayer === "exterior" && loveOpen) return;
-      if (!object.userData.arenaCollider && !(object.name.startsWith("tower_") && object.name.includes("_core"))) return;
+      if (!object.userData.arenaCollider && !(object.name.startsWith("tower_") && object.name.includes("_core")) && !(object.name.startsWith("Block_") && object.name.endsWith("_structure"))) return;
       bounds.setFromObject(object);
       if (bounds.isEmpty()) return;
       const { min, max } = bounds;
