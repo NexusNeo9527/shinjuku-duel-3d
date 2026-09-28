@@ -1588,7 +1588,7 @@ export class Game3D {
     const ability = CHARACTERS[ai.charId].abilities[idx];
     if (!ability) return false;
     if (ai.burnout > 0 && !ability.physical) return false;
-    if (ability.needsDomain && (ai.domainLocked || (this.mode === "story" && this.storyStage === "borrowed" && this.storyTimer <= 0 && ai.charId === "yutaGojo"))) return false;
+    if (ability.needsDomain && (ai.domainLocked || (this.isStoryCombat() && this.storyStage === "borrowed" && this.storyTimer <= 0 && ai.charId === "yutaGojo"))) return false;
     if (ai.cooldowns[idx] > 0) return false;
     if (ability.needsCharge && ai.charge < 100) return false;
     if (ability.needsDomain && ai.domainCharge < 100) return false;
