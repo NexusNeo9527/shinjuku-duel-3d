@@ -1053,6 +1053,16 @@ export class Renderer3D {
       game.setWorldObstacles(this.collisionBoxes);
       this.setArenaAtmosphere(this.storyStage === "opening");
     }
+    const insideVoid = game.domains.some((domain) => domain.alive && domain.type === "void");
+    this.baseArena.visible = !insideVoid && !this.storyScene;
+    if (this.storyScene) this.storyScene.visible = !insideVoid;
+    if (insideVoid) {
+      this.scene.background.set(0x01020a);
+      this.scene.fog = null;
+    } else if (this.insideVoid) {
+      this.setArenaAtmosphere(this.storyStage === "opening");
+    }
+    this.insideVoid = insideVoid;
     while (this.domains.length < game.domains.length) this.domains.push(this.ensureDomain());
     for (let i = 0; i < this.domains.length; i += 1) {
       const dom = this.domains[i];
@@ -1072,11 +1082,14 @@ export class Renderer3D {
           dom.voidSpace.rotation.y = owner?.yaw || 0;
         }
         dom.voidSpace.position.set(d.x, d.y, d.z);
-        dom.voidSpace.scale.setScalar(d.radius / 100 * Math.max(.001, a));
+        // The interior sky extends beyond both the playable barrier and camera.
+        // Never shrink the sky through the fighters during entry or exit.
+        dom.voidSpace.scale.setScalar(Math.max(160, d.radius * 2) / 100);
       }
       const hasVoidModel = dom.voidSpace.visible && dom.voidSpace.children.length > 0;
       dom.sphere.visible = !hasVoidModel;
       dom.field.visible = !hasVoidModel;
+      dom.ring.visible = d.type !== "void";
       if (dom.shrine.visible) {
         if (dom.domainRef !== d) {
           dom.domainRef = d;
@@ -1448,6 +1461,12 @@ export class Renderer3D {
     this.damageTextMap.clear();
     this.particlePool.clear();
     this.domainBreaks.clear();
+    if (this.insideVoid) {
+      this.insideVoid = false;
+      this.baseArena.visible = !this.storyScene;
+      if (this.storyScene) this.storyScene.visible = true;
+      this.setArenaAtmosphere(this.storyStage === "opening");
+    }
     for (const dom of this.domains) {
       dom.group.visible = false;
       dom.shrine.visible = false;

@@ -183,9 +183,9 @@ export const CHARACTERS = {
       },
       {
         id: "void", label: "无量空处", type: "domain", shape: "domain",
-        damage: 4, tick: 0.45, radius: 17, cooldown: 0, life: 5,
+        damage: 4, tick: 0.45, radius: 80, closedBarrier: true, cooldown: 0, life: 5,
         color: "#7a5cff", core: "#d9ccff", needsDomain: true,
-        desc: "领域，持续压制与减速"
+        desc: "封闭领域，收纳全场角色，持续压制与减速"
       }
     ]
   },
@@ -254,7 +254,7 @@ CHARACTERS.yuta = {
     storyMove("katana", "咒力刀", "melee", { damage: 9, range: 3.2, cooldown: 0.55, physical: true }),
     storyMove("rika", "里香", "summon", { cooldown: 24, hp: 65, life: 20 }),
     storyMove("copy", "复制术式", "copy", { cooldown: 2.8 }),
-    storyMove("authenticLove", "真赝相爱", "domain", { damage: 4, tick: 0.48, radius: 17, life: 6, cooldown: 0, needsDomain: true }),
+    storyMove("authenticLove", "真赝相爱", "domain", { damage: 4, tick: 0.48, radius: 80, closedBarrier: true, life: 6, cooldown: 0, needsDomain: true }),
     storyMove("yutaHeal", "反转术式", "heal", { cooldown: 16, needsCharge: true, heal: 16 })
   ]
 };

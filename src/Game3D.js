@@ -400,7 +400,49 @@ export class Game3D {
     return resolved;
   }
 
+  closedDomain() {
+    return this.domains.find((domain) => domain.alive && domain.closedBarrier);
+  }
+
+  syncDomainCaptives() {
+    const domain = this.closedDomain();
+    for (const entity of this.entities) {
+      if (domain) {
+        // The compact arena is the capture area; all fighters and summons enter.
+        entity.domainReturnPosition ??= { x: entity.x, y: entity.y, z: entity.z };
+      } else if (entity.domainReturnPosition) {
+        Object.assign(entity, entity.domainReturnPosition);
+        delete entity.domainReturnPosition;
+        entity.vx = entity.vy = entity.vz = 0;
+        entity.dashTimer = 0;
+        this.resolveWorldMovement(entity, entity.x, entity.z, entity.x, entity.z);
+      }
+    }
+  }
+
   resolveWorldMovement(entity, fromX, fromZ, toX, toZ) {
+    const domain = this.closedDomain();
+    if (domain) {
+      entity.domainReturnPosition ??= { x: fromX, y: entity.y, z: fromZ };
+      entity.x = toX;
+      entity.z = toZ;
+      if (domain.type !== "void") {
+        entity.x = this.resolveObstacleAxis(entity, "x", fromX, toX);
+        entity.z = this.resolveObstacleAxis(entity, "z", fromZ, toZ);
+      }
+      const dx = entity.x - domain.x, dy = entity.y + CHEST - domain.y, dz = entity.z - domain.z;
+      const distance = Math.hypot(dx, dy, dz);
+      const limit = domain.radius - ENTITY_HEIGHT;
+      if (distance > limit) {
+        const scale = limit / distance;
+        entity.x = domain.x + dx * scale;
+        entity.y = Math.max(0, domain.y + dy * scale - CHEST);
+        entity.z = domain.z + dz * scale;
+        entity.vx = entity.vy = entity.vz = 0;
+        entity.dashTimer = 0;
+      }
+      return;
+    }
     const limit = ARENA.half - ENTITY_RADIUS;
     toX = clamp(toX, -limit, limit);
     toZ = clamp(toZ, -limit, limit);
@@ -739,11 +781,13 @@ export class Game3D {
       if (forward < 0 || forward > ability.length || side > domain.radius) continue;
       domain.hp -= ability.id === "jacobsLadder" ? ability.damage * 2 : ability.damage;
       if (domain.hp <= 0) {
+        this.recordDomainBreak(domain);
         domain.alive = false;
         this.enterBurnout(this.entities.find((e) => e.id === domain.ownerId));
         this.announce("领域被击破", ability.color, 1.2);
       }
     }
+    this.syncDomainCaptives();
     this.beams.push({
       ownerId: entity.id,
       team: entity.team,
@@ -830,7 +874,8 @@ export class Game3D {
         this.enterBurnout(existingOwner);
       }
       if (attackPower <= defensePower) {
-        this.recordDomainBreak({ x: entity.x, y: entity.y + CHEST, z: entity.z,
+        this.recordDomainBreak({ x: ability.closedBarrier ? 0 : entity.x,
+          y: ability.closedBarrier ? CHEST : entity.y + CHEST, z: ability.closedBarrier ? 0 : entity.z,
           radius: ability.radius, type: ability.id, color: ability.color });
         this.enterBurnout(entity);
       }
@@ -852,16 +897,18 @@ export class Game3D {
         this.queueStoryDialogue(entity, "clash", 2.7, 4);
         this.queueStoryDialogue(existingOwner, "clash", 2.7, 4);
       }
-      if (attackPower <= defensePower) return;
+      if (attackPower <= defensePower) { this.syncDomainCaptives(); return; }
     }
+    this.syncDomainCaptives();
     this.domains.push({
       ownerId: entity.id,
       team: entity.team,
       abilityId: ability.id,
       type: ability.id,
-      x: entity.x,
-      y: entity.y + CHEST,
-      z: entity.z,
+      closedBarrier: !!ability.closedBarrier,
+      x: ability.closedBarrier ? 0 : entity.x,
+      y: ability.closedBarrier ? CHEST : entity.y + CHEST,
+      z: ability.closedBarrier ? 0 : entity.z,
       radius: ability.radius,
       life: ability.life,
       maxLife: ability.life,
@@ -874,6 +921,7 @@ export class Game3D {
       core: ability.core,
       alive: true
     });
+    this.syncDomainCaptives();
     // A winning domain still opens, but must not cover the losing barrier's fracture.
     if (opposing) return;
     this.flash = Math.max(this.flash, 0.6);
@@ -1161,6 +1209,7 @@ export class Game3D {
     this.projectiles = [];
     this.beams = [];
     this.domains = [];
+    this.syncDomainCaptives();
     this.domainBreaks = [];
     this.particles = [];
     this.emit("sfx", { kind: "win" });
@@ -1383,6 +1432,7 @@ export class Game3D {
       }
     }
     this.domains = this.domains.filter((d) => d.alive);
+    this.syncDomainCaptives();
   }
 
   // ---- effects ----
