@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene, loadDomainShrine } from "./models.js";
+import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene, loadDomainShrine, loadUnlimitedVoid } from "./models.js";
 import { Post } from "./Post.js";
 import { ParticlePool } from "./Particles.js";
+import { DomainBreaks } from "./DomainBreaks.js";
 import { clamp, lerp } from "../config3d.js";
 
 function angLerp(a, b, t) {
@@ -145,6 +146,7 @@ export class Renderer3D {
     this.beamPool = [];
     this.damageTextMap = new Map();
     this.domains = [];
+    this.domainBreaks = new DomainBreaks(this.scene);
     this.aimArrows = {};
     this._v1 = new THREE.Vector3();
     this._v2 = new THREE.Vector3();
@@ -173,6 +175,7 @@ export class Renderer3D {
 
     this.post = new Post(this.renderer, this.scene, this.camera);
     this.shrineAsset = loadDomainShrine();
+    this.voidAsset = loadUnlimitedVoid();
     this._flash = 0;
     this.loading = { gojo: false, sukuna: false };
     this._contextLost = false;
@@ -204,7 +207,8 @@ export class Renderer3D {
       { label: "开战街区场景", stage: "opening", load: () => loadStoryScene("opening") },
       { label: "乙骨决战场景", stage: "yuta", load: () => loadStoryScene("yuta") },
       { label: "借用身体场景", stage: "borrowed", load: () => loadStoryScene("borrowed") },
-      { label: "伏魔御厨子模型", load: () => this.shrineAsset }
+      { label: "伏魔御厨子模型", load: () => this.shrineAsset },
+      { label: "无量空处空间", load: () => this.voidAsset }
     ];
     const failed = [];
     let completed = 0;
@@ -1028,7 +1032,11 @@ export class Renderer3D {
     shrine.visible = false;
     this.scene.add(shrine);
     this.shrineAsset.then((asset) => { if (asset) shrine.add(asset.clone(true)); });
-    return { group, sphere, ring, field, shrine, domainRef: null };
+    const voidSpace = new THREE.Group();
+    voidSpace.visible = false;
+    this.scene.add(voidSpace);
+    this.voidAsset.then((asset) => { if (asset) voidSpace.add(asset.clone(true)); });
+    return { group, sphere, ring, field, shrine, voidSpace, voidRef: null, domainRef: null };
   }
 
   syncDomains(game) {
@@ -1050,11 +1058,25 @@ export class Renderer3D {
       const dom = this.domains[i];
       const d = game.domains[i];
       dom.shrine.visible = !!d?.alive && d.type === "shrine";
+      dom.voidSpace.visible = !!d?.alive && d.type === "void";
       if (!d || !d.alive) { dom.group.visible = false; continue; }
       dom.group.visible = true;
       const intro = clamp((d.maxLife - d.life) / 0.5, 0, 1);
       const outro = clamp(d.life / 0.6, 0, 1);
       const a = Math.min(intro, outro);
+      if (dom.voidSpace.visible) {
+        if (dom.voidRef !== d) {
+          dom.voidRef = d;
+          const owner = game.entities.find((entity) => entity.id === d.ownerId);
+          // Blender +Y becomes glTF -Z; place the corona behind its caster.
+          dom.voidSpace.rotation.y = owner?.yaw || 0;
+        }
+        dom.voidSpace.position.set(d.x, d.y, d.z);
+        dom.voidSpace.scale.setScalar(d.radius / 100 * Math.max(.001, a));
+      }
+      const hasVoidModel = dom.voidSpace.visible && dom.voidSpace.children.length > 0;
+      dom.sphere.visible = !hasVoidModel;
+      dom.field.visible = !hasVoidModel;
       if (dom.shrine.visible) {
         if (dom.domainRef !== d) {
           dom.domainRef = d;
@@ -1311,6 +1333,7 @@ export class Renderer3D {
     this.syncProjectiles(game);
     this.syncBeams(game);
     this.syncDomains(game);
+    this.domainBreaks.sync(game.domainBreaks);
     this.syncStoryHits(game);
     this.syncParticles(game);
     this.syncDamageTexts(game);
@@ -1424,9 +1447,12 @@ export class Renderer3D {
     }
     this.damageTextMap.clear();
     this.particlePool.clear();
+    this.domainBreaks.clear();
     for (const dom of this.domains) {
       dom.group.visible = false;
       dom.shrine.visible = false;
+      dom.voidSpace.visible = false;
+      dom.voidRef = null;
       dom.domainRef = null;
     }
     for (const tube of this.beams) tube.mesh.visible = false;

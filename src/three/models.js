@@ -6,6 +6,32 @@ const loader = new GLTFLoader();
 const rawGltfPromises = new Map();
 const storyScenePromises = new Map();
 let domainShrinePromise = null;
+let unlimitedVoidPromise = null;
+
+export function loadUnlimitedVoid() {
+  if (!unlimitedVoidPromise) {
+    unlimitedVoidPromise = loadRawGltf(`${import.meta.env.BASE_URL}models/unlimited-void.glb`)
+      .then(({ scene }) => {
+        scene.traverse((object) => {
+          if (!object.isMesh) return;
+          const dark = object.name === "void_shell" || object.name === "event_horizon";
+          object.material = new THREE.MeshBasicMaterial({
+            color: dark ? 0x01020a : object.material.color,
+            side: THREE.DoubleSide, fog: false, toneMapped: false
+          });
+          object.castShadow = false;
+          object.receiveShadow = false;
+        });
+        return scene;
+      }).catch((error) => {
+        unlimitedVoidPromise = null;
+        rawGltfPromises.delete(`${import.meta.env.BASE_URL}models/unlimited-void.glb`);
+        console.warn("Unable to load Unlimited Void", error);
+        return null;
+      });
+  }
+  return unlimitedVoidPromise;
+}
 
 export const FIGHTER_STYLE = {
   gojo: { aura: 0x44d9ff, aura2: 0x266fff },

@@ -47,6 +47,7 @@ export class Game3D {
     this.projectiles = [];
     this.beams = [];
     this.domains = [];
+    this.domainBreaks = [];
     this.sceneHits = [];
     this.worldObstacles = [];
     this.particles = [];
@@ -186,6 +187,7 @@ export class Game3D {
     this.projectiles = [];
     this.beams = [];
     this.domains = [];
+    this.domainBreaks = [];
     this.sceneHits = [];
     this.particles = [];
     this.damageTexts = [];
@@ -808,6 +810,13 @@ export class Game3D {
     this.screenShake = Math.max(this.screenShake, shake);
   }
 
+  recordDomainBreak(domain) {
+    this.domainBreaks.push({
+      x: domain.x, y: domain.y, z: domain.z, radius: domain.radius,
+      type: domain.type, color: domain.color, age: 0, duration: 1.45
+    });
+  }
+
   castDomain(entity, ability) {
     if (this.isStoryCombat()) this.sceneHits.push({ x: entity.x, z: entity.z, radius: 24 });
     const opposing = this.domains.find((d) => d.alive && d.team !== entity.team);
@@ -816,24 +825,29 @@ export class Game3D {
       const attackPower = ability.domainPower ?? 2;
       const defensePower = opposing.power ?? 2;
       if (attackPower >= defensePower) {
+        this.recordDomainBreak(opposing);
         opposing.alive = false;
         this.enterBurnout(existingOwner);
       }
-      if (attackPower <= defensePower) this.enterBurnout(entity);
+      if (attackPower <= defensePower) {
+        this.recordDomainBreak({ x: entity.x, y: entity.y + CHEST, z: entity.z,
+          radius: ability.radius, type: ability.id, color: ability.color });
+        this.enterBurnout(entity);
+      }
       if (attackPower < defensePower) opposing.life = Math.min(opposing.life, 2.5);
       if (attackPower > defensePower) {
         this.domains = this.domains.filter((d) => d.alive);
       } else if (attackPower === defensePower) {
         this.domains = this.domains.filter((d) => d.alive);
       }
-      this.flash = Math.max(this.flash, 0.66);
+      this.flash = Math.max(this.flash, 0.3);
       this.screenShake = Math.max(this.screenShake, 2.6);
       this.hitStop = Math.max(this.hitStop, 0.07);
       this.burst(entity.x, entity.y + CHEST, entity.z, entity.color, 44, 11);
       this.burst(opposing.x, opposing.y, opposing.z, opposing.color, 44, 11);
       this.emit("sfx", { kind: "domain", owner: "clash" });
       this.announce("领域对抗", "#f4f1ff", 1.5);
-      this.triggerCutIn("domain-clash", 0.42, 0.68, 2.6);
+      this.triggerCutIn("domain-clash", 0.22, 0.3, 1.2, { presentation: "compact", life: .65 });
       if (this.isStoryCombat()) {
         this.queueStoryDialogue(entity, "clash", 2.7, 4);
         this.queueStoryDialogue(existingOwner, "clash", 2.7, 4);
@@ -860,6 +874,8 @@ export class Game3D {
       core: ability.core,
       alive: true
     });
+    // A winning domain still opens, but must not cover the losing barrier's fracture.
+    if (opposing) return;
     this.flash = Math.max(this.flash, 0.6);
     this.screenShake = Math.max(this.screenShake, 2.2);
     this.emit("sfx", { kind: "domain", owner: entity.charId });
@@ -1145,6 +1161,7 @@ export class Game3D {
     this.projectiles = [];
     this.beams = [];
     this.domains = [];
+    this.domainBreaks = [];
     this.particles = [];
     this.emit("sfx", { kind: "win" });
     const winnerId = this.winner?.charId || "gojo";
@@ -1343,6 +1360,8 @@ export class Game3D {
   }
 
   updateDomains(dt) {
+    for (const fracture of this.domainBreaks) fracture.age += dt;
+    this.domainBreaks = this.domainBreaks.filter((fracture) => fracture.age < fracture.duration);
     for (const d of this.domains) {
       if (!d.alive) continue;
       d.life -= dt;
