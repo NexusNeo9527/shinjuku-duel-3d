@@ -191,6 +191,44 @@ export class Renderer3D {
     });
   }
 
+  async preloadAssets(onProgress = () => {}) {
+    const tasks = [
+      { label: "五条悟模型", load: () => loadGltf("gojo") },
+      { label: "宿傩模型", load: () => loadGltf("sukuna") },
+      { label: "魔虚罗模型", load: () => loadGltf("mahoraga") },
+      { label: "乙骨忧太模型", load: () => loadGltf("yuta") },
+      { label: "里香模型", load: () => loadGltf("rika") },
+      { label: "乙骨·五条之身模型", load: () => loadGltf("yutaGojo") },
+      { label: "四手宿傩模型", load: () => loadGltf("sukunaStory1") },
+      { label: "完全体宿傩模型", load: () => loadGltf("sukunaStory2") },
+      { label: "开战街区场景", stage: "opening", load: () => loadStoryScene("opening") },
+      { label: "乙骨决战场景", stage: "yuta", load: () => loadStoryScene("yuta") },
+      { label: "借用身体场景", stage: "borrowed", load: () => loadStoryScene("borrowed") },
+      { label: "伏魔御厨子模型", load: () => this.shrineAsset }
+    ];
+    const failed = [];
+    let completed = 0;
+    onProgress({ completed, total: tasks.length, label: "准备资源", failed: false });
+    await Promise.all(tasks.map(async (task) => {
+      let asset = null;
+      try {
+        asset = await task.load();
+        if (!asset) failed.push(task.label);
+        if (task.stage && asset) {
+          this.storyAssets.set(task.stage, asset);
+          this.storyCollisionBoxes.set(task.stage, this.collectStoryCollisionBoxes(asset));
+        }
+      } catch (error) {
+        failed.push(task.label);
+        console.warn(`Unable to preload asset: ${task.label}`, error);
+      } finally {
+        completed += 1;
+        onProgress({ completed, total: tasks.length, label: task.label, failed: !asset });
+      }
+    }));
+    return { failed };
+  }
+
   _makeGraphicsRecoveryUI() {
     const host = this.canvas.parentElement;
     if (!host) return;
@@ -404,6 +442,7 @@ export class Renderer3D {
       if (!scene) return;
     }
     if (this.storyStage !== stage) return;
+    if (!scene.parent) this.scene.add(scene);
     this.storyScene = scene;
     scene.visible = true;
     this.collisionBoxes = this.storyCollisionBoxes.get(stage) || this.collectStoryCollisionBoxes(scene);

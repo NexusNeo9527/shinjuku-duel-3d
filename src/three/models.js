@@ -3,6 +3,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { articulateHands, installCombatAnimation } from "./combatRig.js";
 
 const loader = new GLTFLoader();
+const rawGltfPromises = new Map();
+const storyScenePromises = new Map();
+let domainShrinePromise = null;
 
 export const FIGHTER_STYLE = {
   gojo: { aura: 0x44d9ff, aura2: 0x266fff },
@@ -280,6 +283,11 @@ export function buildPlaceholder(id) {
   return buildCharacter(id);
 }
 
+function loadRawGltf(path) {
+  if (!rawGltfPromises.has(path)) rawGltfPromises.set(path, loader.loadAsync(path));
+  return rawGltfPromises.get(path);
+}
+
 export async function loadGltf(id) {
   const base = import.meta.env.BASE_URL;
   const paths = {
@@ -293,8 +301,8 @@ export async function loadGltf(id) {
     sukunaStory2: `${base}models/sukuna_shinjuku.glb`
   };
   try {
-    const gltf = await loader.loadAsync(paths[id]);
-    const model = gltf.scene;
+    const gltf = await loadRawGltf(paths[id]);
+    const model = gltf.scene.clone(true);
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const scale = 86 / (size.y || 1);
@@ -349,31 +357,39 @@ export async function loadGltf(id) {
   }
 }
 
-export async function loadDomainShrine() {
-  try {
-    const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/malevolent-shrine.glb`);
-    gltf.scene.traverse((o) => {
-      if (o.isMesh) {
-        o.castShadow = true;
-        o.receiveShadow = true;
-        o.material.side = THREE.DoubleSide;
-      }
-    });
-    return gltf.scene;
-  } catch (error) {
-    console.warn("Unable to load Malevolent Shrine", error);
-    return null;
+export function loadDomainShrine() {
+  if (!domainShrinePromise) {
+    domainShrinePromise = loadRawGltf(`${import.meta.env.BASE_URL}models/malevolent-shrine.glb`)
+      .then((gltf) => {
+        gltf.scene.traverse((o) => {
+          if (o.isMesh) {
+            o.castShadow = true;
+            o.receiveShadow = true;
+            o.material.side = THREE.DoubleSide;
+          }
+        });
+        return gltf.scene;
+      })
+      .catch((error) => {
+        console.warn("Unable to load Malevolent Shrine", error);
+        return null;
+      });
   }
+  return domainShrinePromise;
 }
-export async function loadStoryScene(stage) {
+export function loadStoryScene(stage) {
   if (!["opening", "yuta", "borrowed"].includes(stage)) return null;
-  try {
+  if (!storyScenePromises.has(stage)) {
     const filename = stage === "opening" ? "shinjuku-opening" : `story_${stage}`;
-    const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${filename}.glb`);
-    gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    return gltf.scene;
-  } catch (error) {
-    console.warn(`Unable to load story arena: ${stage}`, error);
-    return null;
+    storyScenePromises.set(stage, loadRawGltf(`${import.meta.env.BASE_URL}models/${filename}.glb`)
+      .then((gltf) => {
+        gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        return gltf.scene;
+      })
+      .catch((error) => {
+        console.warn(`Unable to load story arena: ${stage}`, error);
+        return null;
+      }));
   }
+  return storyScenePromises.get(stage);
 }

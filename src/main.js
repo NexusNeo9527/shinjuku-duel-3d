@@ -8,6 +8,11 @@ import { BINDINGS, DEFAULT_TOUCH_MOVE_POSITION, clampTouchMovePosition, displayK
 
 const canvas = document.querySelector("#gameCanvas");
 const arena = document.querySelector("#arena");
+const loadingScreen = document.querySelector("#loadingScreen");
+const loadingProgress = document.querySelector("#loadingProgress");
+const loadingPercent = document.querySelector("#loadingPercent");
+const loadingStatus = document.querySelector("#loadingStatus");
+const loadingDetails = document.querySelector("#loadingDetails");
 
 const game = new Game3D();
 const renderer = new Renderer3D(canvas);
@@ -203,6 +208,38 @@ function setModeTitle(mode, stage = null) {
   if (homeTitleRest) homeTitleRest.textContent = homeRest;
   if (homeKicker) homeKicker.textContent = kicker;
   if (storyMenuTitle && story) storyMenuTitle.textContent = title;
+}
+
+function updateLoadingProgress({ completed, total, label, failed }) {
+  const ratio = total > 0 ? completed / total : 1;
+  const percent = Math.round(ratio * 100);
+  if (loadingProgress) loadingProgress.style.width = `${percent}%`;
+  if (loadingPercent) loadingPercent.textContent = `${percent}%`;
+  if (loadingStatus) loadingStatus.textContent = failed ? `${label} · 使用备用资源` : label;
+  if (loadingDetails) loadingDetails.textContent = `${completed} / ${total} 项资源已准备`;
+}
+
+async function preloadGameAssets() {
+  if (!loadingScreen) return;
+  updateLoadingProgress({ completed: 0, total: 1, label: "连接资源库", failed: false });
+  try {
+    const result = await renderer.preloadAssets(updateLoadingProgress);
+    if (result.failed.length > 0) {
+      if (loadingStatus) loadingStatus.textContent = `${result.failed.length} 项资源使用备用版本`;
+      if (loadingDetails) loadingDetails.textContent = "核心系统已准备，可以开始游戏";
+    } else if (loadingStatus) {
+      loadingStatus.textContent = "全部资源已准备";
+    }
+  } catch (error) {
+    console.warn("Unable to preload game assets", error);
+    if (loadingStatus) loadingStatus.textContent = "部分资源加载失败，使用备用版本";
+    if (loadingDetails) loadingDetails.textContent = "核心系统已准备，可以开始游戏";
+  }
+  loadingScreen.classList.add("loading-ready");
+  window.setTimeout(() => {
+    loadingScreen.classList.add("hidden");
+    loadingScreen.setAttribute("aria-hidden", "true");
+  }, 420);
 }
 
 const secondPlayer = () => game.entities.find((e) => e.isPlayer && e !== game.player());
@@ -710,6 +747,7 @@ renderer.resize(rect.width, rect.height);
 applyTheme("gojo");
 setModeTitle("gojo");
 requestAnimationFrame(frame);
+void preloadGameAssets();
 
 window.__arena3d = {
   game,
