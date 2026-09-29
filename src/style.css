@@ -324,7 +324,10 @@ body.story-title-active .brand-text strong { max-width: 48vw; overflow: hidden; 
   padding: 12px 14px; border-radius: 12px; font-size: 12px; color: var(--text);
   background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(8px);
 }
-.pp-head { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em; color: var(--accent); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.pp-head { display: flex; align-items: center; justify-content: space-between; width: 100%; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em; color: var(--accent); margin: 0 0 10px; padding: 0 0 8px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0 !important; background: transparent !important; text-align: left; cursor: pointer; }
+.pp-chevron { font-size: 16px; line-height: 1; letter-spacing: 0; }
+.practice-panel.collapsed .pp-head { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.practice-panel.collapsed .pp-content { display: none; }
 .pp-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; gap: 8px; }
 .pp-btns { display: flex; gap: 5px; }
 .pp-character-row { align-items: flex-start; flex-direction: column; gap: 5px; }

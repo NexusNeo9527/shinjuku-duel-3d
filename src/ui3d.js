@@ -139,6 +139,7 @@ export class UI3D {
       hint: document.querySelector("#hint"),
       modeStatus: document.querySelector("#modeStatus"),
       practicePanel: document.querySelector("#practicePanel"),
+      practicePanelToggle: document.querySelector("#practicePanelToggle"),
       splitUI: document.querySelector("#splitUI"),
       practiceChars: [...document.querySelectorAll("[data-pchar]")],
       singleCharBtns: [...document.querySelectorAll("[data-single-char]")],
@@ -183,6 +184,11 @@ export class UI3D {
     this.dom.pauseHomeBtn.addEventListener("click", () => h.onHome());
     this.dom.soundBtn.addEventListener("click", () => h.onSound(this.dom.soundBtn));
     this.dom.practiceChars.forEach((b) => b.addEventListener("click", () => h.onPracticeChar(b.dataset.pchar)));
+    this.dom.practicePanelToggle.addEventListener("click", () => {
+      const collapsed = this.dom.practicePanel.classList.toggle("collapsed");
+      this.dom.practicePanelToggle.setAttribute("aria-expanded", String(!collapsed));
+      this.dom.practicePanelToggle.querySelector(".pp-chevron").textContent = collapsed ? "+" : "−";
+    });
     this.dom.singleCharBtns.forEach((b) => b.addEventListener("click", () => {
       h.onSingleChar(b.dataset.singleChar);
     }));

@@ -163,7 +163,10 @@
       <div id="hint" class="hint hidden">WASD 移动 · Shift 疾跑 · 空格 升空 · 左Alt 切换目标 · Z 升空 / X 或 C 下降 · 左键攻击 · 自动锁定无需瞄准 · 滚轮缩放</div>
 
       <div id="practicePanel" class="practice-panel hidden">
-        <div class="pp-head">练习终端</div>
+        <button id="practicePanelToggle" class="pp-head" type="button" aria-expanded="true" aria-controls="practicePanelContent">
+          <span>练习终端</span><span class="pp-chevron" aria-hidden="true">−</span>
+        </button>
+        <div id="practicePanelContent" class="pp-content">
         <div class="pp-row pp-character-row"><span>角色</span>
           <div class="pp-btns">
             <button data-pchar="gojo" type="button">五条悟</button>
@@ -179,6 +182,7 @@
         <div class="pp-row"><span>敌方无敌</span><button data-ptoggle="enemyInvincible" class="pp-toggle" type="button">开</button></div>
         <div class="pp-row"><span>木桩靶子</span><button data-ptoggle="dummy" class="pp-toggle" type="button">关</button></div>
         <div class="pp-hint" id="ppCombo"></div>
+        </div>
       </div>
 
       <div id="menu" class="overlay menu-overlay">
