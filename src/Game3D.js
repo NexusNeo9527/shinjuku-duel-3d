@@ -1,6 +1,7 @@
 import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, YUTA_STORY_DIFFICULTY_OVERRIDES, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, PLAYER_HP_SETTINGS, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
 import { STORY_DIALOGUE } from "./storyDialogue.js";
 import { beginCombatMotion } from "./combatMotion.js";
+import { SIMPLE_DOMAIN } from "./config3d.js";
 
 const ENTITY_RADIUS = 0.7;
 const ENTITY_HEIGHT = 2;
@@ -350,6 +351,9 @@ export class Game3D {
       burnout: 0,
       domainLocked: false,
       guardTimer: 0,
+      simpleDomainTimer: 0,
+      simpleDomainCooldown: 0,
+      simpleDomainIntegrity: 0,
       copyIndex: 0,
       stun: 0,
       invuln: 0,
@@ -661,6 +665,23 @@ export class Game3D {
     return true;
   }
 
+  canUseSimpleDomain(entity) {
+    return Boolean(entity && !entity.summon && SIMPLE_DOMAIN.characters.includes(entity.charId));
+  }
+
+  trySimpleDomain(entity) {
+    if (!this.canUseSimpleDomain(entity) || !entity.alive || this.state !== "playing" || entity.stun > 0) return false;
+    if (entity.simpleDomainTimer > 0) return false;
+    const infinite = this.practice && this.practiceInfinite;
+    if (!infinite && entity.simpleDomainCooldown > 0) { this.emit("sfx", { kind: "empty" }); return false; }
+    entity.simpleDomainTimer = SIMPLE_DOMAIN.duration;
+    entity.simpleDomainIntegrity = SIMPLE_DOMAIN.integrity;
+    entity.simpleDomainCooldown = infinite ? 0.25 : SIMPLE_DOMAIN.cooldown;
+    this.burst(entity.x, entity.y + 0.1, entity.z, SIMPLE_DOMAIN.color, 16, 3);
+    this.announce(`${entity.name} · 新阴流 简易领域`, SIMPLE_DOMAIN.color, 1.3);
+    return true;
+  }
+
   castGuard(entity, ability) {
     entity.guardTimer = 4;
     this.announce(`${entity.name} · ${ability.label}`, ability.color, 1);
@@ -677,6 +698,7 @@ export class Game3D {
   }
 
   inVoidStun(entity) {
+    if (entity.simpleDomainTimer > 0) return false;
     return this.domains.some((d) => {
       if (!d.alive || d.type !== "void" || d.team === entity.team) return false;
       if (d.life <= d.maxLife * 0.45) return false;
@@ -923,6 +945,8 @@ export class Game3D {
       maxLife: ability.life,
       tick: ability.tick,
       tickTimer: 0.15,
+      tickSerial: 0,
+      visualTargets: [],
       damage: ability.damage,
       power: ability.domainPower ?? 2,
       hp: 40,
@@ -1093,6 +1117,7 @@ export class Game3D {
       : null;
     // 领域是持续伤害；若每一跳都回充，会在持续时间内把领域值重新充满，导致 AI 连续展开。
     const isDomainTick = sourceAbility?.type === "domain";
+    if (isDomainTick && target.simpleDomainTimer > 0) return;
     const aiAttacker = source && !source.isPlayer && (this.mode === "single" || this.mode === "story");
     const aiTarget = (this.mode === "single" || this.mode === "story") && !target.isPlayer && !target.summon;
     let dealt = amount * (aiAttacker ? profile.damageMultiplier : 1);
@@ -1221,6 +1246,7 @@ export class Game3D {
     this.syncDomainCaptives();
     this.domainBreaks = [];
     this.particles = [];
+    for (const entity of this.entities) entity.simpleDomainTimer = 0;
     this.emit("sfx", { kind: "win" });
     const winnerId = this.winner?.charId || "gojo";
     const line = this.storyDialogueLine(winnerId, "ending")
@@ -1426,13 +1452,28 @@ export class Game3D {
       d.tickTimer -= dt;
       if (d.tickTimer <= 0) {
         d.tickTimer = d.tick;
+        d.tickSerial = (d.tickSerial || 0) + 1;
+        d.visualTargets = [];
         const owner = this.entities.find((x) => x.id === d.ownerId);
         for (const e of this.entities) {
           if (!e.alive || e.team === d.team) continue;
           const dx = e.x - d.x;
           const dy = (e.y + CHEST) - d.y;
           const dz = e.z - d.z;
-          if (dx * dx + dy * dy + dz * dz <= d.radius * d.radius) this.damage(e, d.damage, owner, d.abilityId);
+          if (dx * dx + dy * dy + dz * dz > d.radius * d.radius) continue;
+          d.visualTargets.push({ x: e.x, y: e.y, z: e.z, blocked: e.simpleDomainTimer > 0 });
+          if (e.simpleDomainTimer > 0) {
+            // Neutralize this sure-hit, including the tick that erodes the last
+            // layer. Ordinary attacks still go through the normal damage path.
+            e.simpleDomainIntegrity = Math.max(0, e.simpleDomainIntegrity - d.damage * Math.max(1, (d.power || 2) / 2));
+            if (e.simpleDomainIntegrity <= 0) {
+              e.simpleDomainTimer = 0;
+              this.burst(e.x, e.y + 0.5, e.z, SIMPLE_DOMAIN.color, 20, 5);
+              this.announce(`${e.name} · 简易领域被压碎`, SIMPLE_DOMAIN.color, 1);
+            }
+            continue;
+          }
+          this.damage(e, d.damage, owner, d.abilityId);
         }
       }
       if (d.life <= 0) {
@@ -1475,11 +1516,13 @@ export class Game3D {
     const fromZ = e.z;
     e.burnout = Math.max(0, (e.burnout || 0) - dt);
     e.guardTimer = Math.max(0, (e.guardTimer || 0) - dt);
+    e.simpleDomainTimer = Math.max(0, (e.simpleDomainTimer || 0) - dt);
+    e.simpleDomainCooldown = Math.max(0, (e.simpleDomainCooldown || 0) - dt);
     e.basicCooldown = Math.max(0, (e.basicCooldown || 0) - dt);
     e.stun = Math.max(0, (e.stun || 0) - dt);
     let slowFactor = 1;
     for (const d of this.domains) {
-      if (d.ownerId === e.id || d.team === e.team) continue;
+      if (!d.alive || d.ownerId === e.id || d.team === e.team || e.simpleDomainTimer > 0) continue;
       const dx = e.x - d.x;
       const dy = (e.y + CHEST) - d.y;
       const dz = e.z - d.z;
@@ -1543,6 +1586,7 @@ export class Game3D {
     const ai = this.entities.find((e) => !e.isPlayer && e.alive && !e.dummy);
     const target = this.entities.find((e) => e.isPlayer && e.alive);
     if (!ai || !target) return;
+    if (this.canUseSimpleDomain(ai) && ai.simpleDomainCooldown <= 0 && ai.simpleDomainTimer <= 0 && this.domains.some((d) => d.alive && d.team !== ai.team && Math.hypot(ai.x - d.x, ai.y + CHEST - d.y, ai.z - d.z) <= d.radius)) this.trySimpleDomain(ai);
     if (ai.burnout > 0) {
       if (ai.hp > ai.maxHp * 0.4 && ai.burnout > 2 && target.hp > 20) this.tryForceRestore(ai);
       else if (Math.hypot(target.x - ai.x, target.z - ai.z) < 3.2) this.tryBasicAttack(ai);

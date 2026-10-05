@@ -159,7 +159,8 @@ body.story-title-active .brand-text strong { max-width: 48vw; overflow: hidden; 
 }
 .loading-readout strong { font-size: 16px; }
 .loading-readout span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.loading-details { margin-top: 10px; color: var(--muted); font: 10px var(--font-mono); }
+.loading-details { margin-top: 10px; color: var(--muted); font: 10px var(--font-mono); overflow-wrap: anywhere; line-height: 1.6; }
+#loadingRetry { margin-top: 16px; }
 
 /* hit border (screen-shake clash frame) */
 .hit-border {
@@ -452,6 +453,9 @@ body.story-title-active .brand-text strong { max-width: 48vw; overflow: hidden; 
 }
 .touch-btn.small:active { border-color: var(--accent); }
 .touch-btn.small.on { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 14px -5px var(--accent); }
+.touch-btn.simple-domain { color: #bdeeff; border-color: rgba(189, 238, 255, 0.5); }
+.touch-btn.simple-domain.locked { opacity: 0.55; }
+.sp-simple-domain { color: #bdeeff; font-size: 10px; }
 .touch-btn.switch { pointer-events: auto; color: var(--gauge-domain); border-color: var(--gauge-domain); }
 .touch-btn.lock {
   pointer-events: auto; min-width: 118px; height: 40px; border-radius: 12px; cursor: pointer;

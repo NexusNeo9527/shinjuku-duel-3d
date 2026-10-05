@@ -15,10 +15,11 @@
         <div class="loading-mark" aria-hidden="true">領</div>
         <div class="loading-kicker">CURSED ARENA / RESOURCE BOOT</div>
         <h1>领域资源准备中</h1>
-        <p>正在载入角色、决战场景与领域空间</p>
+        <p>正在载入模型、场景、全部图片与音乐</p>
         <div class="loading-meter" aria-hidden="true"><span id="loadingProgress"></span></div>
         <div class="loading-readout"><strong id="loadingPercent">0%</strong><span id="loadingStatus">连接资源库</span></div>
         <div id="loadingDetails" class="loading-details">正在建立资源清单</div>
+        <button id="loadingRetry" class="ghost-button hidden" type="button">重新加载资源</button>
       </div>
     </section>
     <header class="topbar">
@@ -122,7 +123,7 @@
 
       <div id="splitUI" class="split-ui hidden">
         <div class="split-divider"></div>
-        <div class="split-controls split-controls-p1">P1 · WASD 移动 · Shift 疾跑 · Space/Z 升空 · X/C 下降 · 1/Q/E/R/T 术式 · F 冲刺</div>
+        <div class="split-controls split-controls-p1">P1 · WASD 移动 · Shift 疾跑 · 空格 升空 · X 下降 · 1/Q/E/R/T 术式 · F 冲刺 · C 简易领域</div>
         <div class="split-controls split-controls-p2">P2 · IJKL 移动 · 右Shift 疾跑 · N 升空 · M 下降 · U/O/P/[/] 术式 · B 冲刺</div>
       </div>
 
@@ -156,11 +157,12 @@
             <button id="btnBasic" class="touch-btn small" type="button" data-slot="basic">近战</button>
             <button id="btnCopy" class="touch-btn small hidden" type="button" data-slot="copy">切换复制</button>
             <button id="btnRestore" class="touch-btn small hidden" type="button" data-slot="restore">强行恢复</button>
+            <button id="btnSimpleDomain" class="touch-btn small simple-domain hidden" type="button" data-slot="simpleDomain">简易领域</button>
           </div>
         </div>
       </div>
 
-      <div id="hint" class="hint hidden">WASD 移动 · Shift 疾跑 · 空格 升空 · 左Alt 切换目标 · Z 升空 / X 或 C 下降 · 左键攻击 · 自动锁定无需瞄准 · 滚轮缩放</div>
+      <div id="hint" class="hint hidden">WASD 移动 · Shift 疾跑 · 空格 升空 · X 下降 · 左Alt 切换目标 · C 简易领域 · 左键攻击 · 自动锁定无需瞄准 · 滚轮缩放</div>
 
       <div id="practicePanel" class="practice-panel hidden">
         <button id="practicePanelToggle" class="pp-head" type="button" aria-expanded="true" aria-controls="practicePanelContent">
@@ -284,6 +286,7 @@
               <h3>操作方式</h3>
               <p>键盘控制移动、升降与术式；攻击会自动锁定目标。打开“设置”可查看和修改所有键位。</p>
               <p>手机和平板使用触屏摇杆移动、拖动画面转向，右侧按钮释放术式。练习模式可打开无限术式、无敌或木桩。</p>
+              <p>五条悟与乙骨·五条之身可使用简易领域：默认玩家 1 按 C，玩家 2 按句号，触屏点击“简易领域”。暂时抵消领域必中，受到领域侵蚀会破碎；术式熔断时也能施展。</p>
             </section>
           </div>
           <button id="guideBackBtn" class="text-button" type="button">← 返回主页</button>

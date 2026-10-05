@@ -51,6 +51,25 @@ export class AudioEngine {
     this.bgmId = loadBgmId(this.bgmScene);
     this.bgmVolume = loadBgmVolume();
     this._bgmFade = 0;
+    this.bgmSources = new Map();
+  }
+
+  async preloadTrack(track) {
+    if (this.bgmSources.has(track.id)) return this.bgmSources.get(track.id);
+    // Fetch the complete file: media preload hints may be ignored on phones.
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 120000);
+    try {
+      const response = await fetch(track.src, { signal: controller.signal });
+      if (!response.ok) throw new Error(`Music failed: ${track.id} (${response.status})`);
+      const blob = await response.blob();
+      if (!blob.size) throw new Error(`Music is empty: ${track.id}`);
+      const source = URL.createObjectURL(blob);
+      this.bgmSources.set(track.id, source);
+      return source;
+    } finally {
+      window.clearTimeout(timer);
+    }
   }
 
   ensure() {
@@ -101,7 +120,7 @@ export class AudioEngine {
     const el = this.ensureBgm();
     if (el.dataset.track !== track.id) {
       el.dataset.track = track.id;
-      el.src = track.src;
+      el.src = this.bgmSources.get(track.id) || track.src;
       el.currentTime = 0;
     }
     el.muted = this.muted;

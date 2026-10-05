@@ -19,6 +19,7 @@ export const BINDINGS = [
   { id: "p1.cast5", player: "玩家 1", group: "术式", label: "术式 5", defaultCode: "KeyT" },
   { id: "p1.copy", player: "玩家 1", group: "战斗", label: "切换复制术式", defaultCode: "KeyG" },
   { id: "p1.restore", player: "玩家 1", group: "战斗", label: "强行恢复术式", defaultCode: "KeyH" },
+  { id: "p1.simpleDomain", player: "玩家 1", group: "战斗", label: "简易领域", defaultCode: "KeyC" },
   { id: "p1.melee", player: "玩家 1", group: "战斗", label: "近身攻击", defaultCode: "KeyV" },
   { id: "p1.lock", player: "玩家 1", group: "战斗", label: "切换目标", defaultCode: "AltLeft" },
   { id: "p1.dash", player: "玩家 1", group: "战斗", label: "冲刺", defaultCode: "KeyF" },
@@ -35,6 +36,7 @@ export const BINDINGS = [
   { id: "p2.cast4", player: "玩家 2", group: "术式", label: "术式 4", defaultCode: "BracketLeft" },
   { id: "p2.cast5", player: "玩家 2", group: "术式", label: "术式 5", defaultCode: "BracketRight" },
   { id: "p2.restore", player: "玩家 2", group: "战斗", label: "强行恢复术式", defaultCode: "Quote" },
+  { id: "p2.simpleDomain", player: "玩家 2", group: "战斗", label: "简易领域", defaultCode: "Period" },
   { id: "p2.melee", player: "玩家 2", group: "战斗", label: "近身攻击", defaultCode: "Semicolon" },
   { id: "p2.dash", player: "玩家 2", group: "战斗", label: "冲刺", defaultCode: "KeyB" }
 ];
@@ -47,6 +49,15 @@ export function loadInputSettings() {
       const code = saved.bindings?.[binding.id];
       return [binding.id, typeof code === "string" && code && code !== "Escape" ? code : binding.defaultCode];
     }));
+    // Adding a defensive action must not reset a player's existing custom keys
+    // when they already use C or period for something else.
+    for (const binding of BINDINGS.filter((binding) => binding.id.endsWith(".simpleDomain"))) {
+      if (saved.bindings?.[binding.id]) continue;
+      const occupied = new Set(Object.entries(candidates).filter(([id]) => id !== binding.id).map(([, code]) => code));
+      if (occupied.has(candidates[binding.id])) {
+        candidates[binding.id] = ["KeyC", "Period", "Digit2", "Digit3", "Comma", "Slash", "Backquote"].find((code) => !occupied.has(code)) || binding.defaultCode;
+      }
+    }
     const codes = Object.values(candidates);
     const bindings = new Set(codes).size === codes.length ? candidates : defaults;
     const pos = saved.touchMovePosition;

@@ -4,6 +4,8 @@ import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene, loadDomainS
 import { Post } from "./Post.js";
 import { ParticlePool } from "./Particles.js";
 import { DomainBreaks } from "./DomainBreaks.js";
+import { DomainDynamics } from "./DomainDynamics.js";
+import { SIMPLE_DOMAIN } from "../config3d.js";
 import { buildArenaDistrict } from "./arenaDistrict.js";
 import { ARENA, clamp, lerp } from "../config3d.js";
 
@@ -124,7 +126,9 @@ export class Renderer3D {
     this.beamPool = [];
     this.damageTextMap = new Map();
     this.domains = [];
+    this.simpleDomains = [];
     this.domainBreaks = new DomainBreaks(this.scene);
+    this.domainDynamics = new DomainDynamics(this.scene);
     this.aimArrows = {};
     this._v1 = new THREE.Vector3();
     this._v2 = new THREE.Vector3();
@@ -172,7 +176,7 @@ export class Renderer3D {
     });
   }
 
-  async preloadAssets(onProgress = () => {}) {
+  async preloadAssets(onProgress = () => {}, mediaTasks = []) {
     const tasks = [
       { label: "五条悟模型", load: () => loadGltf("gojo") },
       { label: "宿傩模型", load: () => loadGltf("sukuna") },
@@ -186,7 +190,8 @@ export class Renderer3D {
       { label: "乙骨决战场景", stage: "yuta", load: () => loadStoryScene("yuta") },
       { label: "借用身体场景", stage: "borrowed", load: () => loadStoryScene("borrowed") },
       { label: "伏魔御厨子模型", load: () => this.shrineAsset },
-      { label: "无量空处空间", load: () => this.voidAsset }
+      { label: "无量空处空间", load: () => this.voidAsset },
+      ...mediaTasks
     ];
     const failed = [];
     let completed = 0;
@@ -205,7 +210,7 @@ export class Renderer3D {
         console.warn(`Unable to preload asset: ${task.label}`, error);
       } finally {
         completed += 1;
-        onProgress({ completed, total: tasks.length, label: task.label, failed: !asset });
+        onProgress({ completed, total: tasks.length, label: task.label, failed: !asset, failedCount: failed.length });
       }
     }));
     return { failed };
@@ -912,6 +917,38 @@ export class Renderer3D {
     }
   }
 
+  syncSimpleDomains(game) {
+    const active = game.entities.filter((entity) => entity.alive && entity.simpleDomainTimer > 0);
+    while (this.simpleDomains.length < active.length) {
+      const group = new THREE.Group();
+      const material = new THREE.MeshBasicMaterial({ color: SIMPLE_DOMAIN.color, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 64), material);
+      ring.rotation.x = -Math.PI / 2;
+      const inner = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.71, 64), material.clone());
+      inner.rotation.x = -Math.PI / 2;
+      const aura = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.2, 48, 1, true), material.clone());
+      aura.position.y = 0.1;
+      group.add(ring, inner, aura);
+      group.traverse((object) => object.layers.set(1));
+      this.scene.add(group);
+      this.simpleDomains.push({ group, ring, inner, aura });
+    }
+    for (let i = 0; i < this.simpleDomains.length; i += 1) {
+      const effect = this.simpleDomains[i];
+      const entity = active[i];
+      effect.group.visible = Boolean(entity);
+      if (!entity) continue;
+      const fade = Math.min(1, (SIMPLE_DOMAIN.duration - entity.simpleDomainTimer) / 0.2, entity.simpleDomainTimer / 0.3);
+      const stability = entity.simpleDomainIntegrity / SIMPLE_DOMAIN.integrity;
+      const pulse = stability < 0.35 ? 0.55 + 0.45 * Math.sin(game.elapsed * 28) ** 2 : 1;
+      effect.group.position.set(entity.x, entity.y + 0.05, entity.z);
+      effect.group.scale.setScalar(SIMPLE_DOMAIN.radius * Math.max(0.01, fade));
+      effect.ring.material.opacity = 0.85 * fade * pulse;
+      effect.inner.material.opacity = 0.45 * fade * pulse;
+      effect.aura.material.opacity = 0.18 * fade * pulse;
+    }
+  }
+
   // ---- domains ----
   ensureDomain() {
     const group = new THREE.Group();
@@ -953,7 +990,29 @@ export class Renderer3D {
     const voidSpace = new THREE.Group();
     voidSpace.visible = false;
     this.scene.add(voidSpace);
-    this.voidAsset.then((asset) => { if (asset) voidSpace.add(asset.clone(true)); });
+    this.voidAsset.then((asset) => {
+      if (!asset) return;
+      const clone = asset.clone(true), motionParts = [];
+      const meshes = []; clone.traverse((object) => { if (object.isMesh) meshes.push(object); });
+      for (const mesh of meshes) {
+        if (!/corona|stars|galaxy|information/.test(mesh.name)) continue;
+        mesh.material = mesh.material.clone();
+        mesh.geometry.computeBoundingBox();
+        const center = mesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+        const size = mesh.geometry.boundingBox.getSize(new THREE.Vector3());
+        const axis = mesh.name.startsWith("corona")
+          ? new THREE.Vector3(Number(size.x <= size.y && size.x <= size.z), Number(size.y < size.x && size.y <= size.z), Number(size.z < size.x && size.z < size.y))
+          : new THREE.Vector3(0,0,1);
+        const pivot = new THREE.Group();
+        pivot.position.copy(mesh.position).add(center.clone().multiply(mesh.scale).applyQuaternion(mesh.quaternion));
+        pivot.quaternion.copy(mesh.quaternion); pivot.scale.copy(mesh.scale);
+        mesh.parent.add(pivot); pivot.add(mesh);
+        mesh.position.copy(center).negate(); mesh.quaternion.identity(); mesh.scale.setScalar(1);
+        motionParts.push({ pivot, axis, base: pivot.quaternion.clone(), material: mesh.material, color: mesh.material.color.clone(), speed: mesh.name === "corona_blue" ? -.14 : mesh.name.startsWith("corona") ? .11 : .035 });
+      }
+      voidSpace.userData.motionParts = motionParts;
+      voidSpace.add(clone);
+    });
     return { group, sphere, ring, field, shrine, voidSpace, voidRef: null, domainRef: null };
   }
 
@@ -996,18 +1055,26 @@ export class Renderer3D {
         if (dom.voidRef !== d) {
           dom.voidRef = d;
           const owner = game.entities.find((entity) => entity.id === d.ownerId);
-          // Blender +Y becomes glTF -Z; place the corona behind its caster.
-          dom.voidSpace.rotation.y = owner?.yaw || 0;
+          // Blender +Y becomes glTF -Z. Put the horizon beyond the fighters
+          // along the caster's gaze so the third-person view sees the corona.
+          dom.voidSpace.rotation.y = (owner?.yaw || 0) + Math.PI;
         }
         dom.voidSpace.position.set(d.x, d.y, d.z);
         // The interior sky extends beyond both the playable barrier and camera.
         // Never shrink the sky through the fighters during entry or exit.
         dom.voidSpace.scale.setScalar(Math.max(160, d.radius * 2) / 100);
+        const age = d.maxLife - d.life;
+        const rotation = this._voidRotation || (this._voidRotation = new THREE.Quaternion());
+        for (const part of dom.voidSpace.userData.motionParts || []) {
+          part.pivot.quaternion.copy(part.base).multiply(rotation.setFromAxisAngle(part.axis, age * part.speed));
+          part.material.color.copy(part.color).multiplyScalar(.88 + .12 * Math.sin(age * 2.4 + part.speed * 10));
+        }
       }
       const hasVoidModel = dom.voidSpace.visible && dom.voidSpace.children.length > 0;
-      dom.sphere.visible = !hasVoidModel;
-      dom.field.visible = !hasVoidModel;
+      dom.sphere.visible = !hasVoidModel && d.type !== "shrine";
+      dom.field.visible = !hasVoidModel && d.type !== "shrine";
       dom.ring.visible = d.type !== "void";
+      dom.ring.position.y = d.type === "shrine" ? -.96 / d.radius : 0;
       if (dom.shrine.visible) {
         if (dom.domainRef !== d) {
           dom.domainRef = d;
@@ -1264,6 +1331,8 @@ export class Renderer3D {
     this.syncProjectiles(game);
     this.syncBeams(game);
     this.syncDomains(game);
+    this.domainDynamics.sync(game);
+    this.syncSimpleDomains(game);
     this.domainBreaks.sync(game.domainBreaks);
     this.syncStoryHits(game);
     this.syncParticles(game);
@@ -1379,6 +1448,8 @@ export class Renderer3D {
     this.damageTextMap.clear();
     this.particlePool.clear();
     this.domainBreaks.clear();
+    this.domainDynamics.clear();
+    for (const effect of this.simpleDomains) effect.group.visible = false;
     if (this.insideVoid) {
       this.insideVoid = false;
       this.baseArena.visible = !this.storyScene;

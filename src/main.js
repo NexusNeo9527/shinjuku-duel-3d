@@ -1,6 +1,7 @@
 import { Game3D } from "./Game3D.js";
 import { Renderer3D } from "./three/Renderer3D.js";
 import { AudioEngine } from "./audio.js";
+import { mediaPreloadTasks } from "./preloadMedia.js";
 import { UI3D } from "./ui3d.js";
 import { TouchControls } from "./touch.js";
 import { PLAYER_HP_SETTINGS, STORY_STAGES } from "./config3d.js";
@@ -13,6 +14,11 @@ const loadingProgress = document.querySelector("#loadingProgress");
 const loadingPercent = document.querySelector("#loadingPercent");
 const loadingStatus = document.querySelector("#loadingStatus");
 const loadingDetails = document.querySelector("#loadingDetails");
+const loadingRetry = document.querySelector("#loadingRetry");
+loadingRetry?.addEventListener("click", () => window.location.reload());
+let assetsReady = false;
+const bootContent = [...document.querySelector(".game-shell").children].filter((element) => element !== loadingScreen);
+for (const element of bootContent) element.inert = true;
 
 const game = new Game3D();
 const renderer = new Renderer3D(canvas);
@@ -211,31 +217,39 @@ function setModeTitle(mode, stage = null) {
   if (storyMenuTitle && story) storyMenuTitle.textContent = title;
 }
 
-function updateLoadingProgress({ completed, total, label, failed }) {
-  const ratio = total > 0 ? completed / total : 1;
+function updateLoadingProgress({ completed, total, label, failed, failedCount = 0 }) {
+  const ready = completed - failedCount;
+  const ratio = total > 0 ? ready / total : 1;
   const percent = Math.round(ratio * 100);
   if (loadingProgress) loadingProgress.style.width = `${percent}%`;
   if (loadingPercent) loadingPercent.textContent = `${percent}%`;
-  if (loadingStatus) loadingStatus.textContent = failed ? `${label} · 使用备用资源` : label;
-  if (loadingDetails) loadingDetails.textContent = `${completed} / ${total} 项资源已准备`;
+  if (loadingStatus) loadingStatus.textContent = failed ? `${label} · 加载失败` : label;
+  if (loadingDetails) loadingDetails.textContent = `${ready} / ${total} 项资源已准备`;
 }
 
 async function preloadGameAssets() {
   if (!loadingScreen) return;
   updateLoadingProgress({ completed: 0, total: 1, label: "连接资源库", failed: false });
   try {
-    const result = await renderer.preloadAssets(updateLoadingProgress);
+    const result = await renderer.preloadAssets(updateLoadingProgress, mediaPreloadTasks(audio));
     if (result.failed.length > 0) {
-      if (loadingStatus) loadingStatus.textContent = `${result.failed.length} 项资源使用备用版本`;
-      if (loadingDetails) loadingDetails.textContent = "核心系统已准备，可以开始游戏";
+      if (loadingStatus) loadingStatus.textContent = `${result.failed.length} 项资源加载失败`;
+      if (loadingDetails) loadingDetails.textContent = `请检查网络后重试：${result.failed.join("、")}`;
+      loadingRetry?.classList.remove("hidden");
+      return;
     } else if (loadingStatus) {
       loadingStatus.textContent = "全部资源已准备";
     }
   } catch (error) {
     console.warn("Unable to preload game assets", error);
-    if (loadingStatus) loadingStatus.textContent = "部分资源加载失败，使用备用版本";
-    if (loadingDetails) loadingDetails.textContent = "核心系统已准备，可以开始游戏";
+    if (loadingStatus) loadingStatus.textContent = "资源加载失败";
+    if (loadingDetails) loadingDetails.textContent = "请检查网络后重新加载";
+    loadingRetry?.classList.remove("hidden");
+    return;
   }
+  if (loadingDetails) loadingDetails.textContent = "模型、场景、图片与音乐全部就绪";
+  assetsReady = true;
+  for (const element of bootContent) element.inert = false;
   loadingScreen.classList.add("loading-ready");
   window.setTimeout(() => {
     loadingScreen.classList.add("hidden");
@@ -273,7 +287,8 @@ btnSwitch?.addEventListener("pointerdown", switchTarget);
 for (const [selector, action] of [
   ["#btnBasic", () => game.tryBasicAttack(game.player())],
   ["#btnCopy", () => game.cycleCopy(game.player())],
-  ["#btnRestore", () => game.tryForceRestore(game.player())]
+  ["#btnRestore", () => game.tryForceRestore(game.player())],
+  ["#btnSimpleDomain", () => game.trySimpleDomain(game.player())]
 ]) document.querySelector(selector)?.addEventListener("pointerdown", (event) => {
   event.preventDefault(); event.stopPropagation(); action();
 });
@@ -292,6 +307,7 @@ bgmBtn?.addEventListener("click", () => {
 });
 
 function startGame(mode, difficulty) {
+  if (!assetsReady) return;
   audio.ensure();
   setMusicScene(game.modeFamily === "story" ? "story" : mode === "practice" ? "practice" : "gojo");
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -542,6 +558,7 @@ window.addEventListener("keydown", (event) => {
     if (cast) game.tryCast(p1, Number(cast.at(-1)) - 1);
     if (actions.includes("p1.copy")) game.cycleCopy(p1);
     if (actions.includes("p1.restore")) game.tryForceRestore(p1);
+    if (actions.includes("p1.simpleDomain")) game.trySimpleDomain(p1);
     if (actions.includes("p1.melee")) game.tryBasicAttack(p1);
     if (actions.includes("p1.lock")) game.cycleLock(p1);
     if (actions.includes("p1.dash")) game.tryDash(p1, p1.moveInput.x, p1.moveInput.y, p1.moveInput.z);
@@ -552,6 +569,7 @@ window.addEventListener("keydown", (event) => {
     if (cast) game.tryCast(p2, Number(cast.at(-1)) - 1);
     if (actions.includes("p2.melee")) game.tryBasicAttack(p2);
     if (actions.includes("p2.restore")) game.tryForceRestore(p2);
+    if (actions.includes("p2.simpleDomain")) game.trySimpleDomain(p2);
     if (actions.includes("p2.dash")) game.tryDash(p2, p2.moveInput.x, p2.moveInput.y, p2.moveInput.z);
   }
 });

@@ -1,4 +1,4 @@
-import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY } from "./config3d.js";
+import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, SIMPLE_DOMAIN } from "./config3d.js";
 import { STORY_VICTORY_LINES } from "./storyDialogue.js";
 
 const SLOT_KEYS = ["p1.cast1", "p1.cast2", "p1.cast3", "p1.cast4", "p1.cast5"];
@@ -220,7 +220,7 @@ export class UI3D {
         <div class="sp-gauge"><span>奥义</span><div class="sp-track"><div class="sp-gfill sp-charge"></div></div></div>
         <div class="sp-gauge"><span>领域</span><div class="sp-track"><div class="sp-gfill sp-domain"></div></div></div>
       </div>
-      <div class="sp-slots"></div>`;
+      <div class="sp-slots"></div><div class="sp-simple-domain hidden"></div>`;
     this.dom.splitUI.appendChild(el);
     return {
       el,
@@ -231,6 +231,7 @@ export class UI3D {
       charge: el.querySelector(".sp-charge"),
       domain: el.querySelector(".sp-domain"),
       slotHost: el.querySelector(".sp-slots"),
+      simpleDomain: el.querySelector(".sp-simple-domain"),
       keys,
       charId: null,
       slots: []
@@ -263,6 +264,8 @@ export class UI3D {
     panel.hp.style.transform = `scaleX(${Math.max(0, ent.hp / ent.maxHp)})`;
     panel.charge.style.transform = `scaleX(${ent.charge / 100})`;
     panel.domain.style.transform = `scaleX(${ent.domainCharge / 100})`;
+    panel.simpleDomain.classList.toggle("hidden", !game.canUseSimpleDomain(ent));
+    panel.simpleDomain.textContent = this.simpleDomainStatus(ent, panel.keys[0].slice(0, 2));
     if (panel.charId !== ent.charId) this.rebuildSplitSlots(panel, ent.charId);
     for (let i = 0; i < panel.slots.length; i += 1) {
       const sl = panel.slots[i];
@@ -509,6 +512,7 @@ export class UI3D {
       : `${game.modeFamily === "story" ? "乙骨篇 · " : ""}练习终端`;
     this.dom.modeStatus.textContent = modeLabel;
     const status = [];
+    if (game.canUseSimpleDomain(player) && game.mode !== "dual") status.push(this.simpleDomainStatus(player, "p1"));
     if (game.isStoryCombat() && game.storyStage === "borrowed") {
       const secs = Math.ceil(game.storyTimer);
       status.push(`五条之身 ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`);
@@ -518,6 +522,13 @@ export class UI3D {
     if (player?.charId === "yuta") status.push(`${this.getKeyLabel("p1.copy")} 切换复制：${COPY_TECHNIQUES[player.copyIndex].label}`);
     this.dom.battleStatus.textContent = status.join("  ·  ");
     this.dom.battleStatus.classList.toggle("hidden", !status.length || !["playing", "paused", "ended"].includes(s));
+  }
+
+  simpleDomainStatus(entity, playerId) {
+    const state = entity.simpleDomainTimer > 0
+      ? `${entity.simpleDomainTimer.toFixed(1)}秒 · ${Math.ceil(entity.simpleDomainIntegrity / SIMPLE_DOMAIN.integrity * 100)}%`
+      : entity.simpleDomainCooldown > 0 ? `冷却 ${entity.simpleDomainCooldown.toFixed(1)}秒` : "就绪";
+    return `${this.getKeyLabel(`${playerId}.simpleDomain`)} 简易领域 · ${state}`;
   }
 
   // gauge-gated skills fill up with 奥义/领域 instead of running a separate cooldown

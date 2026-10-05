@@ -148,6 +148,13 @@ export const SUKUNA_VS_GOJO_AI_HANDICAP = {
   }
 };
 
+// Chapter 226: Gojo can use Simple Domain during innate-technique burnout.
+// Durations and durability are game tuning. Borrowed-body access is an adaptation.
+export const SIMPLE_DOMAIN = Object.freeze({
+  characters: ["gojo", "yutaGojo"], duration: 5, cooldown: 16,
+  radius: 3, integrity: 32, color: "#bdeeff"
+});
+
 export const CHARACTERS = {
   gojo: {
     id: "gojo",

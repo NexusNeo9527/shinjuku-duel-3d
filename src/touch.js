@@ -178,6 +178,14 @@ class TouchPad {
   }
 
   updateSlots(player, game) {
+    const simpleDomain = this.root.querySelector(this.el ? '.touch-right.p2 [data-slot="simpleDomain"]' : '#btnSimpleDomain');
+    if (simpleDomain) {
+      const eligible = game.canUseSimpleDomain(player);
+      simpleDomain.classList.toggle("hidden", !eligible);
+      simpleDomain.classList.toggle("on", player.simpleDomainTimer > 0);
+      simpleDomain.classList.toggle("locked", player.simpleDomainCooldown > 0 && player.simpleDomainTimer <= 0);
+      simpleDomain.textContent = player.simpleDomainTimer > 0 ? `简易领域 ${Math.ceil(player.simpleDomainTimer)}s` : player.simpleDomainCooldown > 0 ? `简易领域 ${Math.ceil(player.simpleDomainCooldown)}s` : "简易领域";
+    }
     for (let i = 0; i < this.slots.length; i += 1) {
       const s = this.slots[i];
       const cd = player.cooldowns[i] || 0;
@@ -287,6 +295,7 @@ export class TouchControls {
         <button class="touch-btn small switch" type="button" data-slot="switch">切换目标</button>
         <button class="touch-btn small" type="button" data-slot="basic">近战</button>
         <button class="touch-btn small hidden" type="button" data-slot="restore">强行恢复</button>
+        <button class="touch-btn small simple-domain hidden" type="button" data-slot="simpleDomain">简易领域</button>
       </div>`;
     this.root.appendChild(stickBase);
     this.root.appendChild(cluster);
@@ -312,6 +321,10 @@ export class TouchControls {
       event.preventDefault(); event.stopPropagation();
       const p2 = this.game.entities.find((e) => e.isPlayer && e !== this.game.player());
       this.game.tryForceRestore(p2);
+    });
+    cluster.querySelector('[data-slot="simpleDomain"]').addEventListener("pointerdown", (event) => {
+      event.preventDefault(); event.stopPropagation();
+      this.game.trySimpleDomain(this.game.entities.find((e) => e.isPlayer && e !== this.game.player()));
     });
   }
 
