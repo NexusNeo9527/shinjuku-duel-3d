@@ -297,7 +297,7 @@ export class UI3D {
       el.title = ab.desc || ab.label;
       el.style.color = ab.color;
       el.innerHTML = `
-        <span class="slot-key">${this.getKeyLabel(panel.keys[i])}</span>
+        <span class="slot-key">${this.getKeyLabel(panel.keys[i % 5])}</span>
         <svg class="slot-icon" viewBox="0 0 24 24">${ICONS[ab.id] || ICONS.blue}</svg>
         <span class="slot-glyph">${ab.label}</span>
         <span class="slot-cd"></span>`;
@@ -316,15 +316,23 @@ export class UI3D {
     panel.domain.style.transform = `scaleX(${ent.domainCharge / 100})`;
     panel.simpleDomain.classList.toggle("hidden", !game.canUseSimpleDomain(ent));
     panel.simpleDomain.textContent = this.simpleDomainStatus(ent, panel.keys[0].slice(0, 2));
+    panel.pageButton ||= document.createElement('button');
+    panel.pageButton.className = 'skill-page-button';
+    if (!panel.pageButton.parentElement) panel.el.appendChild(panel.pageButton);
+    panel.pageButton.onclick = () => game.cycleSkillPage(ent);
+    const pages = Math.ceil(CHARACTERS[ent.charId].abilities.length / 5);
+    panel.pageButton.classList.toggle('hidden', pages <= 1);
+    panel.pageButton.textContent = this.getKeyLabel(panel.keys[0].slice(0, 2) + '.skillPage') + ' 换技能 ' + ((ent.skillPage || 0) + 1) + '/' + pages;
     if (panel.charId !== ent.charId) this.rebuildSplitSlots(panel, ent.charId);
     for (let i = 0; i < panel.slots.length; i += 1) {
       const sl = panel.slots[i];
+      sl.el.classList.toggle('hidden', Math.floor(i / 5) !== (ent.skillPage || 0));
       const cd = ent.cooldowns[i] || 0;
       sl.cd.style.setProperty("--cd", String(this.slotShade(sl.ability, ent, game, cd)));
       const needCharge = sl.ability.needsCharge && ent.charge < 100 && !game.practice;
       const needDomain = sl.ability.needsDomain && ent.domainCharge < 100 && !game.practice;
       const borrowedLocked = game.borrowedSkillLocked(ent, sl.ability);
-      const ruleLocked = (ent.burnout > 0 && sl.ability.requiresTechnique)
+      const ruleLocked = ((ent.burnout > 0 || ent.amplification) && sl.ability.requiresTechnique)
         || (sl.ability.needsDomain && ent.domainLocked) || shibuyaAbilityLocked(game, ent, sl.ability)
         || raidAbilityLocked(game, ent, sl.ability) || (['domain', 'soulDomain'].includes(sl.ability.type) && game.ownsDomain(ent));
       sl.el.classList.toggle("locked", Boolean(needCharge || needDomain || borrowedLocked || ruleLocked));
@@ -417,21 +425,21 @@ export class UI3D {
   refreshKeyLabels() {
     this.slots.forEach((slot, i) => {
       const label = slot.el.querySelector(".slot-key");
-      if (label) label.textContent = this.getKeyLabel(SLOT_KEYS[i]);
+      if (label) label.textContent = this.getKeyLabel(SLOT_KEYS[i % 5]);
     });
     const dashLabel = this.dashSlot?.el.querySelector(".slot-key");
     if (dashLabel) dashLabel.textContent = this.getKeyLabel("p1.dash");
     for (const panel of [this.splitP1, this.splitP2]) {
       panel?.slots.forEach((slot, i) => {
         const label = slot.el.querySelector(".slot-key");
-        if (label) label.textContent = this.getKeyLabel(panel.keys[i]);
+        if (label) label.textContent = this.getKeyLabel(panel.keys[i % 5]);
       });
     }
     const controls1 = document.querySelector(".split-controls-p1");
     const controls2 = document.querySelector(".split-controls-p2");
-    if (controls1) controls1.textContent = `P1 · ${this.getKeyLabel("p1.up")}${this.getKeyLabel("p1.left")}${this.getKeyLabel("p1.down")}${this.getKeyLabel("p1.right")} 移动 · ${this.getKeyLabel("p1.sprint")} 疾跑 · ${this.getKeyLabel("p1.ascend")} 升空 · ${this.getKeyLabel("p1.descend")} 下降 · ${SLOT_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p1.dash")} 冲刺`;
-    if (controls2) controls2.textContent = `P2 · ${this.getKeyLabel("p2.up")}${this.getKeyLabel("p2.left")}${this.getKeyLabel("p2.down")}${this.getKeyLabel("p2.right")} 移动 · ${this.getKeyLabel("p2.sprint")} 疾跑 · ${this.getKeyLabel("p2.ascend")} 升空 · ${this.getKeyLabel("p2.descend")} 下降 · ${P2_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p2.dash")} 冲刺 · ${this.getKeyLabel("p2.copy")} 复制 · ${this.getKeyLabel("p2.lock")} 锁定 · ${this.getKeyLabel("p2.simpleDomain")} 简易领域`;
-    if (this.dom.hint) this.dom.hint.textContent = `${this.getKeyLabel("p1.up")}${this.getKeyLabel("p1.left")}${this.getKeyLabel("p1.down")}${this.getKeyLabel("p1.right")} 移动 · ${this.getKeyLabel("p1.sprint")} 疾跑 · ${this.getKeyLabel("p1.ascend")} 升空 · ${this.getKeyLabel("p1.descend")} 下降 · ${SLOT_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p1.dash")} 冲刺 · 滚轮缩放`;
+    if (controls1) controls1.textContent = `P1 · ${this.getKeyLabel("p1.up")}${this.getKeyLabel("p1.left")}${this.getKeyLabel("p1.down")}${this.getKeyLabel("p1.right")} 移动 · ${this.getKeyLabel("p1.sprint")} 疾跑 · ${this.getKeyLabel("p1.ascend")} 升空 · ${this.getKeyLabel("p1.descend")} 下降 · ${SLOT_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p1.dash")} 冲刺 · ${this.getKeyLabel("p1.skillPage")} 换技能`;
+    if (controls2) controls2.textContent = `P2 · ${this.getKeyLabel("p2.up")}${this.getKeyLabel("p2.left")}${this.getKeyLabel("p2.down")}${this.getKeyLabel("p2.right")} 移动 · ${this.getKeyLabel("p2.sprint")} 疾跑 · ${this.getKeyLabel("p2.ascend")} 升空 · ${this.getKeyLabel("p2.descend")} 下降 · ${P2_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p2.dash")} 冲刺 · ${this.getKeyLabel("p2.copy")} 复制 · ${this.getKeyLabel("p2.lock")} 锁定 · ${this.getKeyLabel("p2.simpleDomain")} 简易领域 · ${this.getKeyLabel("p2.skillPage")} 换技能`;
+    if (this.dom.hint) this.dom.hint.textContent = `${this.getKeyLabel("p1.up")}${this.getKeyLabel("p1.left")}${this.getKeyLabel("p1.down")}${this.getKeyLabel("p1.right")} 移动 · ${this.getKeyLabel("p1.sprint")} 疾跑 · ${this.getKeyLabel("p1.ascend")} 升空 · ${this.getKeyLabel("p1.descend")} 下降 · ${SLOT_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p1.dash")} 冲刺 · ${this.getKeyLabel("p1.skillPage")} 换技能 · 滚轮缩放`;
   }
 
   rebuildAbilityBar(charId) {
@@ -443,7 +451,7 @@ export class UI3D {
       el.title = ab.desc || ab.label;
       el.style.color = ab.color;
       el.innerHTML = `
-        <span class="slot-key">${this.getKeyLabel(SLOT_KEYS[i])}</span>
+        <span class="slot-key">${this.getKeyLabel(SLOT_KEYS[i % 5])}</span>
         <svg class="slot-icon" viewBox="0 0 24 24">${ICONS[ab.id] || ICONS.blue}</svg>
         <span class="slot-glyph">${ab.label}</span>
         <span class="slot-cd"></span>
@@ -452,6 +460,10 @@ export class UI3D {
       return { el, cd: el.querySelector(".slot-cd"), lock: el.querySelector(".slot-lock"), ability: ab };
     });
 
+    this.skillPageButton = document.createElement('button');
+    this.skillPageButton.className = 'skill-page-button';
+    this.skillPageButton.addEventListener('click', () => this.game.cycleSkillPage(this.game.player()));
+    this.dom.abilityBar.appendChild(this.skillPageButton);
     const dashEl = document.createElement("div");
     dashEl.className = "ability-slot dash-slot";
     dashEl.innerHTML = `
@@ -520,8 +532,8 @@ export class UI3D {
     this.dom.storySideBtns.forEach((button) => {
       const side = button.dataset.storySide;
       const charId = side === "enemy" ? stageInfo.enemy : stageInfo.ally;
-      button.textContent = CHARACTERS[charId].name + (side === "enemy" && (stageInfo.shibuya || stageInfo.allyOnly) ? "（剧情对手）" : "");
-      button.disabled = side === "enemy" && Boolean(stageInfo.shibuya || stageInfo.allyOnly);
+      button.textContent = CHARACTERS[charId].name + (side === "enemy" && stageInfo.allyOnly ? "（剧情对手）" : "");
+      button.disabled = side === "enemy" && Boolean(stageInfo.allyOnly);
       button.classList.toggle("active", side === game.storySide);
       button.setAttribute("aria-pressed", String(side === game.storySide));
     });
@@ -702,14 +714,17 @@ export class UI3D {
   }
 
   updateSlots(player, game) {
+    const pages = Math.ceil(this.slots.length / 5);
+    if (this.skillPageButton) { this.skillPageButton.classList.toggle('hidden', pages <= 1); this.skillPageButton.textContent = this.getKeyLabel('p1.skillPage') + ' 换技能 ' + ((player.skillPage || 0) + 1) + '/' + pages; }
     for (let i = 0; i < this.slots.length; i += 1) {
+      this.slots[i].el.classList.toggle('hidden', Math.floor(i / 5) !== (player.skillPage || 0));
       const slot = this.slots[i];
       const ab = slot.ability;
       const cd = player.cooldowns[i] || 0;
       slot.cd.style.setProperty("--cd", String(this.slotShade(ab, player, game, cd)));
       const needCharge = ab.needsCharge && player.charge < 100 && !(game.practice && game.practiceInfinite);
       const needDomain = ab.needsDomain && player.domainCharge < 100 && !(game.practice && game.practiceInfinite);
-      const burnout = player.burnout > 0 && ab.requiresTechnique;
+      const burnout = (player.burnout > 0 || player.amplification) && ab.requiresTechnique;
       const domainLocked = ab.needsDomain && (player.domainLocked || (game.isStoryCombat() && game.storyStage === "borrowed" && game.storyTimer <= 0 && player.charId === "yutaGojo"));
       const shibuyaLocked = shibuyaAbilityLocked(game, player, ab);
       const raidLocked = raidAbilityLocked(game, player, ab);

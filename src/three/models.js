@@ -382,6 +382,27 @@ function normalizedHiddenFighter(id, centered = false) {
 }
 
 export function buildPlaceholder(id) {
+  if (id === 'agito') {
+    // Procedural beast silhouette: antlers, wings, striped torso and serpent tail.
+    const root = new THREE.Group();
+    const fur = new THREE.MeshStandardMaterial({ color: '#bba88a', roughness: .85 });
+    const dark = new THREE.MeshStandardMaterial({ color: '#37322c', roughness: .9 });
+    const part = (geometry, material, x, y, z) => { const mesh = new THREE.Mesh(geometry, material); mesh.position.set(x,y,z); root.add(mesh); return mesh; };
+    part(new THREE.SphereGeometry(1, 12, 8), fur, 0, 2, 0).scale.set(20, 27, 12);
+    part(new THREE.SphereGeometry(12, 12, 8), fur, 0, 30, 2);
+    for (const sign of [-1,1]) {
+      part(new THREE.CylinderGeometry(5,7,27,8), dark, sign * 12,-29,0);
+      part(new THREE.CylinderGeometry(4,6,34,8), fur, sign * 24,0,0).rotation.z = sign * .3;
+      part(new THREE.ConeGeometry(4,17,6), dark, sign * 8,47,0).rotation.z = sign * -.3;
+      part(new THREE.BoxGeometry(30,3,20), dark, sign * 31,17,-9).rotation.z = sign * -.25;
+      part(new THREE.SphereGeometry(2,8,6), new THREE.MeshBasicMaterial({color:'#d7b849'}), sign * 5,32,13);
+    }
+    const tail = part(new THREE.TorusGeometry(15,3,6,16,Math.PI * 1.5), dark, 0,-15,-17);
+    tail.rotation.x = Math.PI/2;
+    root.position.y = -5;
+    root.userData.animate = (_dt, time) => { tail.rotation.z = Math.sin(time * 3) * .25; };
+    return root;
+  }
   if (RAID_MODELS.includes(id) || SHIBUYA_MODELS.includes(id) || ["gojoTeen", "gojoAwakened", "toji", "tojiRematch"].includes(id)) return normalizedHiddenFighter(id, true);
   return buildCharacter(id);
 }
@@ -392,6 +413,7 @@ function loadRawGltf(path) {
 }
 
 export async function loadGltf(id) {
+  if (id === 'agito') return null;
   if (RAID_MODELS.includes(id) || SHIBUYA_MODELS.includes(id) || ["gojoTeen", "gojoAwakened", "toji", "tojiRematch"].includes(id)) return normalizedHiddenFighter(id);
   const base = import.meta.env?.BASE_URL ?? '/';
   const paths = {

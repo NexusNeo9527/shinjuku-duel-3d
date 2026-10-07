@@ -181,6 +181,13 @@ class TouchPad {
   }
 
   updateSlots(player, game) {
+    this.pageButton ||= document.createElement('button');
+    this.pageButton.className = 'touch-btn small skill-page-button';
+    if (!this.pageButton.parentElement) this.abilityBar.parentElement.appendChild(this.pageButton);
+    this.pageButton.onpointerdown = event => { event.preventDefault(); event.stopPropagation(); this.stopRepeat(); game.cycleSkillPage(player); };
+    const pages = Math.ceil(this.slots.length / 5);
+    this.pageButton.classList.toggle('hidden', pages <= 1);
+    this.pageButton.textContent = '换技能 ' + ((player.skillPage || 0) + 1) + '/' + pages;
     const grounded = game.groundDuel || Boolean(CHARACTERS[player.charId]?.grounded);
     this.rise?.classList.toggle("hidden", grounded);
     this.fall?.classList.toggle("hidden", grounded);
@@ -194,13 +201,14 @@ class TouchPad {
     }
     for (let i = 0; i < this.slots.length; i += 1) {
       const s = this.slots[i];
+      s.el.classList.toggle('hidden', Math.floor(i / 5) !== (player.skillPage || 0));
       const cd = player.cooldowns[i] || 0;
       s.cd.style.setProperty("--cd", String(Math.min(1, cd / (s.ability.cooldown || 1))));
       const expiredDomain = s.ability.needsDomain && game.isStoryCombat()
         && game.storyStage === "borrowed" && game.storyTimer <= 0 && player.charId === "yutaGojo";
       const locked = (s.ability.needsCharge && player.charge < 100 && !(game.practice && game.practiceInfinite))
         || (s.ability.needsDomain && player.domainCharge < 100 && !(game.practice && game.practiceInfinite))
-        || (player.burnout > 0 && s.ability.requiresTechnique)
+        || ((player.burnout > 0 || player.amplification) && s.ability.requiresTechnique)
         || (s.ability.needsDomain && player.domainLocked)
         || expiredDomain || shibuyaAbilityLocked(game, player, s.ability) || raidAbilityLocked(game, player, s.ability) || game.borrowedSkillLocked(player, s.ability);
       s.el.classList.toggle("ready", cd <= 0.001 && !locked);
@@ -406,7 +414,7 @@ export class TouchControls {
     if (this.pad2) {
       const p2 = game.entities.find((e) => e.isPlayer && e !== player);
       const restore = this.pad2.el?.cluster.querySelector('[data-slot="restore"]');
-      if (restore) restore.classList.toggle("hidden", !p2 || p2.burnout <= 0 || p2.domainLocked);
+      if (restore) restore.classList.toggle("hidden", !p2 || !this.game.canForceRestore(p2) || p2.burnout <= 0 || p2.domainLocked);
       this.pad2.el?.cluster.querySelector('[data-slot="copy"]')?.classList.toggle('hidden', p2?.charId !== 'yuta');
     }
   }

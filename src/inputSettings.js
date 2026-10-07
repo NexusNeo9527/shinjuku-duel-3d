@@ -43,6 +43,11 @@ export const BINDINGS = [
   { id: "p2.dash", player: "玩家 2", group: "战斗", label: "冲刺", defaultCode: "KeyB" }
 ];
 
+BINDINGS.push(
+  { id: 'p1.skillPage', player: '玩家 1', group: '术式', label: '下一页技能', defaultCode: 'Digit2' },
+  { id: 'p2.skillPage', player: '玩家 2', group: '术式', label: '下一页技能', defaultCode: 'Backslash' }
+);
+
 export function loadInputSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");

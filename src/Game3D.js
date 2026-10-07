@@ -430,7 +430,7 @@ export class Game3D {
 
   setStory(stage, side) {
     this.storyStage = STORY_STAGES[stage] ? stage : "yuta";
-    this.storySide = STORY_STAGES[this.storyStage]?.shibuya || STORY_STAGES[this.storyStage]?.allyOnly ? "ally" : side === "enemy" ? "enemy" : "ally";
+    this.storySide = STORY_STAGES[this.storyStage]?.allyOnly ? "ally" : side === "enemy" ? "enemy" : "ally";
   }
 
   setPracticeChar(charId) {
@@ -503,6 +503,7 @@ export class Game3D {
       simpleDomainTimer: 0,
       simpleDomainCooldown: 0,
       simpleDomainIntegrity: 0,
+      skillPage: 0,
       copyIndex: 0,
       stun: 0,
       invuln: 0,
@@ -751,10 +752,22 @@ export class Game3D {
     return this.domains.some(d=>d.alive && d.ownerId===entity?.id);
   }
 
+  cycleSkillPage(entity) {
+    if (!entity?.alive || this.state !== 'playing') return false;
+    const pages = Math.ceil(CHARACTERS[entity.charId].abilities.length / 5);
+    entity.skillPage = ((entity.skillPage || 0) + 1) % Math.max(1, pages);
+    this.announce('技能页 ' + (entity.skillPage + 1) + '/' + pages, entity.color, 1);
+    return true;
+  }
+
+  castSkillSlot(entity, slot) {
+    return this.tryCast(entity, (entity?.skillPage || 0) * 5 + slot);
+  }
+
   activeAbility(entity, index) {
     const ability = CHARACTERS[entity.charId]?.abilities[index];
     if (ability?.type === 'copy' && this.domains.some(d => d.alive && d.type === 'authenticLove' && d.ownerId === entity.id)) {
-      return COPY_TECHNIQUES[entity.domainKatanaIndex ?? 0];
+      return COPY_TECHNIQUES.filter(a => a.id !== 'jacobsLadder')[entity.domainKatanaIndex ?? 0];
     }
     return ability?.type === "copy" ? COPY_TECHNIQUES[entity.copyIndex] : ability;
   }
@@ -776,8 +789,13 @@ export class Game3D {
     this.announce(`${entity.name} · 术式熔断`, entity.color, 1.25);
   }
 
+  canForceRestore(entity) {
+    return ['gojo', 'sukuna', 'sukunaRaid', 'sukunaStory1', 'sukunaStory2'].includes(entity?.charId) && !this.isBorrowedBattle();
+  }
+
   tryForceRestore(entity) {
     if (this.timeStop > 0 || this.hitStop > 0) return false;
+    if (!this.canForceRestore(entity)) return false;
     if (["gojoTeen", "gojoAwakened", "toji", "tojiRematch", "yujiShibuya", "mahito", "mahitoFinal"].includes(entity?.charId)) return false;
     if (this.isBorrowedBattle()) return false;
     if (!entity?.alive || entity.burnout <= 0 || entity.domainLocked || this.state !== "playing") return false;
@@ -799,10 +817,14 @@ export class Game3D {
     const char = CHARACTERS[entity.charId];
     const ability = char.abilities[index];
     if (!ability) return false;
+    if (['swap', 'feint', 'orbit'].includes(ability.type) && !this.enemyList(entity).some(e => e.alive && !e.summon && (ability.type !== 'swap' || CHARACTERS[e.charId]?.cursedEnergy !== 0))) return false;
     if (['domain','soulDomain'].includes(ability.type) && this.ownsDomain(entity)) return false;
     if (this.borrowedSkillLocked(entity, ability)) return false;
     if (this.isBorrowedBattle() && ability.id === "bodyRush" && entity.dashCooldown > 0) return false;
+    if (entity.cursedEnergyConfiscated && !ability.physical) return false;
+    if (entity.amplification && ability.requiresTechnique) return false;
     if (ability.type === "amplification") {
+      if (entity.cursedEnergyConfiscated || this.raid?.trial > 0 || this.inVoidStun(entity)) return false;
       if (!entity.amplification && (entity.amplificationEnergy ?? 100) < 15) return false;
       entity.amplification = !entity.amplification;
       entity.amplificationRest = 1;
@@ -847,7 +869,7 @@ export class Game3D {
       ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
       : null;
     const aiCooldown = gojoAiTuning?.aiCooldowns[ability.id];
-    if (ability.type === 'copy' && this.domains.some(d => d.alive && d.type === 'authenticLove' && d.ownerId === entity.id)) entity.domainKatanaIndex = Math.floor(Math.random() * 2);
+    if (ability.type === 'copy' && this.domains.some(d => d.alive && d.type === 'authenticLove' && d.ownerId === entity.id)) entity.domainKatanaIndex = Math.floor(Math.random() * COPY_TECHNIQUES.filter(a => a.id !== 'jacobsLadder').length);
     const selected = this.activeAbility(entity, index);
     if (selected.id === 'worldDismantle' || selected.type === 'domain') entity.wickerBasketTimer = 0;
     entity.cooldowns[index] = infinite ? 0.12 : (aiCooldown ?? selected.cooldown ?? ability.cooldown);
@@ -877,7 +899,27 @@ export class Game3D {
     else if (selected.type === "beam") this.castBeam(entity, selected, dir);
     else if (ability.type === "domain") this.castDomain(entity, ability);
     else if (ability.type === "summon") this.castSummon(entity, ability);
-    else if (ability.type === "melee") this.castMelee(entity, ability);
+    else if (selected.type === "melee") this.castMelee(entity, selected);
+    else if (selected.type === 'nova') {
+      this.burst(entity.x, entity.y + CHEST, entity.z, selected.color, 120, selected.radius);
+      for (const target of this.enemyList(entity).filter(e => e.alive && Math.hypot(e.x - entity.x, e.y - entity.y, e.z - entity.z) <= selected.radius)) this.damage(target, selected.damage, entity, selected.id);
+      this.damage(entity, Math.ceil(selected.damage * .25), entity, selected.id);
+      this.announce(selected.label, selected.color, 2);
+    }
+    else if (selected.type === 'swap') {
+      const target = this.enemyList(entity).find(e => e.alive && CHARACTERS[e.charId]?.cursedEnergy !== 0);
+      if (target) { [entity.x, target.x] = [target.x, entity.x]; [entity.z, target.z] = [target.z, entity.z]; this.announce('不义游戏 · 交换位置', selected.color, 1); }
+    }
+    else if (selected.type === 'feint') {
+      entity.abilityUses ||= {}; entity.abilityUses[selected.id] = (entity.abilityUses[selected.id] || 0) + 1;
+      const target = this.enemyList(entity).find(e => e.alive && !e.summon);
+      if (target) target.stun = Math.max(target.stun, 1);
+      this.announce('佯装拍手 · 不发生交换', selected.color, 1);
+    }
+    else if (selected.type === 'orbit') {
+      const target = this.enemyList(entity).find(e => e.alive && !e.summon);
+      if (target) entity.skillOrbit = { x: target.x, z: target.z, remaining: selected.life, ability: selected, sides: {} };
+    }
     else if (ability.type === "guard") this.castGuard(entity, ability);
     else if (ability.type === "heal") this.castHeal(entity, ability);
     else if (ability.type === "infinity") {
@@ -891,7 +933,7 @@ export class Game3D {
     else if (ability.type === "flyheads") {
       entity.flyheadTimer = 4;
       this.burst(entity.x, entity.y + CHEST, entity.z, "#292536", 80, 6);
-      this.announce("蝇头遮蔽视野 · 锁定暂时失效", "#b8aecb", 2);
+      this.announce(selected.id === 'rabbitEscape' ? '脱兔掩护 · 锁定暂时失效' : "蝇头遮蔽视野 · 锁定暂时失效", selected.color, 2);
     }
     if (ability.type === 'copy' && entity.domainKatanaIndex !== undefined) {
       entity.domainSwordUses = (entity.domainSwordUses || 0) + 1;
@@ -976,7 +1018,7 @@ export class Game3D {
 
   canUseSimpleDomain(entity) {
     if (this.isBorrowedBattle()) return false;
-    return Boolean(entity && !entity.summon && SIMPLE_DOMAIN.characters.includes(entity.charId));
+    return Boolean(entity && (!entity.summon || entity.support || entity.companion) && SIMPLE_DOMAIN.characters.includes(entity.charId));
   }
 
   castAttraction(entity, ability) {
@@ -1031,8 +1073,10 @@ export class Game3D {
     entity.abilityUses[ability.id] = (entity.abilityUses[ability.id] || 0) + 1;
     entity.battleStats ||= { attempts: 0, landed: new Set(), damage: 0, taken: 0, heals: 0 };
     entity.battleStats.heals++;
-    entity.hp = clamp(entity.hp + ability.heal, 0, entity.maxHp);
-    this.damageTexts.push({ x: entity.x, y: entity.y + 2, z: entity.z, text: `+${ability.heal}`, color: "#8dffd4", life: 0.8, maxLife: 0.8 });
+    const limit = ability.id === 'soulRestore' ? Math.max(entity.hp, entity.maxHp - (entity.soulWounds || 0)) : entity.maxHp;
+    const restored = Math.max(0, Math.min(ability.heal, limit - entity.hp));
+    entity.hp = clamp(entity.hp + restored, 0, limit);
+    this.damageTexts.push({ x: entity.x, y: entity.y + 2, z: entity.z, text: `+${restored}`, color: "#8dffd4", life: 0.8, maxLife: 0.8 });
   }
 
   comboEligible(entity, abilityId) {
@@ -1343,23 +1387,24 @@ export class Game3D {
 
   castSummon(entity, ability) {
     beginCombatMotion(entity, ability.id, this.elapsed);
-    const existing = this.entities.find((e) => e.summon && e.ownerId === entity.id && e.alive);
+    const existing = this.entities.find((e) => e.summon && e.ownerId === entity.id && e.alive && e.charId === (ability.id === 'rika' ? 'rika' : ability.id === 'agito' ? 'agito' : 'mahoraga'));
     if (existing) existing.life = 0;
     // the difficulty decides how strong Mahoraga is
     const maha = (DIFFICULTY[this.difficulty] || DIFFICULTY.normal).mahoraga || {};
     const rika = ability.id === "rika";
-    const hp = rika ? ability.hp : (maha.hp ?? ability.hp ?? 72);
+    const agito = ability.id === 'agito';
+    const hp = rika || agito ? ability.hp : (maha.hp ?? ability.hp ?? 72);
     const m = {
       id: `${ability.id}_${entity.id}`,
-      charId: rika ? "rika" : "mahoraga",
-      name: rika ? "里香" : "魔虚罗",
-      color: rika ? "#d9c8ff" : "#e4c866",
-      aura: rika ? 0xd9c8ff : 0xe4c866,
+      charId: rika ? "rika" : agito ? 'agito' : "mahoraga",
+      name: rika ? "里香" : agito ? '嵌合兽 · 颚吐' : "魔虚罗",
+      color: rika ? "#d9c8ff" : agito ? "#dfcfb5" : "#e4c866",
+      aura: rika ? 0xd9c8ff : agito ? 0xdfcfb5 : 0xe4c866,
       team: entity.team,
       summon: true,
       ownerId: entity.id,
       adapt: {},
-      life: rika ? ability.life : (maha.life ?? ability.life ?? 24),
+      life: rika || agito ? ability.life : (maha.life ?? ability.life ?? 24),
       contactAt: -10,
       shotAt: -10,
       isPlayer: false,
@@ -1406,12 +1451,13 @@ export class Game3D {
     this.emit("sfx", { kind: "thunderHit" });
     this.announce(`${m.name} 参战`, m.color, 1.5);
     this.burst(m.x, m.y + CHEST, m.z, "#e4c866", 44, 9);
-    if (!this.isStoryCombat()) this.queueDialogue(entity.charId, rika ? "里香，帮我。" : "魔虚罗，适应他。", 2.5, 4);
+    if (!this.isStoryCombat()) this.queueDialogue(entity.charId, rika ? "里香，帮我。" : agito ? "颚吐，协同进攻。" : "魔虚罗，适应他。", 2.5, 4);
   }
 
   updateSummon(dt) {
     for (const m of this.entities) {
       if (!m.summon || !m.alive || m.support || m.companion) continue;
+      if (m.charId === 'agito') m.hp = Math.min(m.maxHp, m.hp + 3 * dt);
       m.life -= dt;
       if (m.life <= 0) { this.removeSummon(m); continue; }
       const target = this.entities.find((e) => e.alive && e.team !== m.team && !e.summon);
@@ -1437,6 +1483,10 @@ export class Game3D {
         m.yaw = Math.atan2(dx, dz);
         beginCombatMotion(m, "mahoragaContact", this.elapsed);
         this.damage(target, 6 * mDmg, m, "mahoragaContact");
+        if (m.charId === 'mahoraga') {
+          m.demonstrationHits = (m.demonstrationHits || 0) + 1;
+          if (m.demonstrationHits >= 3) { const owner = this.entities.find(e => e.id === m.ownerId); if (owner) owner.worldCutLearned = true; }
+        }
         this.burst(target.x, target.y + CHEST, target.z, "#e4c866", 12, 5);
       }
       if (m.charId === "mahoraga" && this.elapsed - m.shotAt > 1.3 && dist < 28) {
@@ -1507,9 +1557,9 @@ export class Game3D {
     const practiceImmortal = this.practiceImmortal(target);
     const profile = this.getDifficultyProfile();
     const sourceAbility = source && abilityId
-      ? CHARACTERS[source.charId]?.abilities.find((ability) => ability.id === abilityId)
+      ? CHARACTERS[source.charId]?.abilities.find((ability) => ability.id === abilityId) || (source.charId === 'yuta' ? COPY_TECHNIQUES.find(a => a.id === abilityId) : null)
       : null;
-    if (target.infinityTimer > 0 && source?.charId.startsWith("toji") && !sourceAbility?.nullifiesInfinity) { this.confirmAttack(source,'blocked'); return; }
+    if (target.infinityTimer > 0 && source && source !== target && !domainHit && !source.amplification && !(source.guardTimer > 0 && source.guardKind === 'higurumaAmplification') && !sourceAbility?.nullifiesInfinity && !['worldDismantle', 'sukunaSoulReprisal', 'unboundedPurple'].includes(abilityId)) { this.confirmAttack(source,'blocked'); return; }
     if (sourceAbility?.nullifiesInfinity && target.charId.startsWith("gojo")) {
       target.infinityTimer = 0;
       target.burnout = Math.max(target.burnout, 1.5);
@@ -1541,11 +1591,14 @@ export class Game3D {
       if ((abilityId === 'basicAttack' || sourceAbility?.canBlackFlash) && dist <= BLACK_FLASH.range && Math.random() < BLACK_FLASH.chance) blackFlash = true;
     }
     if (blackFlash && abilityId !== "yujiBlackFlash") dealt *= BLACK_FLASH.multiplier;
-    if (target.charId.startsWith("mahito") && !(CHARACTERS[source?.charId]?.soulAware && !source?.cursedEnergyConfiscated) && abilityId !== 'sukunaSoulReprisal' && !isDomainTick) dealt *= .35;
-    if (target.charId === "mahitoFinal" && !blackFlash && abilityId !== 'sukunaSoulReprisal') dealt *= .45;
+    if (target.charId.startsWith("mahito") && !sourceAbility?.soulDamage && !(CHARACTERS[source?.charId]?.soulAware && !source?.cursedEnergyConfiscated) && abilityId !== 'sukunaSoulReprisal' && !isDomainTick) dealt *= .35;
+    if (target.charId === "mahitoFinal" && !sourceAbility?.soulDamage && !blackFlash && abilityId !== 'sukunaSoulReprisal') dealt *= .45;
     if (source?.charId.startsWith("mahito") && CHARACTERS[target.charId]?.sukunaVessel && abilityId === "soulTouch") dealt *= .4;
     // Ordinary guarding does not neutralize an expansion's guaranteed hit.
     if (borrowed && target.amplification && abilityId === "blue") dealt *= 0.5;
+    if (isDomainTick && target.guardTimer > 0 && target.guardKind === 'fallingBlossom' && abilityId === 'shrine') dealt *= .25;
+    if (!borrowed && target.amplification && !isDomainTick && sourceAbility?.requiresTechnique) dealt *= .5;
+    if (target.futureSightUntil > this.elapsed && target.futureSightTarget === source?.id && !isDomainTick) dealt *= .5;
     const defense = guardFactor(target, physicalHit, isDomainTick);
     dealt *= defense;
     if (defense < 1) {
@@ -1575,6 +1628,7 @@ export class Game3D {
     }
 
     const actualDamage = practiceImmortal ? 0 : Math.min(target.hp, dealt);
+    if (target.charId.startsWith('mahito') && source && (sourceAbility?.soulDamage || (CHARACTERS[source.charId]?.soulAware && !source.cursedEnergyConfiscated))) target.soulWounds = (target.soulWounds || 0) + actualDamage;
     if (!practiceImmortal) target.hp = clamp(target.hp - dealt, 0, target.maxHp);
     target.battleStats ||= { attempts: 0, landed: new Set(), damage: 0, taken: 0, heals: 0 };
     target.battleStats.taken += actualDamage;
@@ -1602,6 +1656,7 @@ export class Game3D {
       target.cooldowns[2] = Math.max(target.cooldowns[2], 3);
       this.announce("施法被打断", "#ff7583", 1);
     }
+    if (abilityId === 'gWarstaff' && source) { source.futureSightUntil = this.elapsed + 3; source.futureSightTarget = target.id; }
     if (abilityId === "cursedSpeech") {
       target.stun = Math.max(target.stun || 0, 0.75);
       target.combatAction = null;
@@ -2073,6 +2128,24 @@ export class Game3D {
     e.burnout = Math.max(0, (e.burnout || 0) - dt);
     e.guardTimer = Math.max(0, (e.guardTimer || 0) - dt);
     e.wickerBasketTimer = Math.max(0, (e.wickerBasketTimer || 0) - dt);
+    if (!this.isBorrowedBattle() && e.amplification) {
+      e.amplificationEnergy = Math.max(0, (e.amplificationEnergy ?? 100) - 22 * dt);
+      if (!e.amplificationEnergy) e.amplification = false;
+    } else if (!this.isBorrowedBattle()) e.amplificationEnergy = Math.min(100, (e.amplificationEnergy ?? 100) + 18 * dt);
+    if (e.skillOrbit) {
+      const orbit = e.skillOrbit; orbit.remaining -= dt;
+      for (const target of this.enemyList(e).filter(t => t.alive)) {
+        const side = Math.hypot(target.x - orbit.x, target.z - orbit.z) - orbit.ability.radius;
+        if (orbit.sides[target.id] !== undefined && side * orbit.sides[target.id] < 0) this.damage(target, orbit.ability.damage, e, 'dhruvOrbit');
+        orbit.sides[target.id] = side;
+      }
+      for (let i = 0; i < 3; i++) {
+        const angle = this.elapsed * 3 + i * Math.PI * 2 / 3;
+        if (Math.floor(this.elapsed * 8) !== e.orbitVisualTick) this.burst(orbit.x + Math.cos(angle) * orbit.ability.radius, 1, orbit.z + Math.sin(angle) * orbit.ability.radius, orbit.ability.color, 2, .6);
+      }
+      e.orbitVisualTick = Math.floor(this.elapsed * 8);
+      if (orbit.remaining <= 0 || e.burnout > 0 || e.cursedEnergyConfiscated) e.skillOrbit = null;
+    }
     e.infinityTimer = Math.max(0, (e.infinityTimer || 0) - dt);
     e.spearGuardTimer = Math.max(0, (e.spearGuardTimer || 0) - dt);
     e.flyheadTimer = Math.max(0, (e.flyheadTimer || 0) - dt);
@@ -2177,6 +2250,10 @@ export class Game3D {
       else if (dist <= 3.2) this.tryCast(ai, ai.cooldowns[1] <= 0 ? 1 : 0);
       else if (dist < 9 && ai.cooldowns[2] <= 0 && ai.dashCooldown <= 0) this.tryCast(ai, 2);
     } else {
+      const extraHeal = CHARACTERS[ai.charId].abilities.findIndex(a => a.type === 'heal');
+      const extraRed = CHARACTERS[ai.charId].abilities.findIndex(a => a.id === 'red');
+      if (ai.hp < ai.maxHp * .6 && extraHeal >= 0 && this.aiAbilityReady(ai, extraHeal)) { this.tryCast(ai, extraHeal); return; }
+      if (dist < 18 && extraRed >= 0 && this.aiAbilityReady(ai, extraRed) && ai.charge < 100) { this.tryCast(ai, extraRed); return; }
       if (ai.charge >= 100 && this.recorderReady()) this.tryCast(ai, 3);
       else if (ai.charge >= 100 && (dist >= 6 || target.stun > 0)) this.tryCast(ai, 2);
       else if (dist <= 3.2 && needMelee) this.tryCast(ai, 1);
@@ -2327,7 +2404,7 @@ export class Game3D {
     if (this.borrowedSkillLocked(ai, ability)) return false;
     if (shibuyaAbilityLocked(this, ai, ability)) return false;
     if (raidAbilityLocked(this, ai, ability)) return false;
-    if (ai.burnout > 0 && ability.requiresTechnique) return false;
+    if ((ai.burnout > 0 || ai.amplification) && ability.requiresTechnique) return false;
     if (!this.isBorrowedBattle() && (ai.meleeAttack || ai.meleeRecovery > 0)) return false;
     if (ability.needsDomain && (ai.domainLocked || (this.isStoryCombat() && this.storyStage === "borrowed" && this.storyTimer <= 0 && ai.charId === "yutaGojo"))) return false;
     if (ai.cooldowns[idx] > 0) return false;
@@ -2339,16 +2416,19 @@ export class Game3D {
   pickAiAbility(ai, dist) {
     const abilities = CHARACTERS[ai.charId].abilities;
     const combos = CHARACTERS[ai.charId].combos || [];
-    const ready = (idx) => this.aiAbilityReady(ai, idx);
+    const ampIndex = abilities.findIndex(a => a.type === 'amplification');
+    const target = this.enemyList(ai).find(e => e.alive && !e.summon);
+    if (!this.isBorrowedBattle() && ai.amplification && !(target?.infinityTimer > 0)) return ampIndex;
+    const ready = (idx) => this.aiAbilityReady(ai, idx) && (abilities[idx].type !== 'swap' || CHARACTERS[target?.charId]?.cursedEnergy !== 0) && (abilities[idx].type !== 'amplification' || (dist < 4 && target?.infinityTimer > 0 && !ai.amplification));
     if (['higuruma', 'kashimo', 'sukunaRaid', 'yujiCulling'].includes(ai.charId)) {
       const useful = abilities.map((a, i) => ({ a, i })).filter(({ a, i }) => ready(i) &&
         (['melee', 'execution'].includes(a.type) ? dist <= a.range : a.type === 'heal' ? ai.hp < ai.maxHp*.6 : a.type === 'guard' ? this.domains.some(d => d.alive && d.team !== ai.team) : a.type !== 'appeal'));
       return (useful.find(({a}) => a.type === 'sentencing' || a.type === 'execution') || useful[Math.floor(Math.random()*useful.length)])?.i ?? -1;
     }
 
-    if (["yujiShibuya", "mahito", "mahitoFinal"].includes(ai.charId)) {
+    if (["yujiShibuya", "yujiRaid", "mahito", "mahitoFinal", "todoShibuya", "todoInjured"].includes(ai.charId)) {
       const useful = abilities.map((a, i) => ({ a, i })).filter(({ a, i }) => ready(i) &&
-        (a.type === "melee" ? dist <= a.range : a.type === "guard" ? dist < 5 : a.type === "orb" ? dist < 20 : a.type === "soulDomain" ? dist < 12 : false));
+        (a.type === "melee" ? dist <= a.range : a.type === 'heal' ? ai.hp < ai.maxHp * .6 : a.type === "guard" ? dist < 5 : a.type === "orb" ? dist < 20 : a.type === "soulDomain" ? dist < 12 : ["swap", "feint"].includes(a.type) ? dist < 12 : false));
       const blackFlash = useful.find(({ a }) => a.id === "yujiBlackFlash");
       return blackFlash ? blackFlash.i : useful.length ? useful[Math.floor(Math.random() * useful.length)].i : -1;
     }
@@ -2356,7 +2436,7 @@ export class Game3D {
       const useful = abilities.map((a, i) => ({ a, i })).filter(({ a, i }) => ready(i) &&
         (a.type === "melee" || a.type === "chain" ? dist <= a.range :
           a.type === "heal" ? ai.hp < ai.maxHp * 0.65 :
-            a.type === "infinity" ? dist < 8 && !(ai.infinityTimer > 0) : true));
+            a.type === "infinity" ? dist < 8 && !(ai.infinityTimer > 0) : a.type === "guard" ? this.domains.some(d=>d.alive && d.team!==ai.team) : a.type === "orb" ? dist < 35 : true));
       const purple = useful.find(({ a }) => a.id === "purple");
       if (purple) return purple.i;
       return useful.length ? useful[Math.floor(Math.random() * useful.length)].i : -1;
@@ -2370,12 +2450,17 @@ export class Game3D {
     if (this.isStorySukuna(ai)) {
       const domainIndex = abilities.findIndex((a) => a.type === "domain");
       if (domainIndex >= 0 && ready(domainIndex) && dist <= 4.2) return domainIndex;
+      const ranged = abilities.map((a,i)=>({a,i})).filter(({a,i})=> ready(i) && a.type==='raidWindup' && dist<=a.length);
+      if (ranged.length && dist>4.2) return ranged[0].i;
       const meleeIndices = abilities
         .map((ability, index) => ability.type === "melee" && ready(index) ? index : -1)
         .filter((index) => index >= 0);
       if (!meleeIndices.length || dist > Math.max(...meleeIndices.map((index) => abilities[index].range))) return -1;
       return meleeIndices[Math.floor(Math.random() * meleeIndices.length)];
     }
+
+    const extra = abilities.map((a,i)=>({a,i})).filter(({a,i})=>i>=5 && ready(i) && (a.type==='melee' ? dist<=a.range : a.type==='beam'||a.type==='raidWindup' ? dist<=a.length : a.type==='nova' ? dist<=a.radius : a.type==='attraction' ? dist<20 : a.type==='flyheads' ? dist<12 && !(ai.flyheadTimer>0) : a.type==='amplification' ? true : a.type==='infinity' ? dist<8 && !(ai.infinityTimer>0) : a.type==='summon' ? !this.entities.some(e=>e.alive && e.ownerId===ai.id && e.charId===a.id) : false));
+    if (extra.length && Math.random()<.25) return extra[Math.floor(Math.random()*extra.length)].i;
 
     // 1) finish a combo that is one hit away (only if the finisher is actually castable)
     for (const c of combos) {
@@ -2397,7 +2482,11 @@ export class Game3D {
 
     // 4) ultimate when charged and roughly in line
     if (ready(2) && dist < 42) {
-      if (abilities[2]?.type === "copy") ai.copyIndex = Math.floor(Math.random() * COPY_TECHNIQUES.length);
+      if (abilities[2]?.type === 'copy') {
+        const candidates = COPY_TECHNIQUES.map((a,i)=>({a,i})).filter(({a})=>a.type==='melee' ? dist<=a.range : a.type==='orbit' ? dist<18 : dist<42);
+        if (!candidates.length) return -1;
+        ai.copyIndex=candidates[Math.floor(Math.random()*candidates.length)].i;
+      }
       return 2;
     }
 

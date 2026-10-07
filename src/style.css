@@ -1234,3 +1234,5 @@ body.story-title-active .topbar-actions { flex-shrink: 0; }
 .pp-training{display:flex;gap:6px;flex-wrap:wrap;padding:8px 0}.pp-training small{display:block;width:100%;font-size:11px;opacity:.7}.pp-training button{padding:5px 7px;border:1px solid #768392;border-radius:4px;background:#253245;color:#eee;font:inherit}
 .result-stats{white-space:pre-line;font-size:13px;line-height:1.8;color:#c8d5e7}.challenge-choice{display:block;margin:14px 0;font-size:14px}.challenge-choice select{padding:7px;background:#243043;color:#eee;border:1px solid #77879a;border-radius:4px}
 @media(max-height:480px){.battle-hint{top:19%;font-size:11px;padding:4px 8px}.pp-training{padding:3px 0}.pp-training small{display:none}}
+
+.skill-page-button { pointer-events: auto; cursor: pointer; color: #bdeeff; background: #111d2e; border: 1px solid #386079; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 11px; }

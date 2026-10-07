@@ -33,13 +33,13 @@ for (const stage of ["yuta", "borrowed"]) {
   sukuna.charge = 100;
   sukuna.domainCharge = 0;
   sukuna.cooldowns.fill(0);
-  assert.equal(duel.pickAiAbility(sukuna, 12), -1, `${stage} Sukuna does not select attacks at range`);
+  assert.equal(duel.pickAiAbility(sukuna, 80), -1, `${stage} Sukuna does not select attacks at range`);
   const meleeIndex = duel.pickAiAbility(sukuna, 3);
   assert.equal(CHARACTERS[sukuna.charId].abilities[meleeIndex].type, "melee", `${stage} Sukuna attacks at close range`);
   if (stage === "borrowed") {
     sukuna.domainCharge = 100;
     assert.equal(duel.pickAiAbility(sukuna, 4), 3, "borrowed-stage Shrine remains available at close range");
-    assert.equal(duel.pickAiAbility(sukuna, 12), -1, "borrowed-stage Shrine is not cast from a distance");
+    assert.equal(duel.pickAiAbility(sukuna, 80), -1, "borrowed-stage Shrine is not cast from a distance");
   }
   duel.updateAI(0.016);
   const towardOpponent = sukuna.moveInput.x * (yuta.x - sukuna.x) + sukuna.moveInput.z * (yuta.z - sukuna.z);

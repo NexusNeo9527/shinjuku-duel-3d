@@ -40,7 +40,7 @@ const assassin = first.entities.find(e => e.charId === "toji");
 assert.equal(student.hp, student.maxHp);
 assert.equal(student.team, "gojo");
 assert.equal(assassin.team, "sukuna");
-assert.deepEqual(CHARACTERS.gojoTeen.abilities.map(a => a.id), ["blue", "blueMax", "infinity"]);
+assert.deepEqual(CHARACTERS.gojoTeen.abilities.map(a => a.id), ["blue", "blueMax", "infinity", "fallingBlossom"]);
 assert.equal(first.canUseSimpleDomain(student), false);
 for (const id of ["gojoTeen", "gojoAwakened", "toji", "tojiRematch"]) {
   assert.equal(CHARACTERS[id].abilities.some(a => a.needsDomain || a.id === "mahoraga"), false);
@@ -93,7 +93,10 @@ assert.equal(practice.tryCast(practice.player(), 2), true, "practice can use Pur
 const aiGame = duel("hiddenInventory");
 const tojiAi = aiGame.entities.find(e => e.charId === "toji");
 tojiAi.cooldowns[2] = 10;
-assert.equal(aiGame.pickAiAbility(tojiAi, 20), -1, "Toji does not swing a short blade from afar");
+const rangedPick = aiGame.pickAiAbility(tojiAi, 20);
+assert.equal(CHARACTERS.toji.abilities[rangedPick]?.id, "handgun", "Toji uses his handgun rather than swinging a short blade from afar");
+tojiAi.cooldowns[rangedPick] = 10;
+assert.equal(aiGame.pickAiAbility(tojiAi, 20), -1);
 for (let i = 0; i < 200; i++) aiGame.update(0.016);
 assert.equal(tojiAi.y, 0);
 assert.ok(aiGame.entities.every(e => [e.x, e.y, e.z, e.hp].every(Number.isFinite)));

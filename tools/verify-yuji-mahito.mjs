@@ -6,7 +6,7 @@ import { buildShibuyaFighter, buildShibuyaArena } from "../src/three/shibuya.js"
 
 function duel(stage = "shibuyaFinal", difficulty = "normal") {
   const game = new Game3D(); game.modeFamily = "story";
-  game.setStory(stage, "enemy"); game.start("story", difficulty);
+  game.setStory(stage, "ally"); game.start("story", difficulty);
   assert.equal(game.player().charId, "yujiShibuya");
   assert.equal(game.state, "playing", "new story never uses Gojo awakening artwork");
   const yuji = game.player(), mahito = game.entities.find(e => e.charId.startsWith("mahito"));
@@ -92,5 +92,35 @@ for (const stage of ["shibuyaClash", "shibuyaFinal"]) {
   }
   assert.equal(game.state, "ended", `${stage} can complete through normal simulation`);
   assert.equal(game.winner, yuji, `${stage} is winnable with its advertised combo`);
+}
+for (const stage of ["shibuyaClash", "shibuyaFinal"]) {
+  for (const side of ["ally", "enemy"]) {
+    for (const difficulty of ["easy", "normal", "shura", "abyss"]) {
+      const game = new Game3D(); game.modeFamily = "story";
+      game.setStory(stage, side); game.start("story", difficulty);
+      const player = game.player();
+      const yuji = game.entities.find(e => e.charId === "yujiShibuya");
+      const mahito = game.entities.find(e => e.charId.startsWith("mahito"));
+      const todo = game.entities.find(e => e.support);
+      assert.equal(game.storySide, side);
+      assert.equal(player, side === "enemy" ? mahito : yuji);
+      assert.equal(todo.team, yuji.team);
+      assert.notEqual(yuji.team, mahito.team);
+      if (side === "enemy") {
+        game.update(1 / 60);
+        assert.equal(game.state, "playing");
+        if (stage === "shibuyaClash") {
+          mahito.hp = mahito.maxHp * .4; updateShibuya(game, .01);
+          assert.equal(todo.charId, "todoInjured");
+        }
+        assert.equal(game.tryCast(yuji, 3), true, "Todo support stays available to opposing Yuji");
+        yuji.invuln = 0; game.damage(yuji, 1000, mahito, "soulBlade");
+        assert.equal(game.state, "ended"); assert.equal(game.winner, player);
+      }
+      const opposite = side === "enemy" ? "ally" : "enemy";
+      game.setStory(stage, opposite); game.start("story", difficulty);
+      assert.equal(game.player().charId, opposite === "ally" ? "yujiShibuya" : stage === "shibuyaClash" ? "mahito" : "mahitoFinal");
+    }
+  }
 }
 console.log("Shibuya: four difficulties, grounded canon loadouts, soul damage, delayed fist, Black Flash window, Todo swaps/one feint, 0.2s domain, phase endings and free battle verified.");

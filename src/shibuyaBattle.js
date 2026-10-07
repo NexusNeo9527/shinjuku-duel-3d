@@ -20,8 +20,8 @@ export function shibuyaAbilityLocked(game, entity, ability) {
   }
   if (isShibuyaStory(game) && game.shibuya?.phase !== "combat") return true;
   if (ability.id === "todoSupport") return !isShibuyaStory(game) || ((game.shibuya.final || game.shibuya.domainUsed) && game.shibuya.feintUsed);
-  // The scripted domain comes at the end of the first phase, after enough soul damage.
-  if (ability.id === "mahitoDomain" && isShibuyaStory(game)) return true;
+  // Player-controlled Mahito may trigger the same one-time chapter event.
+  if (ability.id === "mahitoDomain" && isShibuyaStory(game)) return !entity.isPlayer || game.shibuya.domainUsed;
   return false;
 }
 export function castSoulDomain(game, entity) {
@@ -31,6 +31,10 @@ export function castSoulDomain(game, entity) {
   }
   entity.soulDomainUntil = game.elapsed + .2;
   entity.burnout = 6;
+  if (!game.shibuya.domainUsed) {
+    game.shibuya.domainUsed = true;
+    injureTodo(game);
+  }
   beginCombatMotion(entity, "mahitoDomain", game.elapsed);
   game.burst(entity.x, 1.2, entity.z, "#b5a3d8", 80, 12);
   game.flash = .7;
@@ -41,6 +45,17 @@ export function castSoulDomain(game, entity) {
     if (enemy.charId === "yujiShibuya") game.queueDialogue("mahito", "只能展开一瞬，不能再触怒宿傩。", 2.5, 7);
     else if (!(enemy.simpleDomainTimer > 0) && !(enemy.wickerBasketTimer > 0) && CHARACTERS[enemy.charId]?.cursedEnergy !== 0) game.damage(enemy, 20, entity, "mahitoDomain");
   }
+}
+function injureTodo(game) {
+  const todo = game.entities.find(e => e.support);
+  if (!todo || todo.charId === 'todoInjured') return;
+  // Ch. 130: the attempted defense is slower than Mahito's activation.
+  game.trySimpleDomain(todo);
+  todo.simpleDomainTimer = 0; todo.simpleDomainIntegrity = 0;
+  game.queueDialogue('todoShibuya', '简易领域……来不及了！', 2, 8);
+  todo.id = 'todo_support_injured'; todo.charId = 'todoInjured'; todo.name = '东堂葵 · 左手损伤';
+  game.queueDialogue('todoInjured', '左手中了术式……兄弟，继续战斗！', 3, 9);
+  game.announce('东堂左手损伤 · 支援改为一次佯攻 · 继续击败真人', '#e6c780', 3);
 }
 export function castTodoSupport(game, yuji) {
   const state = game.shibuya;
@@ -84,11 +99,7 @@ export function updateShibuya(game, dt) {
     // Support follows outside the duel rather than behaving as a summoned curse.
     if (todo) { todo.x += (yuji.x + 6 - todo.x) * Math.min(1, dt * 2); todo.z += (yuji.z + 2 - todo.z) * Math.min(1, dt * 2); todo.yaw = yuji.yaw; }
     if (!state.domainUsed && mahito.alive && mahito.hp <= mahito.maxHp * .45 && yuji.alive) {
-      state.domainUsed = true;
       castSoulDomain(game, mahito);
-      if (todo) { todo.id = "todo_support_injured"; todo.charId = "todoInjured"; todo.name = "东堂葵 · 左手损伤"; }
-      game.queueDialogue("todoInjured", "左手中了术式……兄弟，继续战斗！", 3, 9);
-      game.announce("东堂左手损伤 · 支援改为一次佯攻 · 继续击败真人", "#e6c780", 3);
     }
     return false;
   }

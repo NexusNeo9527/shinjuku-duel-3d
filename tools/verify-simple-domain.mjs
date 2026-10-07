@@ -62,7 +62,7 @@ function duel() {
   gojo.alive = true;
   game.state = "paused";
   assert.equal(game.trySimpleDomain(gojo), false);
-  assert.equal(game.canUseSimpleDomain(game.makeEntity("yutaGojo", 0, 0, true)), true);
+  assert.equal(game.canUseSimpleDomain(game.makeEntity("yutaGojo", 0, 0, true)), false, "borrowed body is not proof of learning Simple Domain");
   assert.equal(game.canUseSimpleDomain(game.makeEntity("yuta", 0, 0, true)), false);
   void sukuna;
 }
@@ -90,6 +90,51 @@ function duel() {
   assert.ok(gojo.simpleDomainTimer > 0, "Gojo AI responds to a nearby opposing domain");
 }
 
+// Period-specific access also applies in free battle and to actual human allies.
+{
+  const game = new Game3D();
+  for (const id of ["gojo", "yujiRaid", "todoShibuya"]) {
+    assert.equal(game.canUseSimpleDomain(game.makeEntity(id, 0, 0, true)), true, id);
+  }
+  for (const id of ["gojoTeen", "gojoAwakened", "yujiShibuya", "yujiCulling", "todoInjured", "yuta", "yutaGojo", "yutaGojoFree", "higuruma", "kashimo", "mahito", "sukuna"]) {
+    assert.equal(game.canUseSimpleDomain(game.makeEntity(id, 0, 0, true)), false, id);
+  }
+  const curse = game.makeEntity("gojo", 0, 0, false); curse.summon = true;
+  assert.equal(game.canUseSimpleDomain(curse), false, "ordinary summons cannot acquire the human skill");
+  game.modeFamily = "free"; game.freePlayerChar = "yujiRaid"; game.freeEnemyChar = "sukuna";
+  game.start("single"); game.timeStop = game.hitStop = 0;
+  const yuji = game.player(); yuji.burnout = 5;
+  assert.equal(game.trySimpleDomain(yuji), true, "trained Yuji can deploy during burnout");
+  yuji.simpleDomainTimer = 0; yuji.simpleDomainCooldown = 0; yuji.cursedEnergyConfiscated = true;
+  assert.equal(game.trySimpleDomain(yuji), false, "energy confiscation prevents deployment");
+}
+{
+  const game = new Game3D(); game.modeFamily = "story";
+  game.setStory("higurumaRaid", "ally"); game.start("story");
+  game.timeStop = game.hitStop = 0; game.raid.trial = 0;
+  const yuji = game.entities.find(e => e.charId === "yujiRaid");
+  const sukuna = game.entities.find(e => e.charId === "sukunaRaid");
+  assert.equal(game.canUseSimpleDomain(yuji), true, "trained human companion remains eligible");
+  game.castDomain(sukuna, { id: "testShrine", label: "御厨子", type: "shrine", radius: 80, life: 10, tick: .5, damage: 5, openBarrier: true });
+  game.timeStop = game.hitStop = 0; game.updateAI(.016);
+  assert.ok(yuji.simpleDomainTimer > 0, "raid ally automatically counters opposing domain");
+  const hp = yuji.hp; game.updateDomains(.5);
+  assert.equal(yuji.hp, hp, "ally Simple Domain suppresses sure-hit damage");
+}
+{
+  const game = new Game3D(); game.modeFamily = "story";
+  game.setStory("shibuyaClash", "ally"); game.start("story");
+  game.timeStop = game.hitStop = 0;
+  const todo = game.entities.find(e => e.support);
+  assert.equal(game.trySimpleDomain(todo), true, "pre-injury Todo can deploy despite support bookkeeping");
+  todo.simpleDomainTimer = 0; todo.simpleDomainCooldown = 0;
+  const mahito = game.entities.find(e => e.charId === "mahito");
+  mahito.hp = mahito.maxHp * .4; game.update(.016);
+  assert.equal(todo.charId, "todoInjured");
+  assert.ok(todo.simpleDomainCooldown > 0, "Todo attempted a response to 0.2s domain");
+  assert.equal(todo.simpleDomainTimer, 0, "Mahito was faster, no persistent barrier after injury");
+  assert.equal(game.trySimpleDomain(todo), false, "injured stage does not invent a new activation");
+}
 assert.equal(new Set(BINDINGS.map((binding) => binding.defaultCode)).size, BINDINGS.length, "new keyboard defaults do not conflict");
 const previousBindings = Object.fromEntries(BINDINGS.filter((binding) => !binding.id.endsWith(".simpleDomain")).map((binding) => [binding.id, binding.defaultCode]));
 previousBindings["p1.descend"] = "KeyC";

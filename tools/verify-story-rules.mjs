@@ -63,7 +63,7 @@ try {
   }
 } finally { Math.random = originalRandom; }
 
-assert.deepEqual(CHARACTERS.gojoTeen.abilities.map(a => a.id), ['blue', 'blueMax', 'infinity']);
+assert.deepEqual(CHARACTERS.gojoTeen.abilities.map(a => a.id), ['blue', 'blueMax', 'infinity', 'fallingBlossom']);
 assert(!CHARACTERS.yujiShibuya.abilities.some(a => a.type === 'domain' || a.type === 'heal'));
 assert(!CHARACTERS.mahitoFinal.abilities.some(a => a.type === 'soulDomain'));
 assert(CHARACTERS.toji.cursedEnergy === 0 && CHARACTERS.toji.grounded);

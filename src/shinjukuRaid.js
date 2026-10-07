@@ -43,7 +43,7 @@ export function respondToCourt(game, entity, response) {
 }
 export function startRaid(game) {
   game.raid = null;
-  if (!isRaid(game) && !game.entities.some(e => ['higuruma', 'kashimo', 'sukunaRaid'].includes(e.charId))) return;
+  if (!isRaid(game) && !game.entities.some(e => ['higuruma', 'higurumaCulling', 'kashimo', 'sukunaRaid'].includes(e.charId))) return;
   game.raid = { trial: 0, judged: false, used: false, condemned: null, swordGranted: false, round: 1 };
   if (isRaid(game) && STORY_STAGES[game.storyStage]?.culling) {
     const yuji = game.entities.find(e => e.charId === 'yujiCulling');
@@ -67,6 +67,7 @@ export function startRaid(game) {
   game.entities.push(yuji);
 }
 export function raidAbilityLocked(game, entity, ability) {
+  if (ability.requiresWorldCut && !entity.worldCutLearned) return true;
   if (ability.maxUses && (entity.abilityUses?.[ability.id] || 0) >= ability.maxUses) return true;
   if (entity.amberExhausted) return true;
   if (confiscationLocks(entity, ability)) return true;
@@ -134,7 +135,8 @@ export function updateRaid(game, dt) {
     }
   }
   if (game.state === 'ended') return true;
-  if (!game.raid || game.state !== 'playing') return false;
+  if (game.state !== 'playing') return false;
+  if (!game.raid) return updateCastWindups(game, dt, null);
   const state = game.raid;
   const judge = game.entities.find(e => e.id === state.ownerId);
   if (state.swordGranted && judge && !judge.alive) state.swordGranted = false;
@@ -180,6 +182,9 @@ export function updateRaid(game, dt) {
       game.announce('日车撤回处刑人之剑 · 继续击败对手即可通关', '#e9bc70', 4);
     }
   }
+  return updateCastWindups(game, dt, state);
+}
+function updateCastWindups(game, dt, state) {
   for (const e of game.entities) {
     if (!e.alive || !e.raidCast) continue;
     e.raidCast.remaining -= dt;
@@ -188,11 +193,11 @@ export function updateRaid(game, dt) {
     const { ability, dir } = e.raidCast;
     e.raidCast = null;
     if (ability.type === 'execution') {
-      const target = game.entities.find(t => t.id === state.condemned && t.alive);
+      const target = game.entities.find(t => t.id === state?.condemned && t.alive);
       const dx = target?.x - e.x, dz = target?.z - e.z;
       const distance = Math.hypot(dx, dz);
       const alignment = (dx * dir.x + dz * dir.z) / (distance || 1);
-      if (state.swordGranted && state.verdict?.death && target && distance <= ability.range && alignment > .5) game.damage(target, 10000, e, ability.id);
+      if (state?.swordGranted && state.verdict?.death && target && distance <= ability.range && alignment > .5) game.damage(target, 10000, e, ability.id);
       else game.announce('处刑人之剑 · 刺击落空', '#e9bc70', 1);
       beginCombatMotion(e, 'katana', game.elapsed);
     } else game.castBeam(e, { ...ability, type: 'beam' }, dir);
@@ -206,6 +211,7 @@ export function updateRaidAI(game, dt) {
     if (e.isPlayer || !e.alive || e.dummy) continue;
     const target = game.enemyList(e).find(t => t.alive && !t.summon);
     if (!target || e.stun > 0 || e.raidCast) { game.setMove(e, 0, 0, 0); continue; }
+    if (game.canUseSimpleDomain(e) && game.domains.some(d => d.alive && d.team !== e.team && !game.sureHitContested(d, e) && Math.hypot(e.x - d.x, e.y + 1.2 - d.y, e.z - d.z) <= d.radius)) game.trySimpleDomain(e);
     if (reactToThreat(game, e, target, dt)) continue;
     const dx = target.x - e.x, dz = target.z - e.z, dist = Math.hypot(dx, dz) || 1;
     game.setAim(e, target.x, target.z);

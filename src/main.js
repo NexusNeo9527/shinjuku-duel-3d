@@ -622,7 +622,8 @@ window.addEventListener("keydown", (event) => {
   if (c && p1) {
     const actions = bindingCodes.get(event.code) || [];
     const cast = actions.find((id) => /^p1\.cast[1-5]$/.test(id));
-    if (cast) game.tryCast(p1, Number(cast.at(-1)) - 1);
+    if (cast) game.castSkillSlot(p1, Number(cast.at(-1)) - 1);
+    if (actions.includes('p1.skillPage')) game.cycleSkillPage(p1);
     if (actions.includes("p1.copy")) game.cycleCopy(p1);
     if (actions.includes("p1.restore")) game.tryForceRestore(p1);
     if (actions.includes("p1.simpleDomain")) game.trySimpleDomain(p1);
@@ -633,7 +634,8 @@ window.addEventListener("keydown", (event) => {
   if (c && p2) {
     const actions = bindingCodes.get(event.code) || [];
     const cast = actions.find((id) => /^p2\.cast[1-5]$/.test(id));
-    if (cast) game.tryCast(p2, Number(cast.at(-1)) - 1);
+    if (cast) game.castSkillSlot(p2, Number(cast.at(-1)) - 1);
+    if (actions.includes('p2.skillPage')) game.cycleSkillPage(p2);
     if (actions.includes("p2.copy")) game.cycleCopy(p2);
     if (actions.includes("p2.lock")) game.cycleLock(p2);
     if (actions.includes("p2.melee")) game.tryBasicAttack(p2);
@@ -800,7 +802,7 @@ function applyInput() {
 
   if (p1 && inBattle) {
     document.querySelector("#btnCopy")?.classList.toggle("hidden", p1.charId !== "yuta");
-    document.querySelector("#btnRestore")?.classList.toggle("hidden", p1.burnout <= 0 || p1.domainLocked);
+    document.querySelector("#btnRestore")?.classList.toggle("hidden", !game.canForceRestore(p1) || p1.burnout <= 0 || p1.domainLocked);
     const yaw = renderer.camYaw;
     const fwd = { x: Math.sin(yaw), z: Math.cos(yaw) };
     const right = { x: -Math.cos(yaw), z: Math.sin(yaw) };

@@ -1,3 +1,4 @@
+import { extendPeriodSkills, extendCopies } from './periodSkills.js';
 import { SHIBUYA_CHARACTERS, SHIBUYA_STAGES } from "./shibuyaConfig.js";
 import { RAID_CHARACTERS, RAID_STAGES } from './shinjukuRaidConfig.js';
 export const TAU = Math.PI * 2;
@@ -150,10 +151,11 @@ export const SUKUNA_VS_GOJO_AI_HANDICAP = {
   }
 };
 
-// Chapter 226: Gojo can use Simple Domain during innate-technique burnout.
-// Durations and durability are game tuning. Borrowed-body access is an adaptation.
+// Confirmed periods: Gojo (ch. 226), pre-injury Shibuya Todo (ch. 130),
+// and Shinjuku Yuji after replacement training (ch. 258).
+// Durations and durability are game tuning; unconfirmed users are excluded.
 export const SIMPLE_DOMAIN = Object.freeze({
-  characters: ["gojo", "yutaGojo"], duration: 5, cooldown: 16,
+  characters: ["gojo", "yujiRaid", "todoShibuya"], duration: 5, cooldown: 16,
   radius: 3, integrity: 32, color: "#bdeeff"
 });
 
@@ -294,7 +296,7 @@ CHARACTERS.yutaGojoFree = {
   ...CHARACTERS.yutaGojo, id: "yutaGojoFree", assetId: "yutaGojo",
   abilities: CHARACTERS.yutaGojo.abilities.map((ability) => ({ ...ability }))
 };
-export const FREE_BATTLE_CHARACTERS = ["gojo", "sukuna", "yuta", "yutaGojoFree", "gojoTeen", "gojoAwakened", "toji", "tojiRematch", "yujiShibuya", "mahito", "mahitoFinal", "higuruma", "yujiCulling", "kashimo", "sukunaRaid"];
+export const FREE_BATTLE_CHARACTERS = ["gojo", "sukuna", "yuta", "yutaGojoFree", "gojoTeen", "gojoAwakened", "toji", "tojiRematch", "yujiShibuya", "mahito", "mahitoFinal", "higuruma", "higurumaCulling", "todoShibuya", "todoInjured", "yujiCulling", "yujiRaid", "kashimo", "sukunaRaid"];
 
 // Chapters 262–263: amplification and body blows contest a channeled Purple.
 // Timing, stamina and arena dimensions below are gameplay adaptations.
@@ -360,6 +362,7 @@ CHARACTERS.tojiRematch = {
 };
 
 Object.assign(CHARACTERS, SHIBUYA_CHARACTERS, RAID_CHARACTERS);
+extendPeriodSkills(CHARACTERS);
 // Period-specific traits; awareness survives Sukuna leaving Yuji's body.
 for (const id of ['yujiShibuya', 'yujiCulling', 'yujiRaid']) {
   CHARACTERS[id].soulAware = true;
@@ -392,6 +395,8 @@ export const COPY_TECHNIQUES = [
   storyMove("skyBreak", "天空操术·薄冰破", "orb", { damage: 18, power: 2, speed: 29, radius: 1.0, life: 1.4, knock: 11, cooldown: 3 }),
   storyMove("jacobsLadder", "雅各布天梯", "beam", { damage: 27, power: 3, length: 42, width: 2.2, life: 0.55, knock: 8, cooldown: 4.5 })
 ];
+
+extendCopies(COPY_TECHNIQUES);
 
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
