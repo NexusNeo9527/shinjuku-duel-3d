@@ -54,6 +54,20 @@ function rebuildBindingCodes() {
 rebuildBindingCodes();
 const keyCode = (id) => inputSettings.bindings[id];
 const actionBoundTo = (code, id) => (bindingCodes.get(code) || []).includes(id);
+let returnToStoryMenuAfterClassic = false;
+
+function openClassicDuel(fromStory) {
+  returnToStoryMenuAfterClassic = fromStory;
+  audio.ensure();
+  game.modeFamily = "gojo";
+  game.storyPlayMode = "story";
+  game.setSingleChar("gojo");
+  game.pendingMode = "single";
+  setMusicScene("gojo");
+  game.state = "gojoSelect";
+  setModeTitle("single");
+  applyTheme(game.singleChar);
+}
 
 
 const ui = new UI3D(game, {
@@ -63,19 +77,31 @@ const ui = new UI3D(game, {
   onOpenSettings: () => { game.state = "settings"; },
   onBackToHome: () => returnHome(),
   onBackToModeSelect: () => {
+    if (returnToStoryMenuAfterClassic) {
+      returnToStoryMenuAfterClassic = false;
+      game.modeFamily = "story";
+      game.pendingMode = "story";
+      game.state = "storySelect";
+      setMusicScene("story");
+      setModeTitle("story", game.storyStage);
+      const stageInfo = STORY_STAGES[game.storyStage];
+      applyTheme(game.storySide === "enemy" ? stageInfo.enemy : stageInfo.ally);
+      return;
+    }
     game.state = "modeSelect";
     setMusicScene("menu");
     setModeTitle("gojo");
     applyTheme("gojo");
   },
   onMode: (mode) => {
+    if (mode === "gojo") { openClassicDuel(false); return; }
     audio.ensure();
-    game.modeFamily = mode === "story" ? "story" : mode === "gojo" ? "gojo" : "free";
+    returnToStoryMenuAfterClassic = false;
+    game.modeFamily = mode === "story" ? "story" : "free";
     game.storyPlayMode = "story";
-    if (mode === "free" || mode === "gojo") {
-      if (mode === "gojo") game.setSingleChar("gojo");
+    if (mode === "free") {
       game.pendingMode = "single"; setMusicScene("gojo"); game.state = "gojoSelect";
-      setModeTitle("single"); applyTheme(mode === "free" ? game.freePlayerChar : game.singleChar); return;
+      setModeTitle("single"); applyTheme(game.freePlayerChar); return;
     }
     if (mode === "story") {
       setMusicScene("story");
@@ -95,6 +121,7 @@ const ui = new UI3D(game, {
   },
   onDifficulty: (d) => startGame(game.pendingMode === "story" ? "story" : "single", d),
   onStoryPlayMode: (mode) => { game.storyPlayMode = mode; },
+  onStoryClassic: () => openClassicDuel(true),
   onStoryStage: (stage) => {
     game.setStory(stage, game.storySide);
     const stageInfo = STORY_STAGES[game.storyStage];

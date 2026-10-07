@@ -221,19 +221,16 @@
               <button id="openSettingsBtn" class="text-button" type="button">设置</button>
             </div>
           </div>
-          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.6</div>
+          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.7</div>
         </div>
       </div>
 
       <div id="modeSelectMenu" class="overlay hidden">
         <div class="overlay-panel selection-panel">
-          <div class="kicker">CHOOSE YOUR BATTLE</div>
-          <h2>选择战场</h2>
-          <p>跟随章节体验剧情，或自由选择双方角色进行 PK。</p>
+          <div class="kicker">CHOOSE YOUR MODE</div>
+          <h2>选择模式</h2>
+          <p>进入章节体验剧情，或自由选择双方角色进行对战。</p>
           <div class="mode-grid home-mode-grid">
-            <button class="mode-card home-mode-card gojo-mode-card" data-mode="gojo" type="button">
-              <span class="mode-no">经典对决</span><span class="mode-label">五条悟 VS 宿傩</span><small>原始模式 · 单人 / 双人 / 练习</small>
-            </button>
             <button class="mode-card home-mode-card yuta-mode-card" data-mode="story" type="button">
               <span class="mode-no">怀玉 / 涩谷 / 新宿</span><span class="mode-label">剧情模式</span><small>怀玉 / 涩谷 / 新宿 · 鹿紫云、日车与虎杖接续迎战</small>
             </button>
@@ -294,6 +291,7 @@
             </div>
           </div>
           <div class="mode-grid">
+            <button class="mode-card gojo-mode-card" data-story-classic type="button"><span class="mode-no">经典对决</span><span class="mode-label">五条悟 VS 宿傩</span><small>原始模式 · 单人 / 双人 / 练习</small></button>
             <button class="mode-card illustrated-story-card" data-story-stage="hiddenInventory" type="button"><img class="story-card-art" src="./assets/hidden-inventory-opening.png" alt="" /><span class="mode-no">怀玉 01</span><span class="mode-label">高专初战</span><small>疲惫的五条 · 苍 / 天逆鉾 / 蝇头</small></button>
             <button class="mode-card illustrated-story-card" data-story-stage="hiddenInventoryRematch" type="button"><img class="story-card-art" src="./assets/hidden-inventory-awakening.png" alt="" /><span class="mode-no">怀玉 02</span><span class="mode-label">觉醒再战</span><small>盘星教 · 赫 / 茈 / 万里锁</small></button>
             <button class="mode-card shibuya-story-card" data-story-stage="shibuyaClash" type="button"><span class="mode-no">涩谷 01</span><span class="mode-label">东堂共斗</span><small>虎杖与东堂 · 不义游戏 / 0.2秒领域</small></button>
@@ -305,7 +303,7 @@
             <button class="mode-card" data-story-stage="yuta" type="button"><span class="mode-no">新宿 04</span><span class="mode-label">真赝相爱</span><small>乙骨本体 · 里香与复制术式</small></button>
             <button class="mode-card" data-story-stage="borrowed" type="button"><span class="mode-no">新宿 05</span><span class="mode-label">五条之身</span><small>无量空处 · 领域再战</small></button>
           </div>
-          <button id="storyBackBtn" class="text-button" type="button">← 返回战场选择</button>
+          <button id="storyBackBtn" class="text-button" type="button">← 返回模式选择</button>
         </div>
       </div>
 

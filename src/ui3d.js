@@ -86,6 +86,7 @@ export class UI3D {
       difficultyMenu: document.querySelector("#difficultyMenu"),
       storyMenu: document.querySelector("#storyMenu"),
       storyBackBtn: document.querySelector("#storyBackBtn"),
+      storyClassicBtn: document.querySelector("[data-story-classic]"),
       storyStageBtns: [...document.querySelectorAll("[data-story-stage]")],
       storySideBtns: [...document.querySelectorAll("[data-story-side]")],
       storySideSelect: document.querySelector("#storySideSelect"),
@@ -205,6 +206,7 @@ export class UI3D {
     this.dom.modeButtons.forEach((b) => b.addEventListener("click", () => h.onMode(b.dataset.mode)));
     this.dom.gojoModeBtns.forEach((b) => b.addEventListener("click", () => h.onGojoMode(b.dataset.gojoMode)));
     this.dom.gojoBackBtn.addEventListener("click", () => h.onBackToModeSelect());
+    this.dom.storyClassicBtn.addEventListener("click", () => h.onStoryClassic());
     this.dom.storyPlayModeBtns.forEach((b) => b.addEventListener("click", () => {
       this.dom.storyPlayModeBtns.forEach((button) => button.classList.toggle("active", button === b));
       h.onStoryPlayMode(b.dataset.storyPlayMode);
@@ -491,6 +493,7 @@ export class UI3D {
     const freeSelection = game.modeFamily === "free";
     this.dom.gojoMenu.querySelector("h2").textContent = freeSelection ? "自由战斗" : "五条悟 VS 宿傩";
     this.dom.gojoMenu.querySelector("p").textContent = freeSelection ? "分别选择双方角色，同一角色也可以互相对战。" : "经典模式：挑战电脑、双人对战或练习术式。单人可选择操控五条或宿傩。";
+    this.dom.gojoBackBtn.textContent = freeSelection ? "← 返回战场选择" : "← 返回剧情模式";
     this.dom.gojoMenu.querySelector(".free-roster").classList.toggle("hidden", !freeSelection);
     this.dom.freeMatchup.classList.toggle("hidden", !freeSelection);
     this.dom.storyMenu.classList.toggle("hidden", s !== "storySelect");
@@ -614,7 +617,7 @@ export class UI3D {
     this.updateResult(game);
 
     const modeLabel = s === "menu" ? "咒术回战"
-      : s === "modeSelect" ? "选择战场"
+      : s === "modeSelect" ? "选择模式"
       : s === "guide" ? "游戏说明"
       : s === "settings" ? "设置"
       : s === "gojoSelect" ? (game.modeFamily === "free" ? "自由战斗 · 选择双方角色" : "经典对决 · 五条悟 VS 宿傩")
