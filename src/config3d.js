@@ -3,7 +3,8 @@ import { SHIBUYA_CHARACTERS, SHIBUYA_STAGES } from "./shibuyaConfig.js";
 import { RAID_CHARACTERS, RAID_STAGES } from './shinjukuRaidConfig.js';
 export const TAU = Math.PI * 2;
 
-export const ARENA = { half: 72 };
+// Real-world distances use one scene unit per metre; domain interiors are expanded spaces.
+export const ARENA = { half: 72, metersPerUnit: 1 };
 
 export const FLIGHT = { speed: 9.4, maxAlt: 30, radius: 0.6 };
 export const SPRINT = { multiplier: 1.8 };
@@ -237,10 +238,10 @@ export const CHARACTERS = {
       },
       {
         id: "shrine", label: "伏魔御厨子", type: "domain", shape: "domain",
-        damage: 5, tick: 0.4, radius: 40, canonMaxRadius: 200, closedBarrier: false, openBarrier: true,
+        damage: 5, tick: 0.4, radius: 200, canonMaxRadius: 200, closedBarrier: false, openBarrier: true,
         barrierDamagePerSecond: 14, maintenanceDamageRatio: 0.3, cooldown: 0, life: 5,
         color: "#ff2f4d", core: "#ffd2d8", needsDomain: true,
-        desc: "开放式领域，不封锁逃路；捌斩有咒力目标、解斩无咒力目标。原著最大半径200米，本战场缩尺为40；外侧斩击破坏封闭结界"
+        desc: "开放式领域，不封锁逃路；捌斩有咒力目标、解斩无咒力目标。通常以最大半径约200米展开，覆盖当前小战场；领域对抗时可主动缩小范围，外侧斩击破坏封闭结界"
       },
       {
         id: "mahoraga", label: "魔虚罗", type: "summon", shape: "summon",

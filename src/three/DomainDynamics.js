@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { ARENA } from "../config3d.js";
 
 const hash = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
 const MAX_RIBBONS = 192;
@@ -52,8 +53,13 @@ export class DomainDynamics {
         // Open barrier: slashes fill real space; no spherical red shell.
         for (let i = 0; i < 32; i++) {
           const cycle = age * 7 + hash(i) * 4, phase = cycle % 1, seed = i * 17 + Math.floor(cycle) * 193;
-          const r = Math.sqrt(hash(seed + 1)) * domain.radius * .94, a = hash(seed + 2) * Math.PI * 2;
-          const x = domain.x + Math.cos(a) * r, z = domain.z + Math.sin(a) * r;
+          // Sample only the visible arena intersection, keeping wide-range slashes dense
+          // without increasing the fixed buffer or creating an enclosing wall.
+          const minX = Math.max(-ARENA.half, domain.x-domain.radius), maxX = Math.min(ARENA.half, domain.x+domain.radius);
+          const minZ = Math.max(-ARENA.half, domain.z-domain.radius), maxZ = Math.min(ARENA.half, domain.z+domain.radius);
+          const x = minX+(maxX-minX)*hash(seed+1), z = minZ+(maxZ-minZ)*hash(seed+2);
+          const r = Math.hypot(x-domain.x,z-domain.z);
+          if (r >= domain.radius) continue;
           const y = Math.max(.16, domain.y - 1 + hash(seed + 3) * 4);
           const length = Math.min(2 + hash(seed + 4) * 6, 2 * (domain.radius - r)) * Math.sin(phase * Math.PI);
           const angle = hash(seed + 5) * Math.PI;

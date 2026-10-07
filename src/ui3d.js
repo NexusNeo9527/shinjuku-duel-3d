@@ -641,6 +641,8 @@ export class UI3D {
       : `${game.modeFamily === "story" ? `${STORY_STAGES[game.storyStage].label} · ` : ""}练习终端`;
     this.dom.modeStatus.textContent = modeLabel;
     const status = [];
+    const shrine = game.domains.find(d => d.alive && d.type === 'shrine');
+    if (shrine) status.push(shrine.rangeMode === 'barrierFocused' ? '伏魔御厨子 · 缩小范围包围微型结界' : '伏魔御厨子 · 半径约200米 · 开放必中范围');
     if (game.mode === "story") status.push("击败对手即可通关");
     if (player?.charId === "yujiShibuya") status.push(player.blackFlashUntil > game.elapsed ? `黑闪机会 ${(player.blackFlashUntil - game.elapsed).toFixed(1)}秒 · 近身按奥义键` : "逕庭拳延迟命中 → 近身黑闪");
     if (player?.amberActivated) status.push(`幻兽琥珀不可逆 · ${Math.max(0, player.amberUntil - game.elapsed).toFixed(1)}秒后肉体崩解（游戏改编）`);

@@ -356,7 +356,14 @@ export class Game3D {
       e.pendingCast = null;
       e.recovery = 0;
       const ability = e.charId === "yutaGojo" ? CHARACTERS.gojo.abilities[3] : CHARACTERS.sukuna.abilities[3];
-      this.castDomain(e, { ...ability, radius: BORROWED_BATTLE.radius, life: this.storyTimer });
+      this.castDomain(e, { ...ability, radius: ability.openBarrier ? ability.radius : BORROWED_BATTLE.radius, exteriorRadius: ability.closedBarrier ? .12 : ability.exteriorRadius, life: this.storyTimer });
+    }
+    // Ch. 262: restrict Shrine to the miniature barrier, independent of its expanded interior.
+    const closed = this.domains.find(d => d.closedBarrier);
+    const open = this.domains.find(d => d.openBarrier);
+    if (open && closed) {
+      open.radius = Math.min(open.radius, Math.hypot(closed.exteriorX - open.x, closed.exteriorY - open.y, closed.exteriorZ - open.z) + closed.exteriorRadius + .1);
+      open.rangeMode = 'barrierFocused';
     }
     this.announce("领域对抗 · 击败对手即可获胜", "#b7e9ff", 3);
     this.queueDialogue("yutaGojo", `领域交锋持续${this.storyTimer}秒，结界结束后继续战斗。用体术、苍与茈击败对手。`, 7, 7);
@@ -1355,6 +1362,8 @@ export class Game3D {
       y: ability.closedBarrier ? CHEST : entity.y + CHEST,
       z: ability.closedBarrier ? 0 : entity.z,
       radius: ability.radius,
+      canonMaxRadius: ability.canonMaxRadius,
+      rangeMode: ability.openBarrier ? 'maximum' : null,
       life: ability.life,
       maxLife: ability.life,
       tick: ability.tick,
@@ -1378,7 +1387,7 @@ export class Game3D {
     this.flash = Math.max(this.flash, 0.6);
     this.screenShake = Math.max(this.screenShake, 2.2);
     this.emit("sfx", { kind: "domain", owner: entity.charId });
-    this.announce(`领域展开 · ${ability.label}`, ability.color, 1.6);
+    this.announce(`领域展开 · ${ability.label}${ability.openBarrier ? ' · 最大范围约200米' : ''}`, ability.color, 1.6);
     if (entity.charId === "yuta") this.triggerCutIn("yuta-authentic-love", 0.42, 0.66, 2.4, { presentation: "compact", life: 1.3 });
     else if (entity.charId === "gojo" || entity.charId === "yutaGojo") this.triggerCutIn("gojo-void", 0.42, 0.66, 2.4, { presentation: "compact" });
     else if (entity.charId.startsWith("sukuna")) this.triggerCutIn("sukuna-domain", 0.42, 0.66, 2.4, { presentation: "compact" });
