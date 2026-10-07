@@ -89,6 +89,7 @@ export class UI3D {
       storyStageBtns: [...document.querySelectorAll("[data-story-stage]")],
       storySideBtns: [...document.querySelectorAll("[data-story-side]")],
       storySideSelect: document.querySelector("#storySideSelect"),
+      storySideSelectMenu: document.querySelector("#storySideSelectMenu"),
       singleCharSelect: document.querySelector("#singleCharSelect"),
       difficultyHelp: document.querySelector("#difficultyHelp"),
       continueStoryBtn: document.querySelector("#continueStoryBtn"),
@@ -498,24 +499,29 @@ export class UI3D {
     this.dom.homeBtn.classList.toggle("hidden", homeSurface);
     this.dom.modeAudioControls.classList.toggle("hidden", homeSurface);
     this.dom.storyPlayModeBtns.forEach((button) => button.classList.toggle("active", button.dataset.storyPlayMode === game.storyPlayMode));
+    const stageInfo = STORY_STAGES[game.storyStage];
     if (this.dom.storyPlayHelp) {
       this.dom.storyPlayHelp.textContent = game.storyPlayMode === "dual"
-        ? "选择阶段后，双方分别操控本章角色；五条悟 VS 宿傩时 P1 操控五条，P2 操控宿傩。"
+        ? `选择阶段后，P1 操控${CHARACTERS[game.storySide === "enemy" ? stageInfo.enemy : stageInfo.ally].name}，P2 操控${CHARACTERS[game.storySide === "enemy" ? stageInfo.ally : stageInfo.enemy].name}。`
         : game.storyPlayMode === "practice"
           ? "选择阶段与角色后进入练习，可随时更换角色。"
           : "选择剧情阶段后开始单人战斗。";
     }
     this.dom.storySideSelect.classList.toggle("hidden", game.pendingMode !== "story");
+    this.dom.storySideSelectMenu.classList.toggle("hidden", s !== "storySelect");
     this.dom.singleCharSelect.classList.toggle("hidden", game.pendingMode === "story" || game.modeFamily === "free");
     this.dom.freePlayerChar.value = game.freePlayerChar;
     this.dom.freeEnemyChar.value = game.freeEnemyChar;
     const matchup = CHARACTERS[game.freePlayerChar].name + " VS " + CHARACTERS[game.freeEnemyChar].name;
     this.dom.freeMatchup.textContent = matchup;
-    const stageInfo = STORY_STAGES[game.storyStage];
-    this.dom.storySideBtns[0].textContent = CHARACTERS[stageInfo.ally].name;
-    this.dom.storySideBtns[1].textContent = CHARACTERS[stageInfo.enemy].name + (stageInfo.shibuya || stageInfo.allyOnly ? "（剧情对手）" : "");
-    this.dom.storySideBtns[1].disabled = Boolean(stageInfo.shibuya || stageInfo.allyOnly);
-    this.dom.storySideBtns.forEach((button) => button.classList.toggle("active", button.dataset.storySide === game.storySide));
+    this.dom.storySideBtns.forEach((button) => {
+      const side = button.dataset.storySide;
+      const charId = side === "enemy" ? stageInfo.enemy : stageInfo.ally;
+      button.textContent = CHARACTERS[charId].name + (side === "enemy" && (stageInfo.shibuya || stageInfo.allyOnly) ? "（剧情对手）" : "");
+      button.disabled = side === "enemy" && Boolean(stageInfo.shibuya || stageInfo.allyOnly);
+      button.classList.toggle("active", side === game.storySide);
+      button.setAttribute("aria-pressed", String(side === game.storySide));
+    });
     this.dom.singleCharBtns.forEach((button) => button.classList.toggle("active", button.dataset.singleChar === game.singleChar));
     this.dom.difficultyHelp.textContent = game.pendingMode === "story"
       ? `使用所选角色在本时期的技能，击败${CHARACTERS[game.storySide === "enemy" ? stageInfo.ally : stageInfo.enemy].name}即可通关。难度越高，敌人反应、追击和防守更积极，耐久与伤害适度提高。`

@@ -83,7 +83,7 @@ const ui = new UI3D(game, {
       game.pendingMode = "story";
       game.state = "storySelect";
       setModeTitle("story", game.storyStage);
-      applyTheme("yuta");
+      applyTheme(STORY_STAGES[game.storyStage].ally);
     }
   },
   onGojoMode: (mode) => {
@@ -113,7 +113,11 @@ const ui = new UI3D(game, {
     }
     startGame("dual", "normal");
   },
-  onStorySide: (side) => { game.setStory(game.storyStage, side); applyTheme(game.storySide === "enemy" ? "sukuna" : "yuta"); },
+  onStorySide: (side) => {
+    game.setStory(game.storyStage, side);
+    const stageInfo = STORY_STAGES[game.storyStage];
+    applyTheme(game.storySide === "enemy" ? stageInfo.enemy : stageInfo.ally);
+  },
   onContinueStory: () => {
     const next = STORY_STAGES[game.storyStage]?.next;
     if (game.mode !== "story" || game.state !== "ended" || !game.winner?.isPlayer || !next) return;
@@ -128,9 +132,11 @@ const ui = new UI3D(game, {
   },
   onSingleChar: (id) => { game.setSingleChar(id); applyTheme(game.singleChar); },
   onBack: () => {
+    if (game.pendingMode === "story") game.setStory("opening", game.storySide);
     game.state = game.pendingMode === "story" ? "storySelect" : "gojoSelect";
     setModeTitle(game.pendingMode === "story" ? "story" : "gojo", game.pendingMode === "story" ? game.storyStage : null);
-    applyTheme(game.pendingMode === "story" ? "yuta" : "gojo");
+    const stageInfo = STORY_STAGES[game.storyStage];
+    applyTheme(game.pendingMode === "story" ? (game.storySide === "enemy" ? stageInfo.enemy : stageInfo.ally) : "gojo");
   },
   onHome: () => returnHome(),
   onAgain: () => startGame(game.mode, game.difficulty),

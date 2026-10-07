@@ -221,7 +221,7 @@
               <button id="openSettingsBtn" class="text-button" type="button">设置</button>
             </div>
           </div>
-          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.5</div>
+          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.6</div>
         </div>
       </div>
 
@@ -286,6 +286,13 @@
             <button class="story-play-mode" data-story-play-mode="practice" type="button"><strong>练习模式</strong><small>进入训练场熟悉本章角色</small></button>
           </div>
           <p id="storyPlayHelp" class="story-play-help">选择剧情阶段后开始单人战斗。</p>
+          <div id="storySideSelectMenu" class="single-char story-side-select-menu">
+            <span>优先操控阵营（部分章节仅限剧情角色）</span>
+            <div class="single-char-btns">
+              <button data-story-side="ally" class="sc-btn active" type="button" aria-pressed="true">五条悟</button>
+              <button data-story-side="enemy" class="sc-btn" type="button" aria-pressed="false">宿傩</button>
+            </div>
+          </div>
           <div class="mode-grid">
             <button class="mode-card illustrated-story-card" data-story-stage="hiddenInventory" type="button"><img class="story-card-art" src="./assets/hidden-inventory-opening.png" alt="" /><span class="mode-no">怀玉 01</span><span class="mode-label">高专初战</span><small>疲惫的五条 · 苍 / 天逆鉾 / 蝇头</small></button>
             <button class="mode-card illustrated-story-card" data-story-stage="hiddenInventoryRematch" type="button"><img class="story-card-art" src="./assets/hidden-inventory-awakening.png" alt="" /><span class="mode-no">怀玉 02</span><span class="mode-label">觉醒再战</span><small>盘星教 · 赫 / 茈 / 万里锁</small></button>
@@ -371,8 +378,8 @@
           <div id="storySideSelect" class="single-char hidden">
             <span>操控阵营</span>
             <div class="single-char-btns">
-              <button data-story-side="ally" class="sc-btn active" type="button">乙骨忧太</button>
-              <button data-story-side="enemy" class="sc-btn" type="button">宿傩</button>
+              <button data-story-side="ally" class="sc-btn active" type="button" aria-pressed="true">乙骨忧太</button>
+              <button data-story-side="enemy" class="sc-btn" type="button" aria-pressed="false">宿傩</button>
             </div>
           </div>
           <p id="difficultyHelp">难度会改变对手的瞄准精度、反应速度、伤害、减伤、机动与魔虚罗强度。</p>

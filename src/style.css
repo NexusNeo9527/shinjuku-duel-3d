@@ -1128,6 +1128,8 @@ body.theme-yuta {
 .story-play-mode:hover, .story-play-mode.active { border-color: var(--accent); box-shadow: 0 0 20px -12px var(--accent); }
 .story-play-mode.active strong { color: var(--accent); }
 .story-play-help { margin: 8px 0 0 !important; text-align: center; font-size: 12px !important; }
+.story-side-select-menu { justify-content: center; flex-wrap: wrap; margin: 10px 0 2px; }
+.story-side-select-menu > span { text-align: center; }
 .guide-panel, .settings-panel {
   width: min(680px, 100%); max-height: calc(100% - 20px); overflow-y: auto;
   scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
