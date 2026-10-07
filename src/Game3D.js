@@ -71,6 +71,7 @@ export class Game3D {
     this.practice = false;
     this.playerMaxHp = PLAYER_HP_SETTINGS.default;
     this.practiceChar = "gojo";
+    this.practiceEnemyChar = null;
     this.practiceInfinite = true;
     this.practiceInvincible = true;
     this.practiceEnemyInvincible = true;
@@ -444,6 +445,16 @@ export class Game3D {
     this.practiceChar = PRACTICE_CHAR_IDS.has(charId) ? charId : "gojo";
   }
 
+  practiceEnemyId() {
+    return this.practiceEnemyChar || (this.modeFamily === "free" ? this.freeEnemyChar : PRACTICE_DUMMIES[this.practiceChar] || "sukuna");
+  }
+
+  setPracticeEnemy(charId) {
+    if (!PRACTICE_CHAR_IDS.has(charId)) return false;
+    this.practiceEnemyChar = charId;
+    return true;
+  }
+
   setPracticeOption(key, value) {
     if (key === "infinite") this.practiceInfinite = value;
     if (key === "invincible") this.practiceInvincible = value;
@@ -458,9 +469,10 @@ export class Game3D {
 
   spawnDummy() {
     if (this.entities.some((e) => e.dummy)) return;
-    const other = this.modeFamily === "free" ? this.freeEnemyChar : PRACTICE_DUMMIES[this.practiceChar] || "sukuna";
+    const other = this.practiceEnemyId();
     const dummy = this.makeEntity(other, 0, -14, false);
-    if (this.modeFamily === "free") { dummy.id = "free_p2_" + other; dummy.team = this.player()?.team === "gojo" ? "sukuna" : "gojo"; }
+    dummy.team = this.player()?.team === "gojo" ? "sukuna" : "gojo";
+    if (this.modeFamily === "free") dummy.id = "free_p2_" + other;
     dummy.dummy = true;
     dummy.moveInput = { x: 0, z: 0 };
     this.entities.push(dummy);
@@ -544,6 +556,7 @@ export class Game3D {
     this.practiceChar = this.freePlayerChar = 'yujiShibuya';
     this.modeFamily = 'free';
     this.freeEnemyChar = 'mahito';
+    this.practiceEnemyChar = 'mahito';
     this.practiceDummy = true;
     this.practiceInfinite = this.practiceInvincible = this.practiceEnemyInvincible = false;
     this.start('practice', 'normal');

@@ -174,6 +174,11 @@ const ui = new UI3D(game, {
     applyTheme(game.practiceChar);
     startGame("practice", "normal");
   },
+  onPracticeEnemy: (c) => {
+    if (!game.setPracticeEnemy(c)) return;
+    game.practiceDummy = true;
+    startGame("practice", "normal");
+  },
   onTheme: (c) => {
     game.trainingTask = null;
     game.setPracticeChar(c);

@@ -162,6 +162,7 @@ export class UI3D {
       practicePanelToggle: document.querySelector("#practicePanelToggle"),
       splitUI: document.querySelector("#splitUI"),
       practiceCharacter: document.querySelector("#practiceCharacter"),
+      practiceEnemyCharacter: document.querySelector("#practiceEnemyCharacter"),
       singleCharBtns: [...document.querySelectorAll("[data-single-char]")],
       practiceToggles: [...document.querySelectorAll("[data-ptoggle]")],
       themeChips: [...document.querySelectorAll("[data-theme]")],
@@ -181,6 +182,7 @@ export class UI3D {
       option.value = id;
       option.textContent = practiceCharacterLabel(id);
       this.dom.practiceCharacter.appendChild(option);
+      this.dom.practiceEnemyCharacter.appendChild(option.cloneNode(true));
     }
     this.courtPanel = document.createElement('section');
     this.courtPanel.className = 'court-hearing hidden';
@@ -237,6 +239,7 @@ export class UI3D {
     this.dom.pauseHomeBtn.addEventListener("click", () => h.onHome());
     this.dom.soundBtn.addEventListener("click", () => h.onSound(this.dom.soundBtn));
     this.dom.practiceCharacter.addEventListener("change", () => h.onPracticeChar(this.dom.practiceCharacter.value));
+    this.dom.practiceEnemyCharacter.addEventListener("change", () => h.onPracticeEnemy(this.dom.practiceEnemyCharacter.value));
     for (const button of document.querySelectorAll('[data-training]')) button.addEventListener('click',()=>h.onTraining(button.dataset.training));
     this.dom.practicePanelToggle.addEventListener("click", () => {
       const collapsed = this.dom.practicePanel.classList.toggle("collapsed");
@@ -810,6 +813,7 @@ export class UI3D {
 
   updatePracticePanel(game) {
     this.dom.practiceCharacter.value = game.practiceChar;
+    this.dom.practiceEnemyCharacter.value = game.practiceEnemyId();
     for (const b of this.dom.practiceToggles) {
       const key = b.dataset.ptoggle;
       const on = practiceFlag(game, key);
