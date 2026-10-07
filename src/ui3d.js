@@ -500,7 +500,7 @@ export class UI3D {
     this.dom.storyPlayModeBtns.forEach((button) => button.classList.toggle("active", button.dataset.storyPlayMode === game.storyPlayMode));
     if (this.dom.storyPlayHelp) {
       this.dom.storyPlayHelp.textContent = game.storyPlayMode === "dual"
-        ? "选择阶段后，双方分别操控该阶段的两名角色；胜负由对战决定。"
+        ? "选择阶段后，双方分别操控本章角色；五条悟 VS 宿傩时 P1 操控五条，P2 操控宿傩。"
         : game.storyPlayMode === "practice"
           ? "选择阶段与角色后进入练习，可随时更换角色。"
           : "选择剧情阶段后开始单人战斗。";
@@ -616,8 +616,8 @@ export class UI3D {
       : s === "difficulty" ? "选择难度"
       : game.mode === "single" ? `单人对决 · ${DIFFICULTY[game.difficulty].label}`
       : game.mode === "story" ? `剧情 · ${STORY_STAGES[game.storyStage].label} · ${DIFFICULTY[game.difficulty].label}`
-      : game.mode === "dual" ? `${game.modeFamily === "story" ? "乙骨篇 · " : ""}双人同屏`
-      : `${game.modeFamily === "story" ? "乙骨篇 · " : ""}练习终端`;
+      : game.mode === "dual" ? `${game.modeFamily === "story" ? `${STORY_STAGES[game.storyStage].label} · ` : ""}双人同屏`
+      : `${game.modeFamily === "story" ? `${STORY_STAGES[game.storyStage].label} · ` : ""}练习终端`;
     this.dom.modeStatus.textContent = modeLabel;
     const status = [];
     if (game.mode === "story") status.push("击败对手即可通关");

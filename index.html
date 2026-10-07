@@ -221,7 +221,7 @@
               <button id="openSettingsBtn" class="text-button" type="button">设置</button>
             </div>
           </div>
-          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.4</div>
+          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.5</div>
         </div>
       </div>
 
@@ -279,7 +279,12 @@
         <div class="overlay-panel">
           <div class="kicker">HIDDEN INVENTORY / SHIBUYA / SHINJUKU</div>
           <h2 id="storyMenuTitle">怀玉 / 涩谷 / 新宿</h2>
-          <p>怀玉、涩谷、死灭回游与新宿篇。死灭回游为虎杖对日车的剧场单挑；新宿从五条对宿傩开始，接续鹿紫云挑战、日车与虎杖协战、乙骨两战。击败对手即可通关；五条对宿傩沿用经典技能与数值，胜负由实际战斗决定。</p>
+          <p>怀玉、涩谷、死灭回游与新宿篇。死灭回游为虎杖对日车的剧场单挑；新宿从五条对宿傩开始，接续鹿紫云挑战、日车与虎杖协战、乙骨两战。可选单人剧情、双人同屏或练习；击败对手即可通关。</p>
+          <div class="story-play-modes" role="group" aria-label="剧情战斗方式">
+            <button class="story-play-mode active" data-story-play-mode="story" type="button"><strong>单人剧情</strong><small>选择阵营与难度，通关接续</small></button>
+            <button class="story-play-mode" data-story-play-mode="dual" type="button"><strong>双人同屏</strong><small>双方操控本章节角色</small></button>
+            <button class="story-play-mode" data-story-play-mode="practice" type="button"><strong>练习模式</strong><small>进入训练场熟悉本章角色</small></button>
+          </div>
           <p id="storyPlayHelp" class="story-play-help">选择剧情阶段后开始单人战斗。</p>
           <div class="mode-grid">
             <button class="mode-card illustrated-story-card" data-story-stage="hiddenInventory" type="button"><img class="story-card-art" src="./assets/hidden-inventory-opening.png" alt="" /><span class="mode-no">怀玉 01</span><span class="mode-label">高专初战</span><small>疲惫的五条 · 苍 / 天逆鉾 / 蝇头</small></button>
