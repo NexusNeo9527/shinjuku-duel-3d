@@ -1,12 +1,15 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene, loadDomainShrine, loadUnlimitedVoid } from "./models.js";
+import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene, loadDomainShrine, loadUnlimitedVoid, loadMahitoDomain, loadCourtroom } from "./models.js";
+import { buildCourtroom } from './shinjukuRaid.js';
+import { decideVerdict } from '../judgeman.js';
 import { Post } from "./Post.js";
 import { ParticlePool } from "./Particles.js";
 import { DomainBreaks } from "./DomainBreaks.js";
 import { DomainDynamics } from "./DomainDynamics.js";
-import { SIMPLE_DOMAIN } from "../config3d.js";
+import { SIMPLE_DOMAIN, CHARACTERS } from "../config3d.js";
 import { buildArenaDistrict } from "./arenaDistrict.js";
+import { batchArenaRubble, syncArenaRubble } from './arenaRubble.js';
 import { ARENA, clamp, lerp } from "../config3d.js";
 
 function angLerp(a, b, t) {
@@ -158,6 +161,21 @@ export class Renderer3D {
     this.post = new Post(this.renderer, this.scene, this.camera);
     this.shrineAsset = loadDomainShrine();
     this.voidAsset = loadUnlimitedVoid();
+    this.mahitoDomainAsset = loadMahitoDomain();
+    this.loveDomainAsset = loadStoryScene('yuta').then(scene => {
+      if (!scene) return null;
+      scene.updateMatrixWorld(true);
+      const interior = new THREE.Group();
+      scene.traverse(o => {
+        if (!o.isMesh || !(o.userData.arenaLayer === 'authenticLove' || o.name.startsWith('domain_sword_') || o.name.startsWith('domain_marker_'))) return;
+        const part = o.clone();o.matrixWorld.decompose(part.position,part.quaternion,part.scale);part.visible=true;interior.add(part);
+      });
+      return interior;
+    });
+    this.courtroomAsset = loadCourtroom().then(asset => {
+      this.loadedCourtroom = asset;
+      return asset;
+    });
     this._flash = 0;
     this.loading = { gojo: false, sukuna: false };
     this._contextLost = false;
@@ -191,6 +209,10 @@ export class Renderer3D {
       { label: "借用身体场景", stage: "borrowed", load: () => loadStoryScene("borrowed") },
       { label: "伏魔御厨子模型", load: () => this.shrineAsset },
       { label: "无量空处空间", load: () => this.voidAsset },
+      { label: "真人 · 自闭圆顿裹", load: () => this.mahitoDomainAsset },
+      { label: "日车 · 诛伏赐死", load: () => this.courtroomAsset },
+      ...['hiddenInventory', 'hiddenInventoryRematch', 'shibuyaClash', 'shibuyaFinal', 'cullingTrial', 'kashimoDuel', 'higurumaRaid'].map(stage => ({ label: `战场 · ${stage}`, stage, load: () => loadStoryScene(stage) })),
+      ...['kashimo', 'higuruma', 'yujiRaid', 'sukunaRaid'].map(id => ({ label: `角色 · ${id}`, load: () => loadGltf(id) })),
       ...mediaTasks
     ];
     const failed = [];
@@ -356,6 +378,7 @@ export class Renderer3D {
       if (!this.storyLoads.has(stage)) {
         this.storyLoads.set(stage, loadStoryScene(stage).then((asset) => {
           if (asset) {
+            if (this.isTouch && ['hiddenInventory', 'hiddenInventoryRematch', 'shibuyaClash', 'shibuyaFinal'].includes(stage)) batchArenaRubble(asset);
             asset.visible = false;
             this.storyAssets.set(stage, asset);
             this.scene.add(asset);
@@ -388,10 +411,28 @@ export class Renderer3D {
       }
     });
     this.baseArena.visible = false;
+    syncArenaRubble(scene);
     this.setArenaAtmosphere(stage === "opening");
   }
 
   setArenaAtmosphere(opening) {
+    if (this.storyScene && ['cullingTrial', 'kashimoDuel', 'higurumaRaid'].includes(this.storyStage)) {
+      const indoor = this.storyStage === 'cullingTrial';
+      const color = indoor ? 0x17120e : 0x9da7ab;
+      this.scene.background = new THREE.Color(color);
+      this.scene.fog = new THREE.FogExp2(color, indoor ? 0.002 : 0.003);
+      this.post.bloomPass.threshold = 1.8;
+      this.post.bloomPass.strength = 0.22;
+      return;
+    }
+    if (this.storyScene && this.storyStage?.startsWith("hiddenInventory")) {
+      const color = this.storyStage === "hiddenInventory" ? 0xabc8d3 : 0xdecdb0;
+      this.scene.background = new THREE.Color(color);
+      this.scene.fog = new THREE.FogExp2(color, 0.003);
+      this.post.bloomPass.threshold = 1.8;
+      this.post.bloomPass.strength = 0.22;
+      return;
+    }
     const expanded = this.storyExteriorProps?.length > 0 && !!this.storyScene;
     const love = expanded && this.storyLoveOpen;
     const color = love ? 0xaca99b : opening ? 0x899ba9 : expanded ? 0x69737b : 0x070a12;
@@ -443,6 +484,7 @@ export class Renderer3D {
       }
     }
     game.sceneHits.length = 0;
+    syncArenaRubble(scene);
   }
 
   // ---- camera ----
@@ -658,10 +700,11 @@ export class Renderer3D {
 
   // ---- fighters ----
   ensureFighter(entity) {
-    const key = entity.charId;
+    const key = entity.id;
+    const assetId = CHARACTERS[entity.charId]?.assetId || entity.charId;
     if (this.fighters[key]) return this.fighters[key];
     const group = new THREE.Group();
-    const model = buildPlaceholder(key);
+    const model = buildPlaceholder(assetId);
     const scale = 1.85 / 86;
     model.scale.setScalar(scale);
     model.position.y = 43 * scale;
@@ -672,15 +715,21 @@ export class Renderer3D {
     const entry = { group, model, inner };
     model.traverse((o) => { if (o.userData?.isAura) o.layers.set(1); });
     this.fighters[key] = entry;
-    this.loadModel(key, entry, scale);
+    this.loadModel(assetId, entry, scale, key);
     return entry;
   }
 
-  async loadModel(key, entry, scale) {
-    if (this.loading[key]) return;
-    this.loading[key] = true;
+  async loadModel(key, entry, scale, instanceId = key) {
+    if (this.loading[instanceId]) return;
+    this.loading[instanceId] = true;
     const model = await loadGltf(key);
     if (model && entry) {
+      // GLTF instances share cached materials; a mirror fighter needs its own
+      // damage flash so hitting one side does not flash both models.
+      model.traverse((object) => {
+        if (object.isMesh && object.material) object.material = Array.isArray(object.material)
+          ? object.material.map((material) => material.clone()) : object.material.clone();
+      });
       entry.inner.clear();
       const stature = key === "mahoraga" ? 1.45 : key === "rika" ? 1.55
         : key.startsWith("sukunaStory") ? 1.18 : key === "yutaGojo" ? 1.08 : 1;
@@ -692,14 +741,77 @@ export class Renderer3D {
   }
 
   syncFighter(game, dt) {
+    if (game.raid?.trial > 0 && !this.raidCourt) {
+      this.raidCourt = this.loadedCourtroom ? this.loadedCourtroom.clone(true) : buildCourtroom(); this.scene.add(this.raidCourt);
+    }
+    if (this.raidCourt) {
+      this.raidCourt.visible = ['playing', 'paused'].includes(game.state) && game.raid?.trial > 0;
+      const center = game.raid?.courtCenter;
+      if (center) this.raidCourt.position.set(center.x, 0, center.z);
+      if (!this.raidCourt.userData.emotion) {
+        const rage = new THREE.Group();rage.name='judgeman_death_expression';
+        const black = new THREE.MeshBasicMaterial({color:0x100807}), blood=new THREE.MeshBasicMaterial({color:0x9a111b});
+        for (const side of [-1,1]) {
+          const eye=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),black);eye.position.set(side*.27,6.89,-5.34);eye.scale.set(.14,.20,.045);rage.add(eye);
+          for(let i=0;i<2;i++){
+            const tear=new THREE.Mesh(new THREE.CylinderGeometry(.012,.022,.38+i*.1,6),blood);tear.position.set(side*(.21+i*.1),6.56,-5.34);tear.rotation.z=side*.13;rage.add(tear);
+          }
+        }
+        const mouth=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),black);mouth.position.set(0,6.22,-5.35);mouth.scale.set(.20,.15,.04);rage.add(mouth);
+        this.raidCourt.add(rage);
+        const sutures=[];this.raidCourt.traverse(o=>{if(o.isMesh&&o.name.toLowerCase().includes('eye_sutures'))sutures.push(o);});
+        this.raidCourt.userData.emotion={rage,sutures};
+      }
+      const state=game.raid;
+      const response = state?.response || (state?.responseGrace <= 0 ? state.defaultResponse : null);
+      const death = response && state?.caseFile && decideVerdict(state.caseFile,response).death;
+      this.raidCourt.userData.emotion.rage.visible=Boolean(death);
+      for(const suture of this.raidCourt.userData.emotion.sutures)suture.visible=!death;
+    }
     const seen = new Set();
     for (const e of game.entities) {
-      seen.add(e.charId);
+      seen.add(e.id);
       const entry = this.ensureFighter(e);
       if (!e.alive) { entry.group.visible = false; continue; }
       entry.group.visible = true;
+      const kamutoke = entry.model.getObjectByName('kamutoke_weapon');
+      if (kamutoke) kamutoke.visible = Boolean(e.kamutoke);
+      const sword = entry.model.getObjectByName('executioner_weapon');
+      const gavel = entry.model.getObjectByName('gavel_weapon');
+      const gavelSwing = e.combatAction?.id === 'gavel' && game.elapsed - e.combatAction.startedAt < .7;
+      const swordGranted = game.raid?.swordGranted && game.raid?.ownerId === e.id;
+      if (sword) sword.visible = Boolean(swordGranted) && !gavelSwing && e.guardTimer <= 0;
+      if (gavel) gavel.visible = (!swordGranted || gavelSwing) && e.guardTimer <= 0;
       entry.group.position.set(e.x, e.y + (e.moving ? Math.abs(Math.sin(game.elapsed * 8)) * 0.06 : 0), e.z);
       entry.group.rotation.y = e.yaw;
+      entry.group.rotation.z = e.knockedDown ? -Math.PI / 2 : 0;
+      if (!entry.battleAura) {
+        entry.battleAura = new THREE.Mesh(new THREE.SphereGeometry(1.25, 16, 12),
+          new THREE.MeshBasicMaterial({ color: 0xc4c9d4, transparent: true, opacity: 0.2, wireframe: true, depthWrite: false }));
+        entry.battleAura.position.y = 1;
+        entry.group.add(entry.battleAura);
+      }
+      if (e.charId === "mahito" && !entry.soulDomain) {
+        entry.soulDomain = new THREE.Group();
+        entry.soulDomain.name = "self_embodiment_02s";
+        entry.soulDomain.visible = false;
+        entry.group.add(entry.soulDomain);
+        this.mahitoDomainAsset.then(asset => {
+          if (asset) entry.soulDomain.add(asset.clone(true));
+        });
+      }
+      if (entry.soulDomain) entry.soulDomain.visible = e.soulDomainUntil > game.elapsed;
+      entry.battleAura.visible = Boolean(e.amplification || e.pendingCast || e.raidCast || (e.charId === 'higuruma' && e.guardTimer > 0));
+      entry.battleAura.material.color.set(e.pendingCast?.ability.id === "purple" ? "#b05cff" : e.pendingCast ? "#44d9ff" : "#c4c9d4");
+      entry.battleAura.scale.setScalar(e.pendingCast ? 0.75 + 0.25 * (1 - e.pendingCast.remaining / e.pendingCast.total) : 1);
+      if (e.charId === "yutaGojo") {
+        if (!entry.recorder) {
+          entry.recorder = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.42, 0.12), new THREE.MeshBasicMaterial({ color: 0x8dffd4 }));
+          entry.group.add(entry.recorder);
+        }
+        entry.recorder.visible = e.recorderTimer > 0;
+        entry.recorder.position.set(-1.1 * (e.recorderTimer || 0), 1.2, 0.5);
+      }
       if (entry.model?.userData?.animate) entry.model.userData.animate(
         game.elapsed, e.moving ? 1 : 0, e.stun > 0 ? null : e.combatAction,
         e.guardTimer > 0 && e.stun <= 0, dt, e.id);
@@ -868,6 +980,7 @@ export class Renderer3D {
   }
 
   syncProjectiles(game) {
+    const active = new Set(game.projectiles);
     for (const p of game.projectiles) {
       if (!p.alive) continue;
       const entry = this.ensureProjectile(p);
@@ -878,15 +991,20 @@ export class Renderer3D {
       this.updateRibbonWorld(entry.ribbon, entry.trail, entry.color, p.radius * 2.2, 0.9);
     }
     for (const [p, entry] of this.projectiles) {
-      if (!p.alive) {
-        this.scene.remove(entry.group);
-        entry.group.traverse((o) => { if (o.material) o.material.dispose(); if (o.geometry) o.geometry.dispose(); });
-        this.scene.remove(entry.ribbon.mesh);
-        entry.ribbon.mesh.geometry.dispose();
-        entry.ribbon.mesh.material.dispose();
-        this.projectiles.delete(p);
-      }
+      if (!p.alive || !active.has(p)) this.removeProjectile(p, entry);
     }
+  }
+
+  removeProjectile(p, entry) {
+    this.scene.remove(entry.group);
+    entry.group.traverse((o) => {
+      if (o.material) for (const material of [].concat(o.material)) material.dispose();
+      o.geometry?.dispose();
+    });
+    this.scene.remove(entry.ribbon.mesh);
+    entry.ribbon.mesh.geometry.dispose();
+    entry.ribbon.mesh.material.dispose();
+    this.projectiles.delete(p);
   }
 
   // ---- beams ----
@@ -901,7 +1019,29 @@ export class Renderer3D {
     for (let i = 0; i < this.beams.length; i += 1) {
       const tube = this.beams[i];
       const b = game.beams[i];
+      if (tube.chain) tube.chain.visible = false;
       if (!b) { tube.mesh.visible = false; continue; }
+      if (b.shape === "chain") {
+        tube.mesh.visible = false;
+        if (!tube.chain) {
+          tube.chain = new THREE.Group();
+          const material = new THREE.MeshStandardMaterial({ color: 0xb9c0c8, metalness: 0.7, roughness: 0.4 });
+          const geometry = new THREE.TorusGeometry(0.075, 0.018, 5, 8);
+          for (let n = 0; n < 90; n++) {
+            const link = new THREE.Mesh(geometry, material);
+            link.rotation.y = n % 2 ? Math.PI / 2 : 0;
+            tube.chain.add(link);
+          }
+          const tip = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.7, 3), material);
+          tube.chain.add(tip);
+          this.scene.add(tube.chain);
+        }
+        tube.chain.visible = true;
+        tube.chain.position.set(b.x, b.y, b.z);
+        tube.chain.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(b.dx, b.dy || 0, b.dz).normalize());
+        tube.chain.children.forEach((link, n) => { link.position.y = n / 90 * b.length; });
+        continue;
+      }
       tube.mesh.visible = true;
       const pts = [];
       const N = 18;
@@ -986,7 +1126,22 @@ export class Renderer3D {
     const shrine = new THREE.Group();
     shrine.visible = false;
     this.scene.add(shrine);
-    this.shrineAsset.then((asset) => { if (asset) shrine.add(asset.clone(true)); });
+    this.shrineAsset.then((asset) => {
+      if (!asset) return;
+      const instance = asset.clone(true);
+      instance.traverse((object) => {
+        if (!object.isMesh) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        const clones = materials.map((material) => {
+          const clone = material.clone();
+          clone.userData.shrineOpacity = clone.opacity;
+          clone.transparent = true;
+          return clone;
+        });
+        object.material = Array.isArray(object.material) ? clones : clones[0];
+      });
+      shrine.add(instance);
+    });
     const voidSpace = new THREE.Group();
     voidSpace.visible = false;
     this.scene.add(voidSpace);
@@ -1013,7 +1168,11 @@ export class Renderer3D {
       voidSpace.userData.motionParts = motionParts;
       voidSpace.add(clone);
     });
-    return { group, sphere, ring, field, shrine, voidSpace, voidRef: null, domainRef: null };
+    const soulSpace = new THREE.Group(); soulSpace.visible = false; this.scene.add(soulSpace);
+    this.mahitoDomainAsset.then(asset => { if (asset) soulSpace.add(asset.clone(true)); });
+    const loveSpace = new THREE.Group();loveSpace.visible=false;this.scene.add(loveSpace);
+    this.loveDomainAsset.then(asset => { if(asset) loveSpace.add(asset.clone(true)); });
+    return { group, sphere, ring, field, shrine, voidSpace, soulSpace, loveSpace, voidRef: null, domainRef: null };
   }
 
   syncDomains(game) {
@@ -1030,22 +1189,42 @@ export class Renderer3D {
       game.setWorldObstacles(this.collisionBoxes);
       this.setArenaAtmosphere(this.storyStage === "opening");
     }
-    const insideVoid = game.domains.some((domain) => domain.alive && domain.type === "void");
-    this.baseArena.visible = !insideVoid && !this.storyScene;
-    if (this.storyScene) this.storyScene.visible = !insideVoid;
-    if (insideVoid) {
+    const insideVoid = game.domains.some((domain) => domain.alive && ['void', 'mahitoDomain'].includes(domain.type));
+    const insideCourt = !!this.raidCourt?.visible;
+    const insideLove = game.domains.some(d => d.alive && d.type === 'authenticLove');
+    this.baseArena.visible = !insideVoid && !insideCourt && !insideLove && !this.storyScene;
+    if (this.storyScene) this.storyScene.visible = !insideVoid && !insideCourt && !insideLove;
+    if (insideVoid || insideCourt) {
       this.scene.background.set(0x01020a);
       this.scene.fog = null;
-    } else if (this.insideVoid) {
+    } else if (insideLove) {
+      this.scene.background.set(0xaca99b);this.scene.fog=new THREE.FogExp2(0xaca99b,.004);
+    } else if (this.insideVoid || this.insideCourt || this.insideLove) {
       this.setArenaAtmosphere(this.storyStage === "opening");
     }
     this.insideVoid = insideVoid;
+    this.insideCourt = insideCourt;
+    this.insideLove = insideLove;
     while (this.domains.length < game.domains.length) this.domains.push(this.ensureDomain());
     for (let i = 0; i < this.domains.length; i += 1) {
       const dom = this.domains[i];
       const d = game.domains[i];
       dom.shrine.visible = !!d?.alive && d.type === "shrine";
       dom.voidSpace.visible = !!d?.alive && d.type === "void";
+      dom.soulSpace.visible = !!d?.alive && d.type === 'mahitoDomain';
+      dom.loveSpace.visible = !!d?.alive && d.type === 'authenticLove';
+      if (dom.loveSpace.visible) {
+        dom.loveSpace.position.set(d.x,0,d.z);
+        const owner=game.entities.find(e=>e.id===d.ownerId);
+        let sword=0;
+        dom.loveSpace.traverse(o=>{if(o.isMesh&&o.name.startsWith('domain_sword_'))o.visible=sword++ >= (owner?.domainSwordUses || 0);});
+      }
+      if (dom.soulSpace.visible) {
+        dom.soulSpace.position.set(d.x, 0, d.z);
+        // Expanded barrier interior must also fit the camera behind a captive
+        // near the playable edge; keep the hand walls outside that space.
+        dom.soulSpace.scale.setScalar(d.radius / 16 * 2.3);
+      }
       if (!d || !d.alive) { dom.group.visible = false; continue; }
       dom.group.visible = true;
       const intro = clamp((d.maxLife - d.life) / 0.5, 0, 1);
@@ -1071,9 +1250,10 @@ export class Renderer3D {
         }
       }
       const hasVoidModel = dom.voidSpace.visible && dom.voidSpace.children.length > 0;
-      dom.sphere.visible = !hasVoidModel && d.type !== "shrine";
-      dom.field.visible = !hasVoidModel && d.type !== "shrine";
-      dom.ring.visible = d.type !== "void";
+      const specialInterior = hasVoidModel || dom.soulSpace.visible || d.type === 'authenticLove';
+      dom.sphere.visible = !specialInterior && d.type !== "shrine";
+      dom.field.visible = !specialInterior && d.type !== "shrine";
+      dom.ring.visible = !specialInterior && d.type !== 'void';
       dom.ring.position.y = d.type === "shrine" ? -.96 / d.radius : 0;
       if (dom.shrine.visible) {
         if (dom.domainRef !== d) {
@@ -1088,6 +1268,23 @@ export class Renderer3D {
           );
         }
         dom.shrine.scale.setScalar(Math.max(0.001, a));
+        // Keep the playable world visible when the third-person camera enters
+        // the shrine model. This is scenery, not an enclosing domain wall.
+        dom.shrineBounds ??= new THREE.Box3();
+        dom.shrineBounds.setFromObject(dom.shrine);
+        const player = game.player();
+        const target = new THREE.Vector3(player?.x || 0, (player?.y || 0) + 1, player?.z || 0);
+        const sight = target.clone().sub(this.camera.position);
+        const length = sight.length();
+        const intersection = new THREE.Ray(this.camera.position, sight.normalize()).intersectBox(dom.shrineBounds, new THREE.Vector3());
+        const cameraInside = dom.shrineBounds.containsPoint(this.camera.position) || (intersection && intersection.distanceTo(this.camera.position) < length);
+        dom.shrine.traverse((object) => {
+          if (!object.isMesh) return;
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+            material.opacity = material.userData.shrineOpacity * (cameraInside ? 0.02 : 1);
+            material.depthWrite = !cameraInside;
+          }
+        });
       }
       dom.group.position.set(d.x, d.y, d.z);
       dom.group.scale.set(d.radius, d.radius, d.radius);
@@ -1436,13 +1633,13 @@ export class Renderer3D {
 
   reset() {
     for (const [p, entry] of this.projectiles) {
-      this.scene.remove(entry.group);
-      this.scene.remove(entry.ribbon.mesh);
-      void p;
+      this.removeProjectile(p, entry);
     }
     this.projectiles.clear();
     for (const [d, entry] of this.damageTextMap) {
       this.scene.remove(entry.sprite);
+      entry.sprite.material.dispose();
+      entry.texture.dispose();
       void d;
     }
     this.damageTextMap.clear();
@@ -1450,8 +1647,11 @@ export class Renderer3D {
     this.domainBreaks.clear();
     this.domainDynamics.clear();
     for (const effect of this.simpleDomains) effect.group.visible = false;
-    if (this.insideVoid) {
+    if (this.insideVoid || this.insideCourt || this.insideLove) {
       this.insideVoid = false;
+      this.insideCourt = false;
+      this.insideLove = false;
+      if (this.raidCourt) this.raidCourt.visible = false;
       this.baseArena.visible = !this.storyScene;
       if (this.storyScene) this.storyScene.visible = true;
       this.setArenaAtmosphere(this.storyStage === "opening");
@@ -1460,9 +1660,11 @@ export class Renderer3D {
       dom.group.visible = false;
       dom.shrine.visible = false;
       dom.voidSpace.visible = false;
+      dom.soulSpace.visible = false;
+      dom.loveSpace.visible = false;
       dom.voidRef = null;
       dom.domainRef = null;
     }
-    for (const tube of this.beams) tube.mesh.visible = false;
+    for (const tube of this.beams) { tube.mesh.visible = false; if (tube.chain) tube.chain.visible = false; }
   }
 }

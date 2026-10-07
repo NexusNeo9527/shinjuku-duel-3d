@@ -1,8 +1,10 @@
 import { BGM_TRACKS } from "./audio.js";
+import { HIDDEN_INVENTORY_IMAGE_FILES } from "./hiddenInventoryArt.js";
 
 // Keep decoded artwork alive so cut-ins and results are ready on first use.
 const artwork = new Map();
 const IMAGE_FILES = [
+  ...HIDDEN_INVENTORY_IMAGE_FILES,
   "borrowed-heal.png", "domain-clash.png", "gojo-death.png", "gojo-murasaki.png",
   "gojo-void.png", "gojo-win.jpg", "limitless-blue.png", "limitless-red.png",
   "mahoraga-summon.png", "sukuna-domain.png", "sukuna-flame.png", "sukuna-guard.png",

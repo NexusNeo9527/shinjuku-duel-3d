@@ -1,4 +1,4 @@
-const ASSET = import.meta.env.BASE_URL;
+const ASSET = import.meta.env?.BASE_URL ?? '/';
 
 export const BGM_TRACKS = [
   { id: "normal", label: "正常", src: `${ASSET}assets/bgm-rain-normal.mp3` },
@@ -282,6 +282,10 @@ export class AudioEngine {
         break;
       case "impact":
         this.playImpact(event.ultimate, event.attackType);
+        break;
+      case "guardImpact":
+        this.noise(0.055, 0.09, 2800);
+        this.sweep(460, 210, 0.09, "triangle", 0.025);
         break;
       case "cinematic":
         this.playCinematic(event.type);

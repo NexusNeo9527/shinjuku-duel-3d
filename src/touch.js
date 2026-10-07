@@ -1,3 +1,5 @@
+import { shibuyaAbilityLocked } from "./shibuyaBattle.js";
+import { raidAbilityLocked } from './shinjukuRaid.js';
 import { CHARACTERS, COPY_TECHNIQUES } from "./config3d.js";
 import { ICONS } from "./ui3d.js";
 
@@ -127,6 +129,7 @@ class TouchPad {
 
   rebuildAbilities(charId) {
     if (!this.abilityBar) return;
+    this.stopRepeat();
     this.charId = charId;
     const char = CHARACTERS[charId] || CHARACTERS.gojo;
     this.abilityBar.innerHTML = "";
@@ -178,6 +181,9 @@ class TouchPad {
   }
 
   updateSlots(player, game) {
+    const grounded = game.groundDuel || Boolean(CHARACTERS[player.charId]?.grounded);
+    this.rise?.classList.toggle("hidden", grounded);
+    this.fall?.classList.toggle("hidden", grounded);
     const simpleDomain = this.root.querySelector(this.el ? '.touch-right.p2 [data-slot="simpleDomain"]' : '#btnSimpleDomain');
     if (simpleDomain) {
       const eligible = game.canUseSimpleDomain(player);
@@ -192,14 +198,15 @@ class TouchPad {
       s.cd.style.setProperty("--cd", String(Math.min(1, cd / (s.ability.cooldown || 1))));
       const expiredDomain = s.ability.needsDomain && game.isStoryCombat()
         && game.storyStage === "borrowed" && game.storyTimer <= 0 && player.charId === "yutaGojo";
-      const locked = (s.ability.needsCharge && player.charge < 100 && !game.practice)
-        || (s.ability.needsDomain && player.domainCharge < 100 && !game.practice)
-        || (player.burnout > 0 && !s.ability.physical)
+      const locked = (s.ability.needsCharge && player.charge < 100 && !(game.practice && game.practiceInfinite))
+        || (s.ability.needsDomain && player.domainCharge < 100 && !(game.practice && game.practiceInfinite))
+        || (player.burnout > 0 && s.ability.requiresTechnique)
         || (s.ability.needsDomain && player.domainLocked)
-        || expiredDomain;
+        || expiredDomain || shibuyaAbilityLocked(game, player, s.ability) || raidAbilityLocked(game, player, s.ability) || game.borrowedSkillLocked(player, s.ability);
       s.el.classList.toggle("ready", cd <= 0.001 && !locked);
       s.el.classList.toggle("locked", Boolean(locked));
       if (s.ability.type === "copy") s.el.querySelector("b").textContent = COPY_TECHNIQUES[player.copyIndex].label;
+      if (s.ability.maxUses) s.el.querySelector('b').textContent = `${s.ability.label} · ${Math.max(0, s.ability.maxUses - (player.abilityUses?.[s.ability.id] || 0))}次`;
     }
   }
 }
@@ -293,6 +300,7 @@ export class TouchControls {
         <button class="touch-btn small" type="button" data-slot="sprint">疾跑</button>
         <button class="touch-btn small" type="button" data-slot="dash">冲刺</button>
         <button class="touch-btn small switch" type="button" data-slot="switch">切换目标</button>
+        <button class="touch-btn small hidden" type="button" data-slot="copy">切换复制</button>
         <button class="touch-btn small" type="button" data-slot="basic">近战</button>
         <button class="touch-btn small hidden" type="button" data-slot="restore">强行恢复</button>
         <button class="touch-btn small simple-domain hidden" type="button" data-slot="simpleDomain">简易领域</button>
@@ -312,6 +320,13 @@ export class TouchControls {
       onDash: () => this.onDash(1)
     });
     this.pad2.el = { stickBase, cluster };
+    for (const [slot, action] of [['switch', 'cycleLock'], ['copy', 'cycleCopy']]) {
+      cluster.querySelector(`[data-slot="${slot}"]`).addEventListener('pointerdown', (event) => {
+        event.preventDefault(); event.stopPropagation();
+        const p2 = this.game.entities.find(e => e.isPlayer && e !== this.game.player());
+        if (this.game.state === 'playing') this.game[action](p2);
+      });
+    }
     cluster.querySelector('[data-slot="basic"]').addEventListener("pointerdown", (event) => {
       event.preventDefault(); event.stopPropagation();
       const p2 = this.game.entities.find((e) => e.isPlayer && e !== this.game.player());
@@ -330,6 +345,7 @@ export class TouchControls {
 
   removePad2() {
     if (!this.pad2) return;
+    this.pad2.reset();
     this.pad2.el?.stickBase.remove();
     this.pad2.el?.cluster.remove();
     this.pad2 = null;
@@ -383,11 +399,15 @@ export class TouchControls {
   }
 
   updateSlots(player, game) {
+    const grounded = Boolean(CHARACTERS[player.charId]?.grounded);
+    this.rise?.classList.toggle("hidden", grounded);
+    this.fall?.classList.toggle("hidden", grounded);
     this.pad1.updateSlots(player, game);
     if (this.pad2) {
       const p2 = game.entities.find((e) => e.isPlayer && e !== player);
       const restore = this.pad2.el?.cluster.querySelector('[data-slot="restore"]');
       if (restore) restore.classList.toggle("hidden", !p2 || p2.burnout <= 0 || p2.domainLocked);
+      this.pad2.el?.cluster.querySelector('[data-slot="copy"]')?.classList.toggle('hidden', p2?.charId !== 'yuta');
     }
   }
 }

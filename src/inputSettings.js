@@ -36,6 +36,8 @@ export const BINDINGS = [
   { id: "p2.cast4", player: "玩家 2", group: "术式", label: "术式 4", defaultCode: "BracketLeft" },
   { id: "p2.cast5", player: "玩家 2", group: "术式", label: "术式 5", defaultCode: "BracketRight" },
   { id: "p2.restore", player: "玩家 2", group: "战斗", label: "强行恢复术式", defaultCode: "Quote" },
+  { id: "p2.copy", player: "玩家 2", group: "战斗", label: "切换复制术式", defaultCode: "Comma" },
+  { id: "p2.lock", player: "玩家 2", group: "战斗", label: "切换目标", defaultCode: "Slash" },
   { id: "p2.simpleDomain", player: "玩家 2", group: "战斗", label: "简易领域", defaultCode: "Period" },
   { id: "p2.melee", player: "玩家 2", group: "战斗", label: "近身攻击", defaultCode: "Semicolon" },
   { id: "p2.dash", player: "玩家 2", group: "战斗", label: "冲刺", defaultCode: "KeyB" }
@@ -51,11 +53,11 @@ export function loadInputSettings() {
     }));
     // Adding a defensive action must not reset a player's existing custom keys
     // when they already use C or period for something else.
-    for (const binding of BINDINGS.filter((binding) => binding.id.endsWith(".simpleDomain"))) {
+    for (const binding of BINDINGS) {
       if (saved.bindings?.[binding.id]) continue;
       const occupied = new Set(Object.entries(candidates).filter(([id]) => id !== binding.id).map(([, code]) => code));
       if (occupied.has(candidates[binding.id])) {
-        candidates[binding.id] = ["KeyC", "Period", "Digit2", "Digit3", "Comma", "Slash", "Backquote"].find((code) => !occupied.has(code)) || binding.defaultCode;
+        candidates[binding.id] = ["KeyC", "Period", "KeyO", "Slash", "Digit2", "Digit3", "Comma", "Backquote", "Digit4", "Digit5"].find((code) => !occupied.has(code)) || binding.defaultCode;
       }
     }
     const codes = Object.values(candidates);

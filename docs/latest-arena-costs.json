@@ -1,0 +1,132 @@
+{
+  "mahito-domain": {
+    "before": {
+      "fileBytes": 1745496,
+      "geometryBytes": 1739664,
+      "vertices": 54066,
+      "triangles": 73680,
+      "primitives": 6,
+      "materials": 5,
+      "textures": 0,
+      "semanticHash": "7e0d25b8646ec8a02fed67facf904fe8a299f79922a75b105083c9e40ecece43"
+    },
+    "after": {
+      "fileBytes": 1528820,
+      "geometryBytes": 1522440,
+      "vertices": 54018,
+      "triangles": 73680,
+      "primitives": 6,
+      "materials": 5,
+      "textures": 0,
+      "semanticHash": "7e0d25b8646ec8a02fed67facf904fe8a299f79922a75b105083c9e40ecece43"
+    },
+    "mobile": {
+      "fullSceneSubmissions": 6,
+      "geometryBytes": 1522440
+    }
+  },
+  "hidden-inventory": {
+    "before": {
+      "fileBytes": 3234184,
+      "geometryBytes": 3224544,
+      "vertices": 119248,
+      "triangles": 60432,
+      "primitives": 13,
+      "materials": 7,
+      "textures": 0,
+      "semanticHash": "3930bfa6bc2a1f8f17daeddabbf7d38b5fc654386f6fd5e92293467698a80248"
+    },
+    "after": {
+      "fileBytes": 2663628,
+      "geometryBytes": 2651872,
+      "vertices": 114464,
+      "triangles": 60432,
+      "primitives": 13,
+      "materials": 7,
+      "textures": 0,
+      "semanticHash": "3930bfa6bc2a1f8f17daeddabbf7d38b5fc654386f6fd5e92293467698a80248"
+    },
+    "mobile": {
+      "fullSceneSubmissions": 13,
+      "geometryBytes": 2651872
+    }
+  },
+  "hidden-inventory-rematch": {
+    "before": {
+      "fileBytes": 561180,
+      "geometryBytes": 543696,
+      "vertices": 20128,
+      "triangles": 10104,
+      "primitives": 42,
+      "materials": 7,
+      "textures": 0,
+      "semanticHash": "9265f82cae49a48a5f5062613db5f3e728cad3811b6482e6865bf4b275c684ab"
+    },
+    "after": {
+      "fileBytes": 486260,
+      "geometryBytes": 450384,
+      "vertices": 19488,
+      "triangles": 10104,
+      "primitives": 42,
+      "materials": 7,
+      "textures": 0,
+      "semanticHash": "9265f82cae49a48a5f5062613db5f3e728cad3811b6482e6865bf4b275c684ab"
+    },
+    "mobile": {
+      "fullSceneSubmissions": 27,
+      "geometryBytes": 449376
+    }
+  },
+  "shibuya-clash": {
+    "before": {
+      "fileBytes": 824120,
+      "geometryBytes": 783144,
+      "vertices": 28980,
+      "triangles": 14604,
+      "primitives": 65,
+      "materials": 10,
+      "textures": 0,
+      "semanticHash": "6862d0b5d5048a5142564c5e30b691e9dfe7850c43eab9fe113f257eedd5d6fa"
+    },
+    "after": {
+      "fileBytes": 722908,
+      "geometryBytes": 667224,
+      "vertices": 28980,
+      "triangles": 14604,
+      "primitives": 65,
+      "materials": 10,
+      "textures": 0,
+      "semanticHash": "6862d0b5d5048a5142564c5e30b691e9dfe7850c43eab9fe113f257eedd5d6fa"
+    },
+    "mobile": {
+      "fullSceneSubmissions": 35,
+      "geometryBytes": 665208
+    }
+  },
+  "shibuya-final": {
+    "before": {
+      "fileBytes": 807504,
+      "geometryBytes": 739512,
+      "vertices": 27356,
+      "triangles": 13828,
+      "primitives": 110,
+      "materials": 11,
+      "textures": 0,
+      "semanticHash": "8bb7f30a3ac908fe5d18a04bb3fdfb530f680816d06d5da97e37440648bce8d8"
+    },
+    "after": {
+      "fileBytes": 723752,
+      "geometryBytes": 628808,
+      "vertices": 27292,
+      "triangles": 13828,
+      "primitives": 110,
+      "materials": 11,
+      "textures": 0,
+      "semanticHash": "8bb7f30a3ac908fe5d18a04bb3fdfb530f680816d06d5da97e37440648bce8d8"
+    },
+    "mobile": {
+      "fullSceneSubmissions": 37,
+      "geometryBytes": 624728
+    }
+  }
+}

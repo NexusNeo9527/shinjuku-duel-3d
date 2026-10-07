@@ -4,7 +4,7 @@ import { AudioEngine } from "./audio.js";
 import { mediaPreloadTasks } from "./preloadMedia.js";
 import { UI3D } from "./ui3d.js";
 import { TouchControls } from "./touch.js";
-import { PLAYER_HP_SETTINGS, STORY_STAGES } from "./config3d.js";
+import { PLAYER_HP_SETTINGS, STORY_STAGES, CHARACTERS } from "./config3d.js";
 import { BINDINGS, DEFAULT_TOUCH_MOVE_POSITION, clampPlayerMaxHp, clampTouchMovePosition, displayKey, loadInputSettings, saveInputSettings } from "./inputSettings.js";
 
 const canvas = document.querySelector("#gameCanvas");
@@ -39,7 +39,8 @@ const PRACTICE_CHARACTER_NAMES = {
   yuta: "乙骨忧太",
   sukunaStory1: "四手宿傩",
   yutaGojo: "乙骨·五条之身",
-  sukunaStory2: "完全体宿傩"
+  sukunaStory2: "完全体宿傩",
+  gojoTeen: "五条悟·高专", gojoAwakened: "五条悟·觉醒", toji: "伏黑甚尔", tojiRematch: "伏黑甚尔·万里锁"
 };
 
 function rebuildBindingCodes() {
@@ -60,7 +61,7 @@ const ui = new UI3D(game, {
   onStart: () => { game.state = "modeSelect"; },
   onOpenGuide: () => { game.state = "guide"; },
   onOpenSettings: () => { game.state = "settings"; },
-  onBackToHome: () => { game.state = "menu"; },
+  onBackToHome: () => returnHome(),
   onBackToModeSelect: () => {
     game.state = "modeSelect";
     setMusicScene("menu");
@@ -69,22 +70,27 @@ const ui = new UI3D(game, {
   },
   onMode: (mode) => {
     audio.ensure();
-    game.modeFamily = mode === "story" ? "story" : "gojo";
+    game.modeFamily = mode === "story" ? "story" : mode === "gojo" ? "gojo" : "free";
     game.storyPlayMode = "story";
-    if (mode === "gojo") { setMusicScene("gojo"); setModeTitle("gojo"); applyTheme("gojo"); game.state = "gojoSelect"; return; }
+    if (mode === "free" || mode === "gojo") {
+      if (mode === "gojo") game.setSingleChar("gojo");
+      game.pendingMode = "single"; setMusicScene("gojo"); game.state = "gojoSelect";
+      setModeTitle("single"); applyTheme(mode === "free" ? game.freePlayerChar : game.singleChar); return;
+    }
     if (mode === "story") {
       setMusicScene("story");
-      game.setStory("yuta", "ally");
+      game.setStory("opening", "ally");
       game.pendingMode = "story";
+      game.state = "storySelect";
       setModeTitle("story", game.storyStage);
       applyTheme("yuta");
-      game.state = "storySelect";
     }
   },
   onGojoMode: (mode) => {
-    game.modeFamily = "gojo";
-    setModeTitle("gojo");
-    if (mode === "single") { game.pendingMode = "single"; applyTheme(game.singleChar); game.state = "difficulty"; return; }
+    if (game.modeFamily === "free") game.singleChar = game.freePlayerChar;
+    game.setPracticeChar(game.modeFamily === "free" ? game.freePlayerChar : game.singleChar);
+    setModeTitle("single");
+    if (mode === "single") { game.pendingMode = "single"; applyTheme(game.modeFamily === "free" ? game.freePlayerChar : game.singleChar); game.state = "difficulty"; return; }
     startGame(mode, "normal");
   },
   onDifficulty: (d) => startGame(game.pendingMode === "story" ? "story" : "single", d),
@@ -94,9 +100,9 @@ const ui = new UI3D(game, {
     const stageInfo = STORY_STAGES[game.storyStage];
     if (game.storyPlayMode === "story") {
       game.pendingMode = "story";
-      setModeTitle("story", game.storyStage);
-      applyTheme(game.storySide === "enemy" ? "sukuna" : "yuta");
       game.state = "difficulty";
+      setModeTitle("story", game.storyStage);
+      applyTheme(game.storySide === "enemy" ? stageInfo.enemy : stageInfo.ally);
       return;
     }
     if (game.storyPlayMode === "practice") {
@@ -108,36 +114,52 @@ const ui = new UI3D(game, {
     startGame("dual", "normal");
   },
   onStorySide: (side) => { game.setStory(game.storyStage, side); applyTheme(game.storySide === "enemy" ? "sukuna" : "yuta"); },
-  onContinueStory: () => { game.setStory("borrowed", game.storySide); startGame("story", game.difficulty); },
+  onContinueStory: () => {
+    const next = STORY_STAGES[game.storyStage]?.next;
+    if (game.mode !== "story" || game.state !== "ended" || !game.winner?.isPlayer || !next) return;
+    game.setStory(next, game.storySide);
+    startGame("story", game.difficulty);
+  },
+  onStoryTransition: () => { releaseActiveInputs(); game.finishStoryTransition(); },
+  onFreeCharacter: (side, id) => {
+    if (side === "player") { game.freePlayerChar = id; game.singleChar = id; applyTheme(id); }
+    else game.freeEnemyChar = id;
+    setModeTitle("single");
+  },
   onSingleChar: (id) => { game.setSingleChar(id); applyTheme(game.singleChar); },
   onBack: () => {
     game.state = game.pendingMode === "story" ? "storySelect" : "gojoSelect";
     setModeTitle(game.pendingMode === "story" ? "story" : "gojo", game.pendingMode === "story" ? game.storyStage : null);
     applyTheme(game.pendingMode === "story" ? "yuta" : "gojo");
   },
-  onHome: () => {
-    game.state = "menu";
-    setMusicScene("menu");
-    game.modeFamily = "gojo";
-    game.storyPlayMode = "story";
-    setModeTitle("gojo");
-    applyTheme("gojo");
-    renderer.reset();
-  },
+  onHome: () => returnHome(),
   onAgain: () => startGame(game.mode, game.difficulty),
   onResume: () => { if (game.state === "paused") game.state = "playing"; },
   onRestart: () => startGame(game.mode, game.difficulty),
   onPracticeChar: (c) => {
     game.setPracticeChar(c);
+    if (game.modeFamily === "free") game.freePlayerChar = game.practiceChar;
     applyTheme(game.practiceChar);
     startGame("practice", "normal");
   },
   onTheme: (c) => {
+    game.trainingTask = null;
     game.setPracticeChar(c);
     applyTheme(game.practiceChar);
   },
   onPracticeOption: (key, value) => {
     game.setPracticeOption(key, value);
+  },
+  onTraining: (task) => {
+    releaseActiveInputs();
+    game.startTraining(task);
+    renderer.reset();
+    renderer.setStoryStage(null).then(()=>game.setWorldObstacles(renderer.getWorldCollisionBoxes()));
+    setModeTitle('practice'); setMusicScene('practice'); fitCanvas();
+    applyTheme(game.practiceChar);
+    document.querySelector('#practicePanel').classList.add('collapsed');
+    document.querySelector('#practicePanelToggle').setAttribute('aria-expanded','false');
+    document.querySelector('#practicePanelToggle .pp-chevron').textContent='+';
   },
   onSound: (btn) => {
     const muted = !audio.muted;
@@ -166,43 +188,50 @@ function applyTheme(charId) {
   ui.setThemeChip(id);
 }
 
+function returnHome() {
+  releaseActiveInputs();
+  game.state = "menu";
+  game.modeFamily = "gojo";
+  game.storyPlayMode = "story";
+  setMusicScene("menu");
+  setModeTitle("gojo");
+  applyTheme("gojo");
+  renderer.reset();
+}
+
 function setModeTitle(mode, stage = null) {
-  const home = game.state === "menu";
-  const story = mode === "story" || (mode === "dual" && game.modeFamily === "story");
+  const home = ["menu", "modeSelect", "guide", "settings"].includes(game.state);
+  const story = !home && (mode === "story" || (mode === "dual" && game.modeFamily === "story"));
   const borrowed = story && stage === "borrowed";
-  const practice = mode === "practice";
-  const practiceName = PRACTICE_CHARACTER_NAMES[game.practiceChar] || "五条悟";
+  const hiddenInventory = story && ["hiddenInventory", "hiddenInventoryRematch"].includes(stage);
+  const shibuya = story && STORY_STAGES[stage]?.shibuya;
+  const storyAlly = CHARACTERS[STORY_STAGES[stage]?.ally]?.name || "乙骨忧太";
+  const storyEnemy = CHARACTERS[STORY_STAGES[stage]?.enemy]?.name || "宿傩";
+  const practice = !home && mode === "practice";
+  const practiceName = CHARACTERS[game.practiceChar]?.name || "五条悟";
+  const free = game.modeFamily === "free";
   const title = home
     ? "咒术回战"
     : practice
     ? `${practiceName} · 练习模式`
+    : free
+      ? CHARACTERS[game.freePlayerChar].name + " VS " + CHARACTERS[game.freeEnemyChar].name + (mode === "dual" ? " · 双人对战" : "")
     : story
-      ? `${borrowed ? "乙骨忧太（五条之身）" : "乙骨忧太"}${mode === "dual" ? " 双人对战" : " VS 宿傩"}`
+      ? `${storyAlly} VS ${storyEnemy}${mode === "dual" ? " · 双人对战" : ""}`
       : mode === "dual" ? "五条悟 VS 宿傩 · 双人对战" : "五条悟 VS 宿傩";
-  const homeLead = home
-    ? "咒术"
+  const context = home ? "STORY MODE / FREE BATTLE"
     : practice
-    ? practiceName
-    : story
-      ? borrowed ? "乙骨忧太（五条之身）" : "乙骨忧太"
-      : "五条悟";
-  const homeRest = home ? "回战" : practice ? " · 练习模式" : " VS 宿傩";
-  const context = practice
     ? "CURSED TECHNIQUE PRACTICE"
     : story
-      ? borrowed ? "YUTA IN GOJO'S BODY / DOMAIN REMATCH" : "YUTA / RIKA & COPIED TECHNIQUES"
-      : "GOJO VS SUKUNA / CURSED ARENA";
-  const kicker = practice
-    ? "CURSED TECHNIQUE PRACTICE"
-    : story ? "YUTA VS SUKUNA" : "THIRD-PERSON CURSED TECHNIQUE ARENA";
+      ? stage === "opening" ? "SHINJUKU / GOJO VS SUKUNA" : STORY_STAGES[stage]?.culling ? 'CULLING GAME / YUJI VS HIGURUMA' : STORY_STAGES[stage]?.raid ? stage === 'kashimoDuel' ? 'SHINJUKU / KASHIMO VS SUKUNA' : 'SHINJUKU / HIGURUMA & YUJI VS SUKUNA' : shibuya ? "SHIBUYA INCIDENT / YUJI & TODO VS MAHITO" : hiddenInventory ? "HIDDEN INVENTORY / GOJO VS TOJI" : borrowed ? "YUTA IN GOJO'S BODY / DOMAIN REMATCH" : "YUTA / RIKA & COPIED TECHNIQUES"
+      : free ? "FREE BATTLE / 自由战斗" : "GOJO VS SUKUNA / CURSED ARENA";
 
-  document.title = title;
+  document.title = story && game.state === "storySelect" ? "怀玉 / 涩谷 / 新宿" : title;
   document.body.classList.toggle("story-title-active", story);
   document.body.classList.toggle("borrowed-title-active", borrowed);
   document.body.classList.toggle("practice-title-active", practice);
   const homeTitle = document.querySelector("#homeTitle");
-  homeTitle?.classList.toggle("story-home-title", story);
-  homeTitle?.classList.toggle("borrowed-home-title", borrowed);
+  homeTitle?.classList.remove("story-home-title", "borrowed-home-title");
   const brandTitle = document.querySelector("#brandTitle");
   const brandContext = document.querySelector("#brandContext");
   const homeTitleLead = document.querySelector("#homeTitleLead");
@@ -211,10 +240,10 @@ function setModeTitle(mode, stage = null) {
   const storyMenuTitle = document.querySelector("#storyMenuTitle");
   if (brandTitle) brandTitle.textContent = title;
   if (brandContext) brandContext.textContent = context;
-  if (homeTitleLead) homeTitleLead.textContent = homeLead;
-  if (homeTitleRest) homeTitleRest.textContent = homeRest;
-  if (homeKicker) homeKicker.textContent = kicker;
-  if (storyMenuTitle && story) storyMenuTitle.textContent = title;
+  if (homeTitleLead) homeTitleLead.textContent = "咒术";
+  if (homeTitleRest) homeTitleRest.textContent = "回战";
+  if (homeKicker) homeKicker.textContent = "STORY MODE / FREE BATTLE";
+  if (storyMenuTitle && story) storyMenuTitle.textContent = game.state === "storySelect" ? "怀玉 / 涩谷 / 新宿" : title;
 }
 
 function updateLoadingProgress({ completed, total, label, failed, failedCount = 0 }) {
@@ -307,7 +336,9 @@ bgmBtn?.addEventListener("click", () => {
 });
 
 function startGame(mode, difficulty) {
+  game.challenge = document.querySelector('#challengeSelect')?.value || '';
   if (!assetsReady) return;
+  releaseActiveInputs();
   audio.ensure();
   setMusicScene(game.modeFamily === "story" ? "story" : mode === "practice" ? "practice" : "gojo");
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -407,6 +438,11 @@ function persistInputSettings() {
 }
 
 window.addEventListener("keydown", (event) => {
+  if (game.state === "storyTransition" && ["Enter", "Space", "Escape"].includes(event.code)) {
+    event.preventDefault();
+    if (!event.repeat) { releaseActiveInputs(); game.finishStoryTransition(); }
+    return;
+  }
   if (!bindingCapture) return;
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -525,7 +561,7 @@ renderTouchPosition();
 // ---- input ----
 window.addEventListener("keydown", (event) => {
   if (event.code === "Escape") {
-    if (game.state === "playing") { game.state = "paused"; }
+    if (game.state === "playing") { releaseActiveInputs(); game.state = "paused"; }
     else if (game.state === "paused") { game.state = "playing"; }
     else if (game.state === "difficulty") {
       game.state = game.pendingMode === "story" ? "storySelect" : "gojoSelect";
@@ -539,13 +575,11 @@ window.addEventListener("keydown", (event) => {
       applyTheme("gojo");
     }
     else if (["modeSelect", "guide", "settings"].includes(game.state)) {
-      game.state = "menu";
-      setMusicScene("menu");
-      setModeTitle("gojo");
-      applyTheme("gojo");
+      returnHome();
     }
     return;
   }
+  if (game.state !== "playing") return;
   if (bindingCodes.has(event.code)) event.preventDefault();
   if (event.repeat) return;
   keys.add(event.code);
@@ -567,6 +601,8 @@ window.addEventListener("keydown", (event) => {
     const actions = bindingCodes.get(event.code) || [];
     const cast = actions.find((id) => /^p2\.cast[1-5]$/.test(id));
     if (cast) game.tryCast(p2, Number(cast.at(-1)) - 1);
+    if (actions.includes("p2.copy")) game.cycleCopy(p2);
+    if (actions.includes("p2.lock")) game.cycleLock(p2);
     if (actions.includes("p2.melee")) game.tryBasicAttack(p2);
     if (actions.includes("p2.restore")) game.tryForceRestore(p2);
     if (actions.includes("p2.simpleDomain")) game.trySimpleDomain(p2);
@@ -614,6 +650,10 @@ function restoreVisibleCanvas() {
 function releaseActiveInputs() {
   keys.clear();
   touch.reset();
+  for (const entity of game.entities.filter(e => e.isPlayer)) {
+    game.setMove(entity, 0, 0, 0);
+    entity.sprinting = false;
+  }
 }
 window.addEventListener("blur", releaseActiveInputs);
 window.addEventListener("focus", restoreVisibleCanvas);
@@ -767,16 +807,15 @@ function applyInput() {
   if (p2 && game.state === "playing") {
     const pad2 = touch.enabled && touch.dual ? touch.pad2 : null;
     // player 2 looks through their own half of the split screen
-    const yaw = pad2 ? renderer.cam2Yaw : renderer.camYaw;
+    const yaw = renderer.cam2Yaw;
     const fwd = { x: Math.sin(yaw), z: Math.cos(yaw) };
     const right = { x: -Math.cos(yaw), z: Math.sin(yaw) };
     let mx = 0;
     let mz = 0;
-    // P2 faces the mirrored camera, so its forward axis is opposite P1's.
-    if (keys.has(keyCode("p2.up"))) { mx -= fwd.x; mz -= fwd.z; }
-    if (keys.has(keyCode("p2.down"))) { mx += fwd.x; mz += fwd.z; }
-    if (keys.has(keyCode("p2.left"))) { mx += right.x; mz += right.z; }
-    if (keys.has(keyCode("p2.right"))) { mx -= right.x; mz -= right.z; }
+    if (keys.has(keyCode("p2.up"))) { mx += fwd.x; mz += fwd.z; }
+    if (keys.has(keyCode("p2.down"))) { mx -= fwd.x; mz -= fwd.z; }
+    if (keys.has(keyCode("p2.left"))) { mx -= right.x; mz -= right.z; }
+    if (keys.has(keyCode("p2.right"))) { mx += right.x; mz += right.z; }
     let my = 0;
     if (keys.has(keyCode("p2.descend"))) my = -1;
     else if (keys.has(keyCode("p2.ascend"))) my = 1;
@@ -791,7 +830,7 @@ function applyInput() {
     }
     p2.sprinting = sprint2;
     game.setMove(p2, mx, mz, my);
-    const enemy = game.entities.find((e) => e.id !== p2.id && e.alive);
+    const enemy = game.lockEntity(p2);
     if (enemy) game.setAim(p2, enemy.x, enemy.z);
     if (pad2) {
       if (pad2.charId !== p2.charId) pad2.rebuildAbilities(p2.charId);
@@ -818,7 +857,7 @@ function frame(now) {
   if (game.timeStop > 0) game.timeStop = Math.max(0, game.timeStop - rawDt);
   if (game.cutIn) { game.cutIn.life -= rawDt; if (game.cutIn.life <= 0) game.cutIn = null; }
   // freeze the whole scene behind the menus / during a time-stop
-  const frozen = ["menu", "modeSelect", "guide", "settings", "gojoSelect", "storySelect", "difficulty", "paused"].includes(game.state)
+  const frozen = ["menu", "modeSelect", "guide", "settings", "gojoSelect", "storySelect", "difficulty", "paused", "storyTransition"].includes(game.state)
     || game.timeStop > 0 || renderer._renderUnavailable;
   const dt = frozen ? 0 : realDt;
   game.update(dt);

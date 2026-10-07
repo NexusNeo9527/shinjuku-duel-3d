@@ -1,3 +1,5 @@
+import { SHIBUYA_CHARACTERS, SHIBUYA_STAGES } from "./shibuyaConfig.js";
+import { RAID_CHARACTERS, RAID_STAGES } from './shinjukuRaidConfig.js';
 export const TAU = Math.PI * 2;
 
 export const ARENA = { half: 72 };
@@ -46,7 +48,7 @@ export const DIFFICULTY = {
     reactionMin: 0.62,
     reactionMax: 1.25,
     damageMultiplier: 1,
-    damageTakenMultiplier: 0.9,
+    damageTakenMultiplier: 1,
     knockbackTakenMultiplier: 0.88,
     speed: 1,
     aggro: 1,
@@ -54,7 +56,7 @@ export const DIFFICULTY = {
   },
   shura: {
     label: "困难",
-    enemyHp: 125,
+    enemyHp: 115,
     mahoraga: { hp: 100, speed: 7.4, life: 34, dmg: 1.3 },
     aimError: 0.07,
     aimMin: 0.03,
@@ -63,8 +65,8 @@ export const DIFFICULTY = {
     leadTime: 0.48,
     reactionMin: 0.34,
     reactionMax: 0.7,
-    damageMultiplier: 1.25,
-    damageTakenMultiplier: 0.9,
+    damageMultiplier: 1.1,
+    damageTakenMultiplier: 1,
     knockbackTakenMultiplier: 0.7,
     speed: 1.12,
     aggro: 1.4,
@@ -72,7 +74,7 @@ export const DIFFICULTY = {
   },
   abyss: {
     label: "地狱",
-    enemyHp: 150,
+    enemyHp: 130,
     mahoraga: { hp: 140, speed: 8.4, life: 42, dmg: 1.6 },
     mahoragaStart: true,
     aimError: 0.03,
@@ -82,8 +84,8 @@ export const DIFFICULTY = {
     leadTime: 0.48,
     reactionMin: 0.22,
     reactionMax: 0.48,
-    damageMultiplier: 1.5,
-    damageTakenMultiplier: 0.72,
+    damageMultiplier: 1.2,
+    damageTakenMultiplier: 1,
     knockbackTakenMultiplier: 0.7,
     speed: 1.22,
     aggro: 1.8,
@@ -95,7 +97,7 @@ export const DIFFICULTY = {
 // 普通单人对战及剧情反向操作（玩家操控宿傩）继续使用通用难度。
 export const YUTA_STORY_DIFFICULTY_OVERRIDES = {
   shura: {
-    enemyHp: 112,
+    enemyHp: 110,
     aimError: 0.12,
     aimMin: 0.1,
     aimMax: 0.32,
@@ -104,12 +106,12 @@ export const YUTA_STORY_DIFFICULTY_OVERRIDES = {
     reactionMin: 0.48,
     reactionMax: 0.9,
     damageMultiplier: 1.08,
-    damageTakenMultiplier: 0.98,
+    damageTakenMultiplier: 1,
     speed: 1.06,
     aggro: 1.2
   },
   abyss: {
-    enemyHp: 130,
+    enemyHp: 120,
     aimError: 0.09,
     aimMin: 0.09,
     aimMax: 0.32,
@@ -117,8 +119,8 @@ export const YUTA_STORY_DIFFICULTY_OVERRIDES = {
     leadTime: 0.39,
     reactionMin: 0.34,
     reactionMax: 0.68,
-    damageMultiplier: 1.28,
-    damageTakenMultiplier: 0.88,
+    damageMultiplier: 1.15,
+    damageTakenMultiplier: 1,
     speed: 1.14,
     aggro: 1.5
   }
@@ -191,9 +193,9 @@ export const CHARACTERS = {
       },
       {
         id: "void", label: "无量空处", type: "domain", shape: "domain",
-        damage: 4, tick: 0.45, radius: 80, closedBarrier: true, cooldown: 0, life: 5,
+        damage: 4, tick: 0.45, radius: 80, exteriorRadius: 12, closedBarrier: true, cooldown: 0, life: 5,
         color: "#7a5cff", core: "#d9ccff", needsDomain: true,
-        desc: "封闭领域，收纳全场角色，持续压制与减速"
+        desc: "信息无限涌入，使必中目标无法行动；接触施术者、反领域手段和领域对抗可抵消效果"
       }
     ]
   },
@@ -233,9 +235,10 @@ export const CHARACTERS = {
       },
       {
         id: "shrine", label: "伏魔御厨子", type: "domain", shape: "domain",
-        damage: 5, tick: 0.4, radius: 16, cooldown: 0, life: 5,
+        damage: 5, tick: 0.4, radius: 40, canonMaxRadius: 200, closedBarrier: false, openBarrier: true,
+        barrierDamagePerSecond: 14, maintenanceDamageRatio: 0.3, cooldown: 0, life: 5,
         color: "#ff2f4d", core: "#ffd2d8", needsDomain: true,
-        desc: "领域，无差别斩击"
+        desc: "开放式领域，不封锁逃路；捌斩有咒力目标、解斩无咒力目标。原著最大半径200米，本战场缩尺为40；外侧斩击破坏封闭结界"
       },
       {
         id: "mahoraga", label: "魔虚罗", type: "summon", shape: "summon",
@@ -262,7 +265,7 @@ CHARACTERS.yuta = {
     storyMove("katana", "咒力刀", "melee", { damage: 9, range: 3.2, cooldown: 0.55, physical: true }),
     storyMove("rika", "里香", "summon", { cooldown: 24, hp: 65, life: 20 }),
     storyMove("copy", "复制术式", "copy", { cooldown: 2.8 }),
-    storyMove("authenticLove", "真赝相爱", "domain", { damage: 4, tick: 0.48, radius: 80, closedBarrier: true, life: 6, cooldown: 0, needsDomain: true }),
+    storyMove("authenticLove", "真赝相爱", "domain", { damage: 4, tick: 0.48, radius: 80, closedBarrier: true, life: 6, cooldown: 0, needsDomain: true, desc: "以雅各布天梯为必中；刀中随机储存其他复制术式，使用后消失" }),
     storyMove("yutaHeal", "反转术式", "heal", { cooldown: 16, needsCharge: true, heal: 16 })
   ]
 };
@@ -286,9 +289,103 @@ const storySukuna = (id, domain) => ({
 CHARACTERS.sukunaStory1 = storySukuna("sukunaStory1", false);
 CHARACTERS.sukunaStory2 = storySukuna("sukunaStory2", true);
 
+// Standalone loadout independent of the chapter's scripted support.
+CHARACTERS.yutaGojoFree = {
+  ...CHARACTERS.yutaGojo, id: "yutaGojoFree", assetId: "yutaGojo",
+  abilities: CHARACTERS.yutaGojo.abilities.map((ability) => ({ ...ability }))
+};
+export const FREE_BATTLE_CHARACTERS = ["gojo", "sukuna", "yuta", "yutaGojoFree", "gojoTeen", "gojoAwakened", "toji", "tojiRematch", "yujiShibuya", "mahito", "mahitoFinal", "higuruma", "yujiCulling", "kashimo", "sukunaRaid"];
+
+// Chapters 262–263: amplification and body blows contest a channeled Purple.
+// Timing, stamina and arena dimensions below are gameplay adaptations.
+export const BORROWED_BATTLE = Object.freeze({
+  duration: 90, easyDuration: 110, radius: 16, maxAltitude: 6,
+  purpleWindup: 2.2, blueWindup: 0.3, amplificationDrain: 22,
+  amplificationRegen: 18
+});
+CHARACTERS.yutaGojo.combos = [];
+CHARACTERS.yutaGojo.abilities = [
+  { ...CHARACTERS.gojo.abilities[0], damage: 8, cooldown: 1.8, knock: -3, windup: BORROWED_BATTLE.blueWindup,
+    desc: "短暂准备后释放苍，牵引并积累施法资源" },
+  storyMove("bodyJab", "体术", "melee", { damage: 6, range: 3.2, cooldown: 0.65, physical: true }),
+  { ...CHARACTERS.gojo.abilities[2], cooldown: 3, windup: BORROWED_BATTLE.purpleWindup,
+    desc: "站定准备2.2秒；近身命中可打断，对敌人造成伤害" },
+  storyMove("recorder", "狗卷录音", "support", { cooldown: 0, desc: "一次录音支援，短暂定住对手并创造施法机会" }),
+  storyMove("bodyGuard", "体术防守", "guard", { cooldown: 6, physical: true, desc: "短暂减轻体术伤害，施法期间不可使用" })
+];
+CHARACTERS.sukunaStory2.abilities = [
+  storyMove("bodyJab", "体术 · 连拳", "melee", { damage: 6, range: 3, cooldown: 0.65, physical: true, color: "#ff7583" }),
+  storyMove("bodyHeavy", "体术 · 肘击", "melee", { damage: 10, range: 3.2, cooldown: 1.4, physical: true, color: "#ff7583" }),
+  storyMove("bodyRush", "体术 · 追击", "melee", { damage: 10, range: 3.2, cooldown: 4, windup: 0.35, physical: true, color: "#ff7583", desc: "向当前方向追击，落空后有恢复动作" }),
+  storyMove("amplification", "领域展延", "amplification", { cooldown: 0, physical: true, desc: "按键切换；消耗展延资源，突破无下限并减轻苍" }),
+  storyMove("bodyGuard", "体术防守", "guard", { cooldown: 6, physical: true, color: "#ff7583" })
+];
+
+// Hidden Inventory (manga 70–75): separate IDs keep adult Gojo's domain,
+// Simple Domain and regeneration out of his student-era loadouts.
+CHARACTERS.gojoTeen = {
+  ...CHARACTERS.gojo, id: "gojoTeen", name: "五条悟·高专", combos: [], grounded: true,
+  abilities: [
+    storyMove("blue", "苍", "attraction", { damage: 12, range: 28, radius: 7, cooldown: 2.4, color: "#44d9ff", desc: "术式顺转·苍，以吸引中心牵引近处目标" }),
+    storyMove("blueMax", "最大输出苍", "attraction", { damage: 23, range: 28, radius: 12, cooldown: 8, color: "#44d9ff" }),
+    storyMove("infinity", "无下限", "infinity", { cooldown: 6, life: 3, color: "#bdeeff", desc: "阻止普通近身攻击；天逆鉾接触可解除" })
+  ]
+};
+CHARACTERS.gojoAwakened = {
+  ...CHARACTERS.gojo, id: "gojoAwakened", name: "五条悟·觉醒", combos: [],
+  abilities: [
+    { ...CHARACTERS.gojoTeen.abilities[0] },
+    { ...CHARACTERS.gojo.abilities[1], label: "赫" },
+    { ...CHARACTERS.gojo.abilities[2], label: "茈", damage: 180 },
+    storyMove("awakenedHeal", "反转术式", "heal", { cooldown: 16, heal: 18, color: "#bdeeff" }),
+    { ...CHARACTERS.gojoTeen.abilities[2] }
+  ]
+};
+CHARACTERS.toji = {
+  id: "toji", name: "伏黑甚尔", color: "#b6caac", aura: 0xb6caac,
+  height: 1.88, hp: 100, speed: 9.5, grounded: true, cursedEnergy: 0, combos: [],
+  dash: { speed: 34, duration: 0.18, cooldown: 0.85, invuln: 0.2 },
+  abilities: [
+    storyMove("tojiBlade", "刀刃突袭", "melee", { damage: 10, range: 3.3, cooldown: 0.7, physical: true, color: "#d8dce3" }),
+    storyMove("invertedSpear", "天逆鉾", "melee", { damage: 18, range: 3.8, cooldown: 1.6, physical: true, nullifiesInfinity: true, color: "#c4c9d4" }),
+    storyMove("flyheads", "蝇头掩护", "flyheads", { cooldown: 12, physical: true, color: "#827c99" })
+  ]
+};
+CHARACTERS.tojiRematch = {
+  ...CHARACTERS.toji, id: "tojiRematch",
+  abilities: [
+    { ...CHARACTERS.toji.abilities[0] }, { ...CHARACTERS.toji.abilities[1] },
+    storyMove("chainSpear", "万里锁·天逆鉾", "chain", { damage: 22, range: 20, cooldown: 4, physical: true, nullifiesInfinity: true, color: "#c4c9d4" })
+  ]
+};
+
+Object.assign(CHARACTERS, SHIBUYA_CHARACTERS, RAID_CHARACTERS);
+// Period-specific traits; awareness survives Sukuna leaving Yuji's body.
+for (const id of ['yujiShibuya', 'yujiCulling', 'yujiRaid']) {
+  CHARACTERS[id].soulAware = true;
+  CHARACTERS[id].sukunaVessel = id !== 'yujiRaid';
+}
+const techniqueContact = new Set(['slash', 'cleave', 'cleaveRush', 'gavel', 'gavelExtend', 'gavelHeavy', 'executionerSword', 'cullingExecution', 'soulTouch', 'soulBlade', 'todoSupport']);
+const fistAttacks = new Set(['bodyJab', 'bodyHeavy', 'bodyRush', 'yujiPunch', 'divergentFist', 'yujiBlackFlash', 'yujiBodyPunch', 'yujiBodyHeavy', 'yujiSoulPunch', 'kashimoPunch', 'soulHeavy', 'soulRush']);
+for (const character of Object.values(CHARACTERS)) for (const ability of character.abilities) {
+  ability.requiresTechnique ??= techniqueContact.has(ability.id) || (!ability.physical && !['heal', 'guard', 'appeal', 'amplification', 'discharge'].includes(ability.type));
+  if (ability.id === 'mahitoGuard' && !ability.physical) ability.requiresTechnique = true;
+  ability.canBlackFlash ??= fistAttacks.has(ability.id);
+}
 export const STORY_STAGES = {
-  yuta: { label: "乙骨本体 · 真赝相爱", ally: "yuta", enemy: "sukunaStory1" },
-  borrowed: { label: "五条之身 · 领域再战", ally: "yutaGojo", enemy: "sukunaStory2" }
+  opening: { label: "新宿 · 五条悟 VS 宿傩", ally: "gojo", enemy: "sukuna", next: "kashimoDuel", canon: true,
+    intro: "新宿战场，五条悟与宿傩展开对决。使用苍、赫、茈与无量空处，迎战斩击、伏魔御厨子和魔虚罗。",
+    objective: "击败对手即可通关；本关沿用经典对战技能与数值，胜负由实际战斗决定。" },
+  ...RAID_STAGES,
+  ...SHIBUYA_STAGES,
+  hiddenInventory: { label: "怀玉 · 高专初战", ally: "gojoTeen", enemy: "toji", next: "hiddenInventoryRematch", canon: true,
+    intro: "星浆体护送后，五条疲惫地解除术式，遭甚尔背后刺伤。夏油带理子进入薨星宫，五条留下迎战。",
+    objective: "使用高专时期的苍与无下限，击败甚尔即可通关；提防蝇头与天逆鉾。" },
+  hiddenInventoryRematch: { label: "怀玉 · 觉醒再战", ally: "gojoAwakened", enemy: "tojiRematch", canon: true,
+    intro: "理子遇害、夏油败北后，甚尔完成委托。五条在濒死中领悟反转术式，来到盘星教所在地再战。",
+    objective: "使用觉醒后的苍、赫、茈与反转术式，击败甚尔即可通关。" },
+  yuta: { label: "乙骨本体 · 真赝相爱", ally: "yuta", enemy: "sukunaStory1", next: "borrowed", objective: "使用咒力刀、里香与复制术式，击败宿傩即可通关。" },
+  borrowed: { label: "五条之身 · 领域再战", ally: "yutaGojo", enemy: "sukunaStory2", objective: "使用体术、苍与茈，击败对手即可通关；领域交锋结束后继续战斗。" }
 };
 export const COPY_TECHNIQUES = [
   storyMove("cursedSpeech", "咒言", "orb", { damage: 12, power: 1, speed: 32, radius: 1.0, life: 1.35, knock: 5, cooldown: 3, stun: 0.75 }),
@@ -300,4 +397,3 @@ export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
 export const rand = (a, b) => a + Math.random() * (b - a);
 export const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
-

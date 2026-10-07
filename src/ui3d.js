@@ -1,13 +1,19 @@
-import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, SIMPLE_DOMAIN } from "./config3d.js";
-import { STORY_VICTORY_LINES } from "./storyDialogue.js";
+import { shibuyaAbilityLocked } from "./shibuyaBattle.js";
+import { raidAbilityLocked, respondToCourt } from './shinjukuRaid.js';
+import { RESPONSE_LABELS } from './judgeman.js';
+import { fighterSigil } from "./shibuyaConfig.js";
+import { CHARACTERS, FREE_BATTLE_CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, SIMPLE_DOMAIN } from "./config3d.js";
+import { STORY_DIALOGUE, STORY_VICTORY_LINES } from "./storyDialogue.js";
+import { HIDDEN_INVENTORY_ART } from "./hiddenInventoryArt.js";
+import { battleHint } from './battleQuality.js';
 
 const SLOT_KEYS = ["p1.cast1", "p1.cast2", "p1.cast3", "p1.cast4", "p1.cast5"];
 const P2_KEYS = ["p2.cast1", "p2.cast2", "p2.cast3", "p2.cast4", "p2.cast5"];
 const STORY_DIFFICULTY_TEXT = {
   easy: "耐久 85 · 出招较慢",
-  normal: "耐久 100 · 预判移动 · 减伤",
-  shura: "耐久 112 · 攻击放缓 · 伤害降低",
-  abyss: "耐久 130 · 攻势与伤害下调"
+  normal: "耐久 100 · 预判移动 · 绕行与防守",
+  shura: "耐久 110 · 更快反应 · 抓住蓄势破绽",
+  abyss: "耐久 120 · 更快追击 · 闪避与反击"
 };
 // 练习面板开关 -> Game3D 上的字段
 const PRACTICE_FLAGS = {
@@ -50,6 +56,9 @@ export const ICONS = {
   wickerBasket: `<path d="M3 9h18l-3 11H6zM6 9l6-6 6 6"/>`
 };
 
+const fistIcon = `<path d="M5 13V8h3V5h3v3h3V6h3v3h3v7l-5 5H8l-4-6z"/>`;
+Object.assign(ICONS, { yujiPunch: fistIcon, divergentFist: fistIcon + `<path d="M2 3l4 2M1 8h3"/>`, yujiBlackFlash: ICONS.red + ICONS.dash, todoSupport: `<path d="M3 18l5-9 4 4 4-8 5 13M8 3l2 3M14 2l-1 4"/>`, yujiGuard: `<path d="M12 3l8 3v7l-8 8-8-8V6z"/>`, soulTouch: fistIcon, soulBlade: ICONS.slash, soulHeavy: fistIcon, soulRush: ICONS.dash, soulIsomer: ICONS.rika, mahitoDomain: ICONS.void, mahitoGuard: ICONS.wickerBasket });
+
 export class UI3D {
   constructor(game, handlers) {
     this.game = game;
@@ -68,6 +77,9 @@ export class UI3D {
       settingsBackBtn: document.querySelector("#settingsBackBtn"),
       storyPlayModeBtns: [...document.querySelectorAll("[data-story-play-mode]")],
       storyPlayHelp: document.querySelector("#storyPlayHelp"),
+      freePlayerChar: document.querySelector("#freePlayerChar"),
+      freeEnemyChar: document.querySelector("#freeEnemyChar"),
+      freeMatchup: document.querySelector("#freeMatchup"),
       gojoMenu: document.querySelector("#gojoMenu"),
       gojoBackBtn: document.querySelector("#gojoBackBtn"),
       gojoModeBtns: [...document.querySelectorAll("[data-gojo-mode]")],
@@ -92,6 +104,12 @@ export class UI3D {
       hitBorder: document.querySelector("#hitBorder"),
       cutIn: document.querySelector("#cutIn"),
       cutInImg: document.querySelector("#cutInImg"),
+      storyTransition: document.querySelector("#storyTransition"),
+      storyTransitionImg: document.querySelector("#storyTransitionImg"),
+      storyTransitionKicker: document.querySelector("#storyTransitionKicker"),
+      storyTransitionTitle: document.querySelector("#storyTransitionTitle"),
+      storyTransitionText: document.querySelector("#storyTransitionText"),
+      storyTransitionContinue: document.querySelector("#storyTransitionContinue"),
       result: document.querySelector("#result"),
       resultKicker: document.querySelector("#resultKicker"),
       resultTitle: document.querySelector("#resultTitle"),
@@ -147,6 +165,31 @@ export class UI3D {
       themeChips: [...document.querySelectorAll("[data-theme]")],
       ppCombo: document.querySelector("#ppCombo")
     };
+    for (const [side, select] of [["player", this.dom.freePlayerChar], ["enemy", this.dom.freeEnemyChar]]) {
+      FREE_BATTLE_CHARACTERS.forEach((id) => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = CHARACTERS[id].name + (id === "tojiRematch" ? " · 万里锁" : id === "toji" ? " · 蝇头" : "");
+        select.appendChild(option);
+      });
+      select.addEventListener("change", () => handlers.onFreeCharacter(side, select.value));
+    }
+    this.courtPanel = document.createElement('section');
+    this.courtPanel.className = 'court-hearing hidden';
+    this.courtPanel.setAttribute('aria-label', '日车审判');
+    this.courtTitle = document.createElement('strong');
+    this.courtDetails = document.createElement('p');
+    this.courtChoices = document.createElement('div');
+    this.courtPanel.append(this.courtTitle, this.courtDetails, this.courtChoices);
+    for (const [response, label] of Object.entries(RESPONSE_LABELS)) {
+      const button = document.createElement('button'); button.textContent = label;
+      button.addEventListener('click', () => {
+        const defendant = game.entities.find(e => e.id === game.raid?.condemned);
+        respondToCourt(game, defendant, response);
+      });
+      this.courtChoices.append(button);
+    }
+    document.querySelector('#gameCanvas').parentElement.append(this.courtPanel);
     this.bind();
   }
 
@@ -171,6 +214,7 @@ export class UI3D {
     }));
     this.dom.storyBackBtn.addEventListener("click", () => h.onBackToModeSelect());
     this.dom.continueStoryBtn.addEventListener("click", () => h.onContinueStory());
+    this.dom.storyTransitionContinue.addEventListener("click", () => h.onStoryTransition());
     this.dom.difficultyButtons.forEach((b) => b.addEventListener("click", () => {
       this.dom.difficultyButtons.forEach((x) => x.classList.toggle("selected", x === b));
       h.onDifficulty(b.dataset.difficulty);
@@ -184,6 +228,7 @@ export class UI3D {
     this.dom.pauseHomeBtn.addEventListener("click", () => h.onHome());
     this.dom.soundBtn.addEventListener("click", () => h.onSound(this.dom.soundBtn));
     this.dom.practiceChars.forEach((b) => b.addEventListener("click", () => h.onPracticeChar(b.dataset.pchar)));
+    for (const button of document.querySelectorAll('[data-training]')) button.addEventListener('click',()=>h.onTraining(button.dataset.training));
     this.dom.practicePanelToggle.addEventListener("click", () => {
       const collapsed = this.dom.practicePanel.classList.toggle("collapsed");
       this.dom.practicePanelToggle.setAttribute("aria-expanded", String(!collapsed));
@@ -203,6 +248,7 @@ export class UI3D {
     // dual mode: one mirrored HUD panel per half (built here so both are identical)
     this.splitP1 = this.buildSplitPanel("left", "P1", SLOT_KEYS);
     this.splitP2 = this.buildSplitPanel("right", "P2", P2_KEYS);
+    this.refreshKeyLabels();
   }
 
   buildSplitPanel(side, tag, keys) {
@@ -245,6 +291,7 @@ export class UI3D {
     panel.slots = char.abilities.map((ab, i) => {
       const el = document.createElement("div");
       el.className = "ability-slot";
+      el.title = ab.desc || ab.label;
       el.style.color = ab.color;
       el.innerHTML = `
         <span class="slot-key">${this.getKeyLabel(panel.keys[i])}</span>
@@ -258,7 +305,7 @@ export class UI3D {
 
   updateSplitPanel(panel, ent, game) {
     this.applyCharColor(panel.el, ent.charId);
-    panel.sigil.textContent = ent.charId.startsWith("yuta") ? "乙" : ent.charId === "gojo" ? "五" : "宿";
+    panel.sigil.textContent = fighterSigil(ent.charId);
     panel.name.textContent = ent.name;
     panel.hpNum.textContent = Math.ceil(Math.max(0, ent.hp));
     panel.hp.style.transform = `scaleX(${Math.max(0, ent.hp / ent.maxHp)})`;
@@ -273,12 +320,18 @@ export class UI3D {
       sl.cd.style.setProperty("--cd", String(this.slotShade(sl.ability, ent, game, cd)));
       const needCharge = sl.ability.needsCharge && ent.charge < 100 && !game.practice;
       const needDomain = sl.ability.needsDomain && ent.domainCharge < 100 && !game.practice;
-      sl.el.classList.toggle("locked", Boolean(needCharge || needDomain));
-      sl.el.classList.toggle("ready", cd <= 0.001 && !needCharge && !needDomain);
+      const borrowedLocked = game.borrowedSkillLocked(ent, sl.ability);
+      const ruleLocked = (ent.burnout > 0 && sl.ability.requiresTechnique)
+        || (sl.ability.needsDomain && ent.domainLocked) || shibuyaAbilityLocked(game, ent, sl.ability)
+        || raidAbilityLocked(game, ent, sl.ability) || (['domain', 'soulDomain'].includes(sl.ability.type) && game.ownsDomain(ent));
+      sl.el.classList.toggle("locked", Boolean(needCharge || needDomain || borrowedLocked || ruleLocked));
+      sl.el.classList.toggle("ready", cd <= 0.001 && !needCharge && !needDomain && !borrowedLocked && !ruleLocked);
+      if (sl.ability.type === 'copy') sl.el.querySelector('.slot-glyph').textContent = game.domains.some(d => d.alive && d.ownerId === ent.id && d.type === 'authenticLove') ? '拔刀 · 术式未知' : COPY_TECHNIQUES[ent.copyIndex].label;
     }
   }
 
   updateCutIn(game) {
+    this.updateStoryTransition(game);
     const c = game.cutIn;
     if (!c) {
       this.dom.cutIn.classList.add("hidden");
@@ -320,15 +373,38 @@ export class UI3D {
   // HP colour follows the character (五条悟 = blue, 宿傩 = red), not the player slot
   applyCharColor(el, charId) {
     if (!el) return;
-    const cls = charId?.startsWith("sukuna") ? "char-sukuna" : charId?.startsWith("yuta") ? "char-yuta" : "char-gojo";
+    if (charId === "yujiShibuya" || charId?.startsWith("mahito") || charId?.startsWith("todo")) {
+      el.style.setProperty("--char-color", CHARACTERS[charId].color);
+      el.style.setProperty("--char-glow", CHARACTERS[charId].color + "66");
+    } else { el.style.removeProperty("--char-color"); el.style.removeProperty("--char-glow"); }
+    const cls = charId?.startsWith('yuji') ? "char-yuji" : charId?.startsWith("mahito") ? "char-mahito" : charId?.startsWith("todo") ? "char-todo" : charId?.startsWith("sukuna") ? "char-sukuna" : charId?.startsWith("yuta") ? "char-yuta" : "char-gojo";
+    if (charId === 'kashimo' || charId?.startsWith('higuruma') || charId?.startsWith('yuji')) {
+      el.style.setProperty('--char-color', CHARACTERS[charId].color);
+      el.style.setProperty('--char-glow', CHARACTERS[charId].color + '66');
+    }
     if (el.dataset.char === cls) return;
     el.dataset.char = cls;
-    el.classList.remove("char-gojo", "char-sukuna", "char-yuta");
+    el.classList.remove("char-gojo", "char-sukuna", "char-yuta", "char-yuji", "char-mahito", "char-todo");
     el.classList.add(cls);
   }
 
   setThemeChip(charId) {
     for (const b of this.dom.themeChips) b.classList.toggle("active", b.dataset.theme === charId);
+  }
+
+  updateStoryTransition(game) {
+    const transition = game.state === "storyTransition" && game.storyTransition;
+    this.dom.storyTransition.classList.toggle("hidden", !transition);
+    if (!transition) { this._storyTransition = null; return; }
+    if (this._storyTransition === transition) return;
+    this._storyTransition = transition;
+    this.dom.storyTransitionImg.src = `${import.meta.env.BASE_URL}assets/${transition.file}`;
+    this.dom.storyTransitionImg.alt = transition.alt;
+    this.dom.storyTransitionKicker.textContent = transition.kicker;
+    this.dom.storyTransitionTitle.textContent = transition.title;
+    this.dom.storyTransitionText.textContent = transition.text;
+    this.dom.storyTransitionContinue.textContent = transition.button;
+    this.dom.storyTransitionContinue.focus({ preventScroll: true });
   }
 
   getKeyLabel(bindingId) {
@@ -351,7 +427,7 @@ export class UI3D {
     const controls1 = document.querySelector(".split-controls-p1");
     const controls2 = document.querySelector(".split-controls-p2");
     if (controls1) controls1.textContent = `P1 · ${this.getKeyLabel("p1.up")}${this.getKeyLabel("p1.left")}${this.getKeyLabel("p1.down")}${this.getKeyLabel("p1.right")} 移动 · ${this.getKeyLabel("p1.sprint")} 疾跑 · ${this.getKeyLabel("p1.ascend")} 升空 · ${this.getKeyLabel("p1.descend")} 下降 · ${SLOT_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p1.dash")} 冲刺`;
-    if (controls2) controls2.textContent = `P2 · ${this.getKeyLabel("p2.up")}${this.getKeyLabel("p2.left")}${this.getKeyLabel("p2.down")}${this.getKeyLabel("p2.right")} 移动 · ${this.getKeyLabel("p2.sprint")} 疾跑 · ${this.getKeyLabel("p2.ascend")} 升空 · ${this.getKeyLabel("p2.descend")} 下降 · ${P2_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p2.dash")} 冲刺`;
+    if (controls2) controls2.textContent = `P2 · ${this.getKeyLabel("p2.up")}${this.getKeyLabel("p2.left")}${this.getKeyLabel("p2.down")}${this.getKeyLabel("p2.right")} 移动 · ${this.getKeyLabel("p2.sprint")} 疾跑 · ${this.getKeyLabel("p2.ascend")} 升空 · ${this.getKeyLabel("p2.descend")} 下降 · ${P2_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p2.dash")} 冲刺 · ${this.getKeyLabel("p2.copy")} 复制 · ${this.getKeyLabel("p2.lock")} 锁定 · ${this.getKeyLabel("p2.simpleDomain")} 简易领域`;
     if (this.dom.hint) this.dom.hint.textContent = `${this.getKeyLabel("p1.up")}${this.getKeyLabel("p1.left")}${this.getKeyLabel("p1.down")}${this.getKeyLabel("p1.right")} 移动 · ${this.getKeyLabel("p1.sprint")} 疾跑 · ${this.getKeyLabel("p1.ascend")} 升空 · ${this.getKeyLabel("p1.descend")} 下降 · ${SLOT_KEYS.map((id) => this.getKeyLabel(id)).join("/")} 术式 · ${this.getKeyLabel("p1.dash")} 冲刺 · 滚轮缩放`;
   }
 
@@ -361,6 +437,7 @@ export class UI3D {
     this.slots = char.abilities.map((ab, i) => {
       const el = document.createElement("div");
       el.className = "ability-slot";
+      el.title = ab.desc || ab.label;
       el.style.color = ab.color;
       el.innerHTML = `
         <span class="slot-key">${this.getKeyLabel(SLOT_KEYS[i])}</span>
@@ -390,6 +467,18 @@ export class UI3D {
   }
 
   update(game) {
+    const court = game.raid;
+    const defendant = game.entities.find(e => e.id === court?.condemned);
+    const hearing = court?.trial > 0 && game.state === 'playing';
+    this.courtPanel.classList.toggle('hidden', !hearing);
+    if (hearing) {
+      this.courtTitle.textContent = `${defendant?.name} · ${court.caseFile.charge}`;
+      const owner = game.entities.find(e => e.id === court.ownerId);
+      this.courtDetails.textContent = owner?.isPlayer ? `检方证据：${court.caseFile.evidence}`
+        : court.response ? `${RESPONSE_LABELS[court.response]} · 等待审判者判决`
+        : `禁止暴力。选择默秘、自白或否认；不选择时按本关默认答辩继续。`;
+      this.courtChoices.classList.toggle('hidden', !defendant?.isPlayer || !!court.response);
+    }
     const s = game.state;
     this.updateHitBorder(game);
     this.updateCutIn(game);
@@ -398,6 +487,11 @@ export class UI3D {
     this.dom.guideMenu.classList.toggle("hidden", s !== "guide");
     this.dom.settingsMenu.classList.toggle("hidden", s !== "settings");
     this.dom.gojoMenu.classList.toggle("hidden", s !== "gojoSelect");
+    const freeSelection = game.modeFamily === "free";
+    this.dom.gojoMenu.querySelector("h2").textContent = freeSelection ? "自由战斗" : "五条悟 VS 宿傩";
+    this.dom.gojoMenu.querySelector("p").textContent = freeSelection ? "分别选择双方角色，同一角色也可以互相对战。" : "经典模式：挑战电脑、双人对战或练习术式。单人可选择操控五条或宿傩。";
+    this.dom.gojoMenu.querySelector(".free-roster").classList.toggle("hidden", !freeSelection);
+    this.dom.freeMatchup.classList.toggle("hidden", !freeSelection);
     this.dom.storyMenu.classList.toggle("hidden", s !== "storySelect");
     this.dom.difficultyMenu.classList.toggle("hidden", s !== "difficulty");
     const homeSurface = ["menu", "modeSelect", "guide", "settings"].includes(s);
@@ -406,23 +500,34 @@ export class UI3D {
     this.dom.storyPlayModeBtns.forEach((button) => button.classList.toggle("active", button.dataset.storyPlayMode === game.storyPlayMode));
     if (this.dom.storyPlayHelp) {
       this.dom.storyPlayHelp.textContent = game.storyPlayMode === "dual"
-        ? "选择阶段后，双方分别操控乙骨与宿傩。"
+        ? "选择阶段后，双方分别操控该阶段的两名角色；胜负由对战决定。"
         : game.storyPlayMode === "practice"
           ? "选择阶段与角色后进入练习，可随时更换角色。"
           : "选择剧情阶段后开始单人战斗。";
     }
     this.dom.storySideSelect.classList.toggle("hidden", game.pendingMode !== "story");
-    this.dom.singleCharSelect.classList.toggle("hidden", game.pendingMode === "story");
-    this.dom.storySideBtns[0].textContent = game.storyStage === "borrowed" ? "乙骨·五条之身" : "乙骨忧太";
+    this.dom.singleCharSelect.classList.toggle("hidden", game.pendingMode === "story" || game.modeFamily === "free");
+    this.dom.freePlayerChar.value = game.freePlayerChar;
+    this.dom.freeEnemyChar.value = game.freeEnemyChar;
+    const matchup = CHARACTERS[game.freePlayerChar].name + " VS " + CHARACTERS[game.freeEnemyChar].name;
+    this.dom.freeMatchup.textContent = matchup;
+    const stageInfo = STORY_STAGES[game.storyStage];
+    this.dom.storySideBtns[0].textContent = CHARACTERS[stageInfo.ally].name;
+    this.dom.storySideBtns[1].textContent = CHARACTERS[stageInfo.enemy].name + (stageInfo.shibuya || stageInfo.allyOnly ? "（剧情对手）" : "");
+    this.dom.storySideBtns[1].disabled = Boolean(stageInfo.shibuya || stageInfo.allyOnly);
     this.dom.storySideBtns.forEach((button) => button.classList.toggle("active", button.dataset.storySide === game.storySide));
     this.dom.singleCharBtns.forEach((button) => button.classList.toggle("active", button.dataset.singleChar === game.singleChar));
     this.dom.difficultyHelp.textContent = game.pendingMode === "story"
-      ? "难度影响电脑对手的反应、伤害和耐久；此剧情战斗没有魔虚罗。"
-      : "难度会改变对手的瞄准精度、反应速度、伤害、减伤、机动与魔虚罗强度。";
+      ? `使用所选角色在本时期的技能，击败${CHARACTERS[game.storySide === "enemy" ? stageInfo.ally : stageInfo.enemy].name}即可通关。难度越高，敌人反应、追击和防守更积极，耐久与伤害适度提高。`
+      : (game.modeFamily === "free" ? matchup + "。任一方为地面角色时，双方采用地面对战规则。选择电脑对手的难度。" : "难度会改变对手的瞄准精度、反应速度、伤害、机动与魔虚罗强度。");
     for (const button of this.dom.difficultyButtons) {
       const small = button.querySelector("small");
       if (!small.dataset.original) small.dataset.original = small.textContent;
-      const caption = game.pendingMode === "story" ? STORY_DIFFICULTY_TEXT[button.dataset.difficulty] : small.dataset.original;
+      const caption = game.pendingMode === "story"
+        ? stageInfo.canon || game.storySide === "enemy" ? `耐久 ${DIFFICULTY[button.dataset.difficulty].enemyHp} · ${DIFFICULTY[button.dataset.difficulty].label}电脑对手` : STORY_DIFFICULTY_TEXT[button.dataset.difficulty]
+        : game.modeFamily === "free"
+          ? "耐久 " + DIFFICULTY[button.dataset.difficulty].enemyHp + " · " + DIFFICULTY[button.dataset.difficulty].label + "电脑对手"
+          : small.dataset.original;
       if (small.textContent !== caption) small.textContent = caption;
     }
     this.dom.pauseMenu.classList.toggle("hidden", s !== "paused");
@@ -436,18 +541,21 @@ export class UI3D {
         this._charId = player.charId;
         this.rebuildAbilityBar(player.charId);
       }
-      this.dom.playerName.textContent = player.name;
-      this.dom.playerSigil.textContent = player.charId.startsWith("yuta") ? "乙" : player.charId === "gojo" ? "五" : "宿";
+      this.dom.playerName.textContent = player.name + (game.isBorrowedBattle() && player.charId === "sukunaStory2" ? " · 交战耐久" : "");
+      this.dom.playerSigil.textContent = fighterSigil(player.charId);
       this.applyCharColor(this.dom.sideP1, player.charId);
       this.applyCharColor(this.dom.playerHp, player.charId);
       this.dom.playerHp.style.transform = `scaleX(${Math.max(0, player.hp / player.maxHp)})`;
       this.dom.playerHpText.textContent = Math.ceil(Math.max(0, player.hp));
       this.dom.chargeFill.style.transform = `scaleX(${player.charge / 100})`;
       this.dom.domainFill.style.transform = `scaleX(${player.domainCharge / 100})`;
-      this.dom.chargeLabel.textContent = `${Math.floor(player.charge)}%`;
-      this.dom.domainLabel.textContent = `${Math.floor(player.domainCharge)}%`;
+      this.dom.chargeLabel.textContent = player.charId === "yujiShibuya" ? (player.blackFlashUntil > game.elapsed ? "黑闪机会" : "等候破绽") : `${Math.floor(player.charge)}%`;
+      this.dom.domainLabel.textContent = game.isBorrowedBattle()
+        ? player.charId === "sukunaStory2" ? `展延 ${Math.ceil(player.amplificationEnergy)}%` : "对抗中"
+        : player.charId === 'higuruma' ? game.raid?.trial > 0 ? '审判中' : game.raid?.used ? '已审判' : '审判可用' : game.domains.some(d => d.alive && d.ownerId === player.id) ? '展开中' : ['mahito', 'mahitoFinal'].includes(player.charId) ? '领域可用' : CHARACTERS[player.charId].abilities.some((a) => a.needsDomain) ? `${Math.floor(player.domainCharge)}%` : "无领域";
       this.dom.domainRing.style.strokeDashoffset = String(RING_CIRC * (1 - player.domainCharge / 100));
       this.dom.altLabel.textContent = String(Math.round(player.y));
+      if (CHARACTERS[player.charId].grounded) this.dom.hint.textContent = `${this.getKeyLabel("p1.up")}${this.getKeyLabel("p1.left")}${this.getKeyLabel("p1.down")}${this.getKeyLabel("p1.right")} 移动 · Shift 疾跑 · 左键体术 · 1/Q/E/R/T 技能 · F 冲刺 · 地面战斗`;
       this.updateSlots(player, game);
       this.updateDash(player);
       this.updateGaugeGain(player);
@@ -456,7 +564,7 @@ export class UI3D {
     const otherPlayer = game.entities.find((e) => e.isPlayer && e !== player);
     const enemy = game.mode === "dual" ? otherPlayer : game.entities.find((e) => !e.isPlayer && !e.summon);
     if (enemy) {
-      this.dom.enemyName.textContent = enemy.name;
+      this.dom.enemyName.textContent = enemy.name + (game.isBorrowedBattle() && enemy.charId === "sukunaStory2" ? " · 交战耐久" : "");
       this.dom.enemyTag.textContent = game.mode === "dual" ? "P2" : "AI";
       this.applyCharColor(this.dom.sideP2, enemy.charId);
       this.applyCharColor(this.dom.enemyHp, enemy.charId);
@@ -503,8 +611,8 @@ export class UI3D {
       : s === "modeSelect" ? "选择战场"
       : s === "guide" ? "游戏说明"
       : s === "settings" ? "设置"
-      : s === "gojoSelect" ? "五条悟 VS 宿傩"
-      : s === "storySelect" ? "乙骨忧太 VS 宿傩"
+      : s === "gojoSelect" ? (game.modeFamily === "free" ? "自由战斗 · 选择双方角色" : "经典对决 · 五条悟 VS 宿傩")
+      : s === "storySelect" ? "怀玉 / 涩谷 / 新宿"
       : s === "difficulty" ? "选择难度"
       : game.mode === "single" ? `单人对决 · ${DIFFICULTY[game.difficulty].label}`
       : game.mode === "story" ? `剧情 · ${STORY_STAGES[game.storyStage].label} · ${DIFFICULTY[game.difficulty].label}`
@@ -512,15 +620,58 @@ export class UI3D {
       : `${game.modeFamily === "story" ? "乙骨篇 · " : ""}练习终端`;
     this.dom.modeStatus.textContent = modeLabel;
     const status = [];
+    if (game.mode === "story") status.push("击败对手即可通关");
+    if (player?.charId === "yujiShibuya") status.push(player.blackFlashUntil > game.elapsed ? `黑闪机会 ${(player.blackFlashUntil - game.elapsed).toFixed(1)}秒 · 近身按奥义键` : "逕庭拳延迟命中 → 近身黑闪");
+    if (player?.amberActivated) status.push(`幻兽琥珀不可逆 · ${Math.max(0, player.amberUntil - game.elapsed).toFixed(1)}秒后肉体崩解（游戏改编）`);
+    if (game.shibuya && game.mode === "story") status.push(game.shibuya.domainUsed ? (game.shibuya.feintUsed ? "佯攻已使用 · 东堂无法换位" : "东堂仅剩一次佯攻") : "东堂可拍手换位 · 攻击真人灵魂");
+    if (player?.charId.startsWith("toji")) status.push("天与咒缚 · 零咒力 · 地面高速移动");
+    if (player?.infinityTimer > 0) status.push(`无下限 ${player.infinityTimer.toFixed(1)}秒 · 天逆鉾可破防`);
     if (game.canUseSimpleDomain(player) && game.mode !== "dual") status.push(this.simpleDomainStatus(player, "p1"));
     if (game.isStoryCombat() && game.storyStage === "borrowed") {
       const secs = Math.ceil(game.storyTimer);
-      status.push(`五条之身 ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`);
+      status.push(secs > 0 ? `领域结界 ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")} · 必中抵消` : "领域交锋结束 · 继续战斗");
+      const battle = game.borrowedBattle;
+      if (battle) {
+        status.push(battle.recorderUsed ? "狗卷录音已使用" : "狗卷录音支援 · 可使用一次");
+        for (const fighter of game.entities.filter(e => !e.summon)) {
+          if (fighter.charId === "sukunaStory2") status.push(`展延 ${Math.ceil(fighter.amplificationEnergy)}% ${fighter.amplification ? "开启" : "关闭"}`);
+          if (fighter.pendingCast) status.push(`${fighter.name} · ${fighter.pendingCast.ability.label}准备 ${fighter.pendingCast.remaining.toFixed(1)}秒`);
+        }
+      }
     }
-    if (player?.burnout > 0) status.push(`术式熔断 ${player.burnout.toFixed(1)}秒 · ${this.getKeyLabel("p1.restore")} 强行恢复`);
-    if (player?.domainLocked) status.push("本场领域已锁定");
-    if (player?.charId === "yuta") status.push(`${this.getKeyLabel("p1.copy")} 切换复制：${COPY_TECHNIQUES[player.copyIndex].label}`);
+    if (player?.burnout > 0) status.push(game.isBorrowedBattle() ? `术式熔断 ${player.burnout.toFixed(1)}秒 · 体术可继续使用`
+      : ["hiddenInventory", "hiddenInventoryRematch"].includes(game.storyStage) && game.modeFamily === "story"
+      ? `天逆鉾 · 术式暂时解除 ${player.burnout.toFixed(1)}秒`
+      : `术式熔断 ${player.burnout.toFixed(1)}秒 · ${this.getKeyLabel("p1.restore")} 强行恢复`);
+    if (player?.domainLocked && !game.isBorrowedBattle()) status.push("本场领域已锁定");
+    if (player?.charId === "yuta") status.push(game.domains.some(d => d.alive && d.ownerId === player.id && d.type === 'authenticLove') ? '拔刀时才获知复制术式 · 每把刀仅用一次' : `${this.getKeyLabel("p1.copy")} 切换复制：${COPY_TECHNIQUES[player.copyIndex].label}`);
+    if (game.raid?.culling) {
+      status.push(game.raid.trial > 0 ? '诛伏赐死 · 审判中 · 禁止暴力' : game.raid.swordGranted ? '死刑判决 · 闪避处刑人之剑' : game.raid.round >= 2 ? `${game.raid.verdict?.label || '日车已撤回处刑剑'} · 击败对手即可` : `${game.raid.verdict?.label || '等待审判'} · 可要求再审`);
+    } else if (game.raid) {
+      if (player?.charId === 'kashimo') status.push(`幻兽琥珀 · 电荷 ${player.electricHits || 0}/3 · 神武解雷击无效`);
+      const sukuna = game.entities.find(e => e.charId === 'sukunaRaid');
+      if (sukuna) status.push(sukuna.kamutoke ? '宿傩持有神武解' : '神武解已没收 · 宿傩术式保留');
+      if (game.raid.caseFile) status.push(game.raid.trial > 0 ? '诛伏赐死 · 禁止暴力' : game.raid.verdict?.label || '等待判决');
+      if (game.raid.swordGranted) status.push('处刑人之剑 · 仅处决死刑被告');
+    }
+    if (player?.techniqueConfiscated) status.push('生得术式已没收 · 可用体术');
+    if (player?.cursedEnergyConfiscated) status.push('咒力已没收 · 依靠肉体');
+    if (player && game.inVoidStun(player)) status.push('无量空处 · 信息涌入 · 无法行动');
+    if (player?.wickerBasketTimer > 0) status.push('彌虚葛籠 · 必中无效');
     this.dom.battleStatus.textContent = status.join("  ·  ");
+    const hint=battleHint(game,player), hintElement=document.querySelector('#battleHint'), task=game.trainingTask;
+    const trainingHint=task ? task.complete ? '训练完成 · 可继续练习或选择下一项' :
+      task.id==='guard'?'训练：等待陪练出拳，按体术防守成功格挡一次':task.id==='dodge'?'训练：陪练蓄势时冲刺，躲开一次攻击':'训练：逕庭拳延迟命中后，近身按黑闪' : '';
+    hintElement.textContent=trainingHint||hint;
+    hintElement.classList.toggle('hidden',(!hint&&!trainingHint)||!['playing','paused'].includes(s));
+    const feedbackElement=document.querySelector('#attackFeedback');
+    const feedbackPlayers=game.mode==='dual'?game.entities.filter(e=>e.isPlayer&&!e.summon):[player];
+    const feedback=feedbackPlayers.map((e,i)=>e?.attackFeedback?.until>game.elapsed?
+      `${game.mode==='dual'?`P${i+1} · `:''}${e.attackFeedback.text}`:'').filter(Boolean);
+    feedbackElement.textContent=feedback.join('  |  ');
+    feedbackElement.classList.toggle('hidden',!feedback.length||!['playing','paused'].includes(s));
+    feedbackElement.style.color=feedbackPlayers.find(e=>e?.attackFeedback?.until>game.elapsed)?.attackFeedback.color||'#fff';
+    this.dom.battleStatus.classList.toggle("borrowed-battle-status", game.isBorrowedBattle() || Boolean(game.shibuya));
     this.dom.battleStatus.classList.toggle("hidden", !status.length || !["playing", "paused", "ended"].includes(s));
   }
 
@@ -533,7 +684,7 @@ export class UI3D {
 
   // gauge-gated skills fill up with 奥义/领域 instead of running a separate cooldown
   slotShade(ab, ent, game, cd) {
-    if (!game.practice) {
+    if (!(game.practice && game.practiceInfinite)) {
       if (ab.needsCharge) return Math.max(0, Math.min(1, 1 - ent.charge / 100));
       if (ab.needsDomain) return Math.max(0, Math.min(1, 1 - ent.domainCharge / 100));
     }
@@ -547,14 +698,21 @@ export class UI3D {
       const ab = slot.ability;
       const cd = player.cooldowns[i] || 0;
       slot.cd.style.setProperty("--cd", String(this.slotShade(ab, player, game, cd)));
-      const needCharge = ab.needsCharge && player.charge < 100 && !game.practice;
-      const needDomain = ab.needsDomain && player.domainCharge < 100 && !game.practice;
-      const burnout = player.burnout > 0 && !ab.physical;
+      const needCharge = ab.needsCharge && player.charge < 100 && !(game.practice && game.practiceInfinite);
+      const needDomain = ab.needsDomain && player.domainCharge < 100 && !(game.practice && game.practiceInfinite);
+      const burnout = player.burnout > 0 && ab.requiresTechnique;
       const domainLocked = ab.needsDomain && (player.domainLocked || (game.isStoryCombat() && game.storyStage === "borrowed" && game.storyTimer <= 0 && player.charId === "yutaGojo"));
-      slot.el.classList.toggle("locked", Boolean(needCharge || needDomain || burnout || domainLocked));
-      slot.lock.textContent = burnout ? "熔断" : domainLocked ? "领域封锁" : needCharge ? "需蓄力" : (needDomain ? "需领域" : "");
-      slot.el.classList.toggle("ready", cd <= 0.001 && !needCharge && !needDomain && !burnout && !domainLocked);
-      if (ab.type === "copy") slot.el.querySelector(".slot-glyph").textContent = COPY_TECHNIQUES[player.copyIndex].label;
+      const shibuyaLocked = shibuyaAbilityLocked(game, player, ab);
+      const raidLocked = raidAbilityLocked(game, player, ab);
+      const borrowedLocked = game.borrowedSkillLocked(player, ab);
+      slot.el.classList.toggle("locked", Boolean(needCharge || needDomain || burnout || domainLocked || shibuyaLocked || borrowedLocked || raidLocked));
+      slot.lock.textContent = shibuyaLocked ? (ab.id === "yujiBlackFlash" ? (player.blackFlashUntil > game.elapsed ? "接近目标" : "先命中逕庭拳") : "支援不可用") : burnout ? (player.charId.startsWith("gojo") && player.charId !== "gojo" && player.charId !== "yutaGojo" ? "暂时解除" : "熔断") : domainLocked ? "领域封锁" : needCharge ? "需蓄力" : (needDomain ? "需领域" : "");
+      if (borrowedLocked) slot.lock.textContent = ab.id === "recorder" && game.borrowedBattle?.recorderUsed ? "已使用" : "动作中";
+      if (raidLocked) slot.lock.textContent = game.raid?.trial > 0 ? '审判中' : player.techniqueConfiscated || player.cursedEnergyConfiscated ? '已没收' : player.techniqueExtinguishedUntil > game.elapsed ? '术式消灭中' : player.raidCast ? '蓄势中' : ab.id === 'kamutoke' ? '已没收' : ab.id === 'kashimoDischarge' ? '需蓄积电荷' : ab.id === 'sentencing' ? '已审判' : ab.type === 'execution' && !game.raid?.swordGranted ? '需死刑判决' : '展延中';
+      if (raidLocked && ab.id === 'appealCourt' && game.raid?.trial <= 0) slot.lock.textContent = '已再审';
+      if (ab.maxUses) slot.lock.textContent = `剩余${Math.max(0, ab.maxUses - (player.abilityUses?.[ab.id] || 0))}次`;
+      slot.el.classList.toggle("ready", cd <= 0.001 && !needCharge && !needDomain && !burnout && !domainLocked && !shibuyaLocked && !borrowedLocked && !raidLocked);
+      if (ab.type === "copy") slot.el.querySelector(".slot-glyph").textContent = game.domains.some(d => d.alive && d.type === 'authenticLove' && d.ownerId === player.id) ? '拔刀 · 术式未知' : COPY_TECHNIQUES[player.copyIndex].label;
     }
   }
 
@@ -634,18 +792,43 @@ export class UI3D {
     if (game.state !== "ended") return;
     const w = game.winner;
     this.dom.resultKicker.textContent = game.mode === "single" || game.mode === "story" ? `BATTLE COMPLETE · ${DIFFICULTY[game.difficulty].label}` : "BATTLE COMPLETE";
-    this.dom.continueStoryBtn.classList.toggle("hidden", !(game.mode === "story" && game.storyStage === "yuta" && w?.isPlayer));
-    this.dom.resultTitle.textContent = `${w ? w.name : "平局"} 胜`;
+    const initialCanon = game.isCanonStory() && game.storyStage === "hiddenInventory";
+    this.dom.continueStoryBtn.classList.toggle("hidden", !(game.mode === "story" && w?.isPlayer && STORY_STAGES[game.storyStage]?.next));
+    this.dom.continueStoryBtn.textContent = initialCanon ? "领悟反转术式 · 继续觉醒再战" : "继续下一场";
+    const winnerSide = w && game.modeFamily === "free" ? (w === game.player() ? "P1" : w.isPlayer ? "P2" : "电脑") + " · " : "";
+    this.dom.resultTitle.textContent = w ? `${winnerSide}${w.name} 胜` : "平局";
     this.dom.resultTitle.style.color = w ? w.color : "#e8eefc";
     const loser = game.entities.find((e) => !e.alive && !e.summon);
     this.dom.resultReason.textContent = loser ? `${loser.name} 退场` : "战斗结束";
+    if (game.mode === "story") {
+      this.dom.resultTitle.textContent = w?.isPlayer ? "剧情挑战完成" : "挑战失败";
+      this.dom.resultReason.textContent = w?.isPlayer ? `${loser?.name || "对手"} 已被击败${STORY_STAGES[game.storyStage]?.next ? " · 可继续下一场" : ""}` : "玩家倒下 · 可重新挑战";
+    }
     // winner illustration
-    const art = w && WIN_ART[w.charId];
-    this.dom.resultArt.classList.toggle("hidden", !art);
+    const stats=game.resultStats,element=document.querySelector('#resultStats');
+    element.textContent=stats ? `${game.mode==='dual'?'P1表现 · ':''}用时 ${stats.seconds.toFixed(1)}秒 · 造成伤害 ${Math.round(stats.damage)} · 承伤 ${Math.round(stats.taken)} · 有效攻击命中率 ${stats.accuracy}%` +
+      (stats.record ? `\n本机最佳 ${stats.record.seconds.toFixed(1)}秒${stats.record.best?' · 新纪录':''} · 已获胜 ${stats.record.wins}次` : '') +
+      (game.challenge ? `\n${game.challenge==='noHeal'?'无恢复':'承伤不超过25'}挑战：${stats.challengeComplete?'完成':'未完成'}` : '') : '';
+    const hiddenArt = initialCanon ? HIDDEN_INVENTORY_ART.opening
+      : game.isCanonStory() && w?.charId === "gojoAwakened" ? HIDDEN_INVENTORY_ART.awakening : null;
+    const art = hiddenArt?.file || (!game.isBorrowedBattle() && w && WIN_ART[CHARACTERS[w.charId]?.assetId || w.charId]);
     if (art) {
-      this.dom.resultArt.alt = `${w.name}胜利插画`;
+      this.dom.resultArt.alt = hiddenArt?.alt || `${w.name}胜利插画`;
       const src = `${import.meta.env.BASE_URL}assets/${art}`;
-      if (!this.dom.resultArt.src.endsWith(art)) this.dom.resultArt.src = src;
+      if (this._resultArtSource !== src) {
+        this._resultArtSource = src;
+        this.dom.resultArt.classList.add('hidden');
+        this.dom.resultArt.onload = () => {
+          if (this._resultArtSource === src) this.dom.resultArt.classList.remove('hidden');
+        };
+        this.dom.resultArt.onerror = () => this.dom.resultArt.classList.add('hidden');
+        this.dom.resultArt.src = src;
+      }
+      if (this.dom.resultArt.complete && this.dom.resultArt.naturalWidth > 0) this.dom.resultArt.classList.remove('hidden');
+    } else {
+      this._resultArtSource = null;
+      this.dom.resultArt.onload = this.dom.resultArt.onerror = null;
+      this.dom.resultArt.classList.add('hidden');
     }
     // 胜利者的台词（五条悟击败宿傩后对宿傩说的话）
     const line = w ? VICTORY_LINES[w.charId] : null;

@@ -40,7 +40,7 @@ export class DomainDynamics {
   }
 
   sync(game) {
-    const live = new Set(game.domains.filter((d) => d.alive && ["shrine", "void"].includes(d.type)));
+    const live = new Set(game.domains.filter((d) => d.alive && ["shrine", "void", 'authenticLove'].includes(d.type)));
     for (const [domain, entry] of this.entries) if (!live.has(domain)) { this.dispose(entry); this.entries.delete(domain); }
     for (const domain of live) {
       let entry = this.entries.get(domain);
@@ -60,7 +60,7 @@ export class DomainDynamics {
           this.ribbon(entry,x,y,z,angle,length,.06,[.55,.035,.06],i%3===0);
           this.ribbon(entry,x,y,z,angle,length,.018,[1,.83,.8],i%3===0);
         }
-      } else {
+      } else if (domain.type === 'void') {
         // Abstract perception/information rushing endlessly through the interior.
         const positions = entry.lineGeometry.attributes.position;
         for (let i = 0; i < 480; i++) {
@@ -76,6 +76,10 @@ export class DomainDynamics {
       }
       const hitFade = Math.max(0, 1 - (domain.tick - domain.tickTimer) / .24);
       if (domain.tickSerial > 0 && hitFade > 0) for (const target of (domain.visualTargets || []).slice(0, 8)) {
+        if (domain.type === 'authenticLove') {
+          if (!target.blocked) for (let j=0;j<5;j++) this.ribbon(entry,target.x+(j-2)*.23,target.y+6,target.z,Math.PI/2,12,.06*hitFade,[1,.88,.46],true);
+          continue;
+        }
         if (domain.type === "void" && target.blocked) continue;
         for (let i = 0; i < 6; i++) {
           const seed = i * 31 + domain.tickSerial * 97;

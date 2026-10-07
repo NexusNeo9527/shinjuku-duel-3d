@@ -1,19 +1,27 @@
 import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, YUTA_STORY_DIFFICULTY_OVERRIDES, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, PLAYER_HP_SETTINGS, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
 import { STORY_DIALOGUE } from "./storyDialogue.js";
-import { beginCombatMotion } from "./combatMotion.js";
-import { SIMPLE_DOMAIN } from "./config3d.js";
+import { HIDDEN_INVENTORY_ART } from "./hiddenInventoryArt.js";
+import { beginCombatMotion, COMBAT_MOTIONS } from "./combatMotion.js";
+import { fighterSigil } from "./shibuyaConfig.js";
+import { isShibuyaStory, startShibuya, updateShibuya, shibuyaAbilityLocked, castTodoSupport, castSoulDomain } from "./shibuyaBattle.js";
+import { isRaid, startRaid, updateRaid, updateRaidAI, raidAbilityLocked, castRaid, raidDamageBlocked, recordRaidHit } from './shinjukuRaid.js';
+import { SIMPLE_DOMAIN, BORROWED_BATTLE } from "./config3d.js";
+import { guardFactor, chaseDirection, reactToThreat } from './battleQuality.js';
+import { saveBattleRecord } from './battleRecords.js';
+import { sphereContactTime, projectileStart, projectileClashTime } from './combatCollision.js';
 
 const ENTITY_RADIUS = 0.7;
 const ENTITY_HEIGHT = 2;
 const CHEST = 1.0;
-const PRACTICE_CHAR_IDS = new Set(["gojo", "sukuna", "yuta", "sukunaStory1", "yutaGojo", "sukunaStory2"]);
+const PRACTICE_CHAR_IDS = new Set(Object.keys(CHARACTERS));
 const PRACTICE_DUMMIES = {
   gojo: "sukuna",
   sukuna: "gojo",
   yuta: "sukunaStory1",
   sukunaStory1: "yuta",
   yutaGojo: "sukunaStory2",
-  sukunaStory2: "yutaGojo"
+  sukunaStory2: "yutaGojo", gojoTeen: "toji", toji: "gojoTeen",
+  gojoAwakened: "tojiRematch", tojiRematch: "gojoAwakened"
 };
 
 const ABILITY_ART = {
@@ -70,6 +78,8 @@ export class Game3D {
     this.blackFlashCount = 0;
     this.nextRegenFxAt = 0;
     this.singleChar = "gojo";
+    this.freePlayerChar = "gojo";
+    this.freeEnemyChar = "sukuna";
     this.storyStage = "yuta";
     this.storySide = "ally";
     this.storyTimer = 300;
@@ -77,6 +87,7 @@ export class Game3D {
     this.hitPulseColor = "#ecc25a";
     this.timeStop = 0;
     this.cutIn = null;
+    this.storyTransition = null;
     this.lastSkillArtAt = -Infinity;
     this.battleTime = 0;
     this.rampStage = 0;
@@ -95,13 +106,34 @@ export class Game3D {
 
   getDifficultyProfile() {
     const profile = DIFFICULTY[this.difficulty] || DIFFICULTY.normal;
-    if (this.mode !== "story" || this.storySide === "enemy") return profile;
+    if (this.mode !== "story" || this.storySide === "enemy" || STORY_STAGES[this.storyStage]?.canon) return profile;
     const overrides = YUTA_STORY_DIFFICULTY_OVERRIDES[this.difficulty];
     return overrides ? { ...profile, ...overrides } : profile;
   }
 
   isStoryCombat() {
     return this.mode === "story" || (this.mode === "dual" && this.modeFamily === "story");
+  }
+
+  isCanonStory() {
+    return this.mode === "story" && Boolean(STORY_STAGES[this.storyStage]?.canon);
+  }
+
+  beginStoryTransition(scene, nextState = "playing") {
+    const illustration = HIDDEN_INVENTORY_ART[scene];
+    if (!illustration) return false;
+    this.storyTransition = { scene, ...illustration, nextState };
+    this.cutIn = null;
+    this.state = "storyTransition";
+    return true;
+  }
+
+  finishStoryTransition() {
+    if (this.state !== "storyTransition" || !this.storyTransition) return false;
+    const nextState = this.storyTransition.nextState;
+    this.storyTransition = null;
+    this.state = nextState;
+    return true;
   }
 
   queueDialogue(speaker, text, duration = 2.4, priority = 0) {
@@ -156,7 +188,7 @@ export class Game3D {
     return {
       speaker: this.activeDialogue.speaker,
       name: char.name,
-      sigil: this.activeDialogue.speaker.startsWith("yuta") ? "乙" : this.activeDialogue.speaker === "gojo" ? "五" : "宿",
+      sigil: fighterSigil(this.activeDialogue.speaker),
       color: char.color,
       text: this.activeDialogue.text
     };
@@ -179,6 +211,17 @@ export class Game3D {
     this.state = "playing";
     this.elapsed = 0;
     this.storyTimer = 300;
+    this.groundDuel = this.modeFamily === 'free' && ['single', 'dual'].includes(mode) &&
+      [this.freePlayerChar, this.freeEnemyChar].some(id => CHARACTERS[id]?.grounded);
+    this.resultStats = null;
+    this.blackFlashCount = 0;
+    this.nextRegenFxAt = 0;
+    this.dummyRespawn = 2.5;
+    this.training = { blocked: 0, dodged: 0, blackFlash: 0 };
+    this.trainingTask = null;
+    this.borrowedBattle = null;
+    this.raid = null;
+    this.storyTransition = null;
     this.winner = null;
     this.lockTargetId = null;
     this.battleTime = 0;
@@ -197,10 +240,23 @@ export class Game3D {
     this.screenShake = 0;
     this.flash = 0;
     this.hitStop = 0;
+    this.hitPulse = 0;
+    this.events = [];
     this.entities = [];
     if (this.practice) {
       this.entities.push(this.makeEntity(this.practiceChar || "gojo", 0, 6, true));
       if (this.practiceDummy) this.spawnDummy();
+      if (this.modeFamily === "free") this.entities.forEach((entity, index) => {
+        entity.id = "free_p" + (index + 1) + "_" + entity.charId;
+        entity.team = index === 0 ? "gojo" : "sukuna";
+      });
+    } else if (this.modeFamily === "free") {
+      this.entities.push(this.makeEntity(this.freePlayerChar, 0, 15, true));
+      this.entities.push(this.makeEntity(this.freeEnemyChar, 0, -15, mode === "dual"));
+      this.entities.forEach((entity, index) => {
+        entity.id = "free_p" + (index + 1) + "_" + entity.charId;
+        entity.team = index === 0 ? "gojo" : "sukuna";
+      });
     } else if (mode === "story") {
       const stage = STORY_STAGES[this.storyStage] || STORY_STAGES.yuta;
       const playerChar = this.storySide === "enemy" ? stage.enemy : stage.ally;
@@ -224,10 +280,10 @@ export class Game3D {
     if (this.mode === "single" || this.mode === "story") {
       const hp = this.getDifficultyProfile().enemyHp || 100;
       const ai = this.entities.find((e) => !e.isPlayer && !e.summon);
-      const gojoAiTuning = this.mode === "single" && ai?.charId === "gojo" && this.singleChar === "sukuna"
+      const gojoAiTuning = this.legacyGojoAi(ai)
         ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
         : null;
-      const aiHpMultiplier = this.mode === "single" && ai?.charId === "gojo" && this.singleChar === "sukuna"
+      const aiHpMultiplier = this.legacyGojoAi(ai)
         ? (gojoAiTuning?.hpMultiplier ?? SUKUNA_VS_GOJO_AI_HANDICAP.hp)
         : 1;
       if (ai) {
@@ -251,6 +307,12 @@ export class Game3D {
       });
     }
     this.clearDialogue();
+    if (this.isCanonStory()) {
+      const stage = STORY_STAGES[this.storyStage];
+      this.queueDialogue(stage.ally, stage.sceneIntro || stage.intro, 7, 7);
+      const opponent = this.entities.find(e => !e.isPlayer && !e.summon);
+      this.announce(`击败${opponent.name}即可通关`, "#bdeeff", stage.shibuya ? 3 : 7);
+    }
     if (this.isStoryCombat()) {
       const player = this.entities.find((e) => e.isPlayer && !e.summon);
       const opponent = this.entities.find((e) => e !== player && !e.summon);
@@ -258,15 +320,100 @@ export class Game3D {
       this.queueStoryDialogue(opponent, "opening", 2.8, 4);
     } else if (this.mode !== "practice") {
       const pc = this.entities.find((e) => e.isPlayer)?.charId || "gojo";
-      this.queueDialogue(pc, pc === "gojo"
+      this.queueDialogue(pc, STORY_DIALOGUE[CHARACTERS[pc]?.assetId || pc]?.opening || (pc === "gojo"
         ? "我的学生都在看着呢，再让我耍会儿帅吧。"
         : pc === "yuta" ? "里香，开始吧。"
           : pc === "yutaGojo" ? "这一次，我会撑住。"
-            : "让我看看，你凭什么站在我面前。", 3.3, 2);
+            : "让我看看，你凭什么站在我面前。"), 3.3, 2);
     }
     this.emit("sfx", { kind: "countdown" });
+    if (this.isBorrowedBattle()) this.startBorrowedBattle();
     if (this.mode === "single" && DIFFICULTY[this.difficulty].gojoRegen) {
       this.announce("反转术式 · 持续恢复", "#b9f5ff", 1.5);
+    }
+    startShibuya(this);
+    startRaid(this);
+    if (this.isCanonStory() && this.storyStage.startsWith('hiddenInventory')) this.beginStoryTransition(this.storyStage === "hiddenInventory" ? "opening" : "awakening");
+  }
+
+  isBorrowedBattle() {
+    return this.isStoryCombat() && this.storyStage === "borrowed";
+  }
+
+  startBorrowedBattle() {
+    this.storyTimer = this.mode !== "dual" && this.storySide === "ally" && this.difficulty === "easy"
+      ? BORROWED_BATTLE.easyDuration : BORROWED_BATTLE.duration;
+    this.borrowedBattle = { phase: "combat", recorderUsed: false };
+    for (const e of this.entities) {
+      e.z = e.charId === "yutaGojo" ? 7 : -7;
+      e.x = e.y = 0;
+      e.charge = 0;
+      e.domainCharge = 0;
+      e.domainLocked = true;
+      e.amplification = false;
+      e.amplificationEnergy = 100;
+      e.amplificationRest = 0;
+      e.pendingCast = null;
+      e.recovery = 0;
+      const ability = e.charId === "yutaGojo" ? CHARACTERS.gojo.abilities[3] : CHARACTERS.sukuna.abilities[3];
+      this.castDomain(e, { ...ability, radius: BORROWED_BATTLE.radius, life: this.storyTimer });
+    }
+    this.announce("领域对抗 · 击败对手即可获胜", "#b7e9ff", 3);
+    this.queueDialogue("yutaGojo", `领域交锋持续${this.storyTimer}秒，结界结束后继续战斗。用体术、苍与茈击败对手。`, 7, 7);
+  }
+
+  recorderReady() {
+    const b = this.borrowedBattle;
+    return Boolean(b && !b.recorderUsed);
+  }
+
+  borrowedSkillLocked(entity, ability) {
+    if (!this.isBorrowedBattle()) return false;
+    return this.borrowedBattle?.phase !== "combat" || Boolean(entity.pendingCast || entity.rushImpact > 0 || entity.recovery > 0)
+      || (ability?.id === "recorder" && !this.recorderReady());
+  }
+
+  updateBorrowedCast(e, dt) {
+    if (!this.isBorrowedBattle()) return;
+    e.recorderTimer = Math.max(0, (e.recorderTimer || 0) - dt);
+    e.recorderTimer = Math.max(0, (e.recorderTimer || 0) - dt);
+    e.recovery = Math.max(0, (e.recovery || 0) - dt);
+    if (e.charId === "sukunaStory2") {
+      e.amplificationRest = Math.max(0, e.amplificationRest - dt);
+      if (e.amplification) {
+        e.amplificationEnergy = Math.max(0, e.amplificationEnergy - BORROWED_BATTLE.amplificationDrain * dt);
+        if (e.amplificationEnergy === 0) { e.amplification = false; e.amplificationRest = 1; }
+      } else if (e.amplificationRest === 0) {
+        e.amplificationEnergy = Math.min(100, e.amplificationEnergy + BORROWED_BATTLE.amplificationRegen * dt);
+      }
+    }
+    if (e.rushImpact > 0) {
+      e.rushImpact -= dt;
+      if (e.rushImpact <= 0) {
+        const target = this.enemyList(e).find(x => !x.summon && x.alive);
+        const ability = CHARACTERS[e.charId].abilities[2];
+        const missed = target && Math.hypot(target.x - e.x, target.y - e.y, target.z - e.z) > ability.range;
+        this.castMelee(e, ability);
+        if (missed && target.charId === "yutaGojo") target.charge = Math.min(100, target.charge + 12);
+        e.recovery = 0.55;
+      }
+    }
+    const pending = e.pendingCast;
+    if (!pending) return;
+    pending.remaining -= dt;
+    if (e.combatAction) e.combatAction.startedAt = this.elapsed - 0.25;
+    if (pending.remaining > 0) return;
+    e.pendingCast = null;
+    const { ability, dir } = pending;
+    e.yaw = Math.atan2(dir.x, dir.z);
+    if (ability.id === "bodyRush") {
+      this.tryDash(e, dir.x, dir.y, dir.z);
+      e.invuln = 0;
+      e.rushImpact = 0.2;
+    } else if (ability.type === "orb") this.castOrb(e, ability, dir);
+    else {
+      this.castBeam(e, ability, dir);
+      this.showAbilityArt(e, ability);
     }
   }
 
@@ -283,7 +430,7 @@ export class Game3D {
 
   setStory(stage, side) {
     this.storyStage = STORY_STAGES[stage] ? stage : "yuta";
-    this.storySide = side === "enemy" ? "enemy" : "ally";
+    this.storySide = STORY_STAGES[this.storyStage]?.shibuya || STORY_STAGES[this.storyStage]?.allyOnly ? "ally" : side === "enemy" ? "enemy" : "ally";
   }
 
   setPracticeChar(charId) {
@@ -304,8 +451,9 @@ export class Game3D {
 
   spawnDummy() {
     if (this.entities.some((e) => e.dummy)) return;
-    const other = PRACTICE_DUMMIES[this.practiceChar] || "sukuna";
+    const other = this.modeFamily === "free" ? this.freeEnemyChar : PRACTICE_DUMMIES[this.practiceChar] || "sukuna";
     const dummy = this.makeEntity(other, 0, -14, false);
+    if (this.modeFamily === "free") { dummy.id = "free_p2_" + other; dummy.team = this.player()?.team === "gojo" ? "sukuna" : "gojo"; }
     dummy.dummy = true;
     dummy.moveInput = { x: 0, z: 0 };
     this.entities.push(dummy);
@@ -320,7 +468,7 @@ export class Game3D {
       name: char.name,
       color: char.color,
       aura: char.aura,
-      team: charId === "gojo" || charId.startsWith("yuta") ? "gojo" : "sukuna",
+      team: ['kashimo', 'higuruma'].includes(charId) || charId.startsWith("gojo") || charId.startsWith("yuta") || charId.startsWith("yuji") || charId.startsWith("todo") ? "gojo" : "sukuna",
       summon: false,
       ownerId: null,
       adapt: null,
@@ -334,6 +482,7 @@ export class Game3D {
       yaw: isPlayer ? Math.PI : 0,
       hp,
       maxHp: hp,
+      initialMaxHp: hp,
       vx: 0,
       vz: 0,
       speed: char.speed,
@@ -369,7 +518,8 @@ export class Game3D {
       aiCastCd: rand(0.4, 1.2),
       aiDashTimer: rand(1, 2),
       aiWaitStarted: 0,
-      slow: 0
+      slow: 0,
+      battleStats: { attempts: 0, landed: new Set(), damage: 0, taken: 0, heals: 0 }
     };
   }
 
@@ -379,6 +529,31 @@ export class Game3D {
 
   isStorySukuna(entity) {
     return this.isStoryCombat() && (entity?.charId === "sukunaStory1" || entity?.charId === "sukunaStory2");
+  }
+
+  startTraining(task) {
+    if (!['guard', 'dodge', 'blackFlash'].includes(task)) return false;
+    this.practiceChar = this.freePlayerChar = 'yujiShibuya';
+    this.modeFamily = 'free';
+    this.freeEnemyChar = 'mahito';
+    this.practiceDummy = true;
+    this.practiceInfinite = this.practiceInvincible = this.practiceEnemyInvincible = false;
+    this.start('practice', 'normal');
+    const player=this.player(),enemy=this.entities.find(e=>e.dummy);
+    Object.assign(player,{x:0,z:0}); Object.assign(enemy,{x:0,z:2.8,hp:500,maxHp:500});
+    this.trainingTask={id:task,next:1,complete:false}; return true;
+  }
+
+  updateTraining() {
+    const task=this.trainingTask;if(!this.practice||!task||task.complete)return;
+    const counter={guard:'blocked',dodge:'dodged',blackFlash:'blackFlash'}[task.id];
+    if(this.training[counter]>0){task.complete=true;this.announce('训练完成 · 可继续练习或选择下一项','#bdeeff',3);return;}
+    if(task.id==='blackFlash'||this.elapsed<task.next)return;
+    const enemy=this.entities.find(e=>e.dummy&&e.alive),player=this.player();if(!enemy||!player?.alive)return;
+    task.next=this.elapsed+2.5;
+    this.announce(task.id==='guard'?'陪练准备出拳 · 按体术防守':'陪练准备出拳 · 冲刺躲避','#ff867e',.7);
+    this.recordAttack(enemy);
+    this.castMelee(enemy,{id:'basicAttack',damage:12,range:4.5,windup:.5,color:enemy.color});
   }
 
   setWorldObstacles(obstacles = []) {
@@ -485,16 +660,19 @@ export class Game3D {
   lockEntity(player = this.player()) {
     const list = this.enemyList(player);
     if (!list.length) return null;
-    return list.find((e) => e.id === this.lockTargetId) || list[0];
+    const targetId = player === this.player() ? this.lockTargetId : player.lockTargetId;
+    return list.find((e) => e.id === targetId) || list[0];
   }
 
   cycleLock(player = this.player()) {
     const list = this.enemyList(player);
-    if (!list.length) { this.lockTargetId = null; return null; }
-    const idx = list.findIndex((e) => e.id === this.lockTargetId);
+    const primary = player === this.player();
+    if (!list.length) { if (primary) this.lockTargetId = null; else if (player) player.lockTargetId = null; return null; }
+    const idx = list.findIndex((e) => e.id === (primary ? this.lockTargetId : player.lockTargetId));
     const base = idx >= 0 ? idx : 0;
     const next = list[(base + 1) % list.length];
-    this.lockTargetId = next.id;
+    if (primary) this.lockTargetId = next.id;
+    else player.lockTargetId = next.id;
     return next;
   }
 
@@ -505,7 +683,8 @@ export class Game3D {
     if (len > 1) { mx /= len; mz /= len; }
     entity.moveInput.x = mx;
     entity.moveInput.z = mz;
-    entity.moveInput.y = my;
+    entity.moveInput.y = CHARACTERS[entity.charId]?.grounded ? 0 : my;
+    if (this.groundDuel) entity.moveInput.y = 0;
   }
 
   setAim(entity, x, z) {
@@ -538,7 +717,7 @@ export class Game3D {
     // players auto-aim: shots fly straight at the locked target
     if (entity.isPlayer) {
       const target = this.lockEntity(entity);
-      if (target) {
+      if (target && !(target.flyheadTimer > 0)) {
         const dx = target.x - entity.x;
         const dy = (target.y + CHEST) - (entity.y + CHEST);
         const dz = target.z - entity.z;
@@ -564,13 +743,28 @@ export class Game3D {
   }
 
   // ---- casting ----
+  legacyGojoAi(entity) {
+    return this.mode === 'single' && this.modeFamily !== 'free' && entity?.charId === 'gojo' && this.singleChar === 'sukuna';
+  }
+
+  ownsDomain(entity) {
+    return this.domains.some(d=>d.alive && d.ownerId===entity?.id);
+  }
+
   activeAbility(entity, index) {
     const ability = CHARACTERS[entity.charId]?.abilities[index];
+    if (ability?.type === 'copy' && this.domains.some(d => d.alive && d.type === 'authenticLove' && d.ownerId === entity.id)) {
+      return COPY_TECHNIQUES[entity.domainKatanaIndex ?? 0];
+    }
     return ability?.type === "copy" ? COPY_TECHNIQUES[entity.copyIndex] : ability;
   }
 
   cycleCopy(entity) {
     if (!entity?.alive || entity.charId !== "yuta") return false;
+    if (this.domains.some(d => d.alive && d.type === 'authenticLove' && d.ownerId === entity.id)) {
+      this.announce('刀内术式只能在拔刀时得知 · 使用后再取一柄', '#d9c8ff', 1.5);
+      return false;
+    }
     entity.copyIndex = (entity.copyIndex + 1) % COPY_TECHNIQUES.length;
     this.announce(`复制术式 · ${COPY_TECHNIQUES[entity.copyIndex].label}`, "#d9c8ff", 1);
     return true;
@@ -583,6 +777,9 @@ export class Game3D {
   }
 
   tryForceRestore(entity) {
+    if (this.timeStop > 0 || this.hitStop > 0) return false;
+    if (["gojoTeen", "gojoAwakened", "toji", "tojiRematch", "yujiShibuya", "mahito", "mahitoFinal"].includes(entity?.charId)) return false;
+    if (this.isBorrowedBattle()) return false;
     if (!entity?.alive || entity.burnout <= 0 || entity.domainLocked || this.state !== "playing") return false;
     const cost = Math.ceil(entity.maxHp * 0.2);
     if (entity.hp <= cost) return false;
@@ -595,14 +792,42 @@ export class Game3D {
   }
 
   tryCast(entity, index) {
+    if (this.timeStop > 0) return false;
+    if (this.hitStop > 0 && this.isBorrowedBattle()) return false;
     if (!entity?.alive || this.state !== "playing") return false;
     if (entity.stun > 0) return false;
     const char = CHARACTERS[entity.charId];
     const ability = char.abilities[index];
     if (!ability) return false;
-    if (entity.burnout > 0 && !ability.physical) return false;
+    if (['domain','soulDomain'].includes(ability.type) && this.ownsDomain(entity)) return false;
+    if (this.borrowedSkillLocked(entity, ability)) return false;
+    if (this.isBorrowedBattle() && ability.id === "bodyRush" && entity.dashCooldown > 0) return false;
+    if (ability.type === "amplification") {
+      if (!entity.amplification && (entity.amplificationEnergy ?? 100) < 15) return false;
+      entity.amplification = !entity.amplification;
+      entity.amplificationRest = 1;
+      this.announce(entity.amplification ? "领域展延 · 突破无下限" : "领域展延解除", entity.color, 1);
+      return true;
+    }
+    if (ability.id === "recorder") {
+      if (!this.practice && !this.recorderReady()) return false;
+      if (this.borrowedBattle) this.borrowedBattle.recorderUsed = true;
+      entity.recorderTimer = 1.6;
+      const target = this.enemyList(entity).find(e => !e.summon && e.alive);
+      if (target) { target.stun = 1.6; target.pendingCast = null; target.rushImpact = 0; target.dashTimer = 0; }
+      beginCombatMotion(entity, "blue", this.elapsed);
+      this.burst(entity.x, entity.y + CHEST, entity.z, "#bdeeff", 24, 5);
+      this.queueDialogue("yutaGojo", "狗卷同学，拜托了！", 1.4, 6);
+      this.announce("苍引入录音 · 狗卷：别动！ · 咒言反噬", "#d9c8ff", 1.6);
+      this.emit("sfx", { kind: "ability", ability: "cursedSpeech" });
+      return true;
+    }
+    if (shibuyaAbilityLocked(this, entity, ability)) return false;
+    if (raidAbilityLocked(this, entity, ability)) return false;
+    if (entity.burnout > 0 && ability.requiresTechnique) return false;
     if (ability.needsDomain && (entity.domainLocked || (this.isStoryCombat() && this.storyStage === "borrowed" && this.storyTimer <= 0 && entity.charId === "yutaGojo"))) return false;
-    if (!this.practice && this.inVoidStun(entity) && !ability.needsDomain) {
+    const counterWindow = ability.needsDomain && !this.domains.some(d => d.alive && d.type === 'void' && d.tickSerial > 0 && !this.sureHitContested(d, entity));
+    if (this.inVoidStun(entity) && !counterWindow) {
       this.emit("sfx", { kind: "empty" });
       return false;
     }
@@ -612,31 +837,67 @@ export class Game3D {
       if (ability.needsCharge && entity.charge < 100) { this.emit("sfx", { kind: "empty" }); return false; }
       if (ability.needsDomain && entity.domainCharge < 100) { this.emit("sfx", { kind: "empty" }); return false; }
     }
-    if (this.practice) { entity.charge = 100; entity.domainCharge = 100; }
-    const isPacedGojoAi = !entity.isPlayer && this.mode === "single" &&
-      this.singleChar === "sukuna" && entity.charId === "gojo";
+    if (!this.isBorrowedBattle() && (this.hitStop > 0 || entity.meleeAttack || entity.meleeRecovery > 0)) {
+      entity.queuedInput = { index, expires: this.elapsed + .25 };
+      return false;
+    }
+    if (infinite) { entity.charge = 100; entity.domainCharge = 100; }
+    const isPacedGojoAi = !entity.isPlayer && this.legacyGojoAi(entity);
     const gojoAiTuning = isPacedGojoAi
       ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
       : null;
     const aiCooldown = gojoAiTuning?.aiCooldowns[ability.id];
+    if (ability.type === 'copy' && this.domains.some(d => d.alive && d.type === 'authenticLove' && d.ownerId === entity.id)) entity.domainKatanaIndex = Math.floor(Math.random() * 2);
     const selected = this.activeAbility(entity, index);
+    if (selected.id === 'worldDismantle' || selected.type === 'domain') entity.wickerBasketTimer = 0;
     entity.cooldowns[index] = infinite ? 0.12 : (aiCooldown ?? selected.cooldown ?? ability.cooldown);
-    if (ability.needsCharge && !this.practice) entity.charge = 0;
-    if (ability.needsDomain && !this.practice) entity.domainCharge = 0;
+    entity.attackStartedAt = this.elapsed;
+    if (['melee', 'orb', 'beam', 'chain', 'attraction', 'discharge', 'raidWindup', 'execution'].includes(selected.type)) this.recordAttack(entity);
+    if (ability.needsCharge && !infinite) entity.charge = 0;
+    if (ability.needsDomain && !infinite) entity.domainCharge = 0;
 
     const dir = this.fireDir(entity);
     entity.yaw = Math.atan2(dir.x, dir.z);
+    if (this.isBorrowedBattle() && selected.windup) {
+      entity.pendingCast = { ability: selected, dir: { ...dir }, remaining: selected.windup, total: selected.windup };
+      entity.dashTimer = 0;
+      entity.vx = entity.vy = entity.vz = 0;
+      beginCombatMotion(entity, selected.id, this.elapsed);
+      if (selected.id === "purple") this.announce("茈 · 施法准备中，可被近身打断", "#b05cff", selected.windup);
+      return true;
+    }
     const previousCutIn = this.cutIn;
 
     if (ability.type !== "melee" && ability.type !== "summon") beginCombatMotion(entity, selected.id, this.elapsed);
 
-    if (selected.type === "orb") this.castOrb(entity, selected, dir);
+    if (castRaid(this, entity, selected, dir)) { /* Stage-specific cast handled. */ }
+    else if (selected.id === "todoSupport") castTodoSupport(this, entity);
+    else if (selected.type === "soulDomain") castSoulDomain(this, entity);
+    else if (selected.type === "orb") this.castOrb(entity, selected, dir);
     else if (selected.type === "beam") this.castBeam(entity, selected, dir);
     else if (ability.type === "domain") this.castDomain(entity, ability);
     else if (ability.type === "summon") this.castSummon(entity, ability);
     else if (ability.type === "melee") this.castMelee(entity, ability);
     else if (ability.type === "guard") this.castGuard(entity, ability);
     else if (ability.type === "heal") this.castHeal(entity, ability);
+    else if (ability.type === "infinity") {
+      entity.infinityTimer = ability.life;
+      this.burst(entity.x, entity.y + CHEST, entity.z, ability.color, 28, 2);
+    }
+    else if (ability.type === "attraction") this.castAttraction(entity, ability);
+    else if (ability.type === "chain") {
+      this.castBeam(entity, { ...ability, length: ability.range, width: 0.7, life: 0.3, knock: 3, shape: "chain" }, dir);
+    }
+    else if (ability.type === "flyheads") {
+      entity.flyheadTimer = 4;
+      this.burst(entity.x, entity.y + CHEST, entity.z, "#292536", 80, 6);
+      this.announce("蝇头遮蔽视野 · 锁定暂时失效", "#b8aecb", 2);
+    }
+    if (ability.type === 'copy' && entity.domainKatanaIndex !== undefined) {
+      entity.domainSwordUses = (entity.domainSwordUses || 0) + 1;
+      delete entity.domainKatanaIndex;
+      this.announce(`拔刀 · ${selected.label} · 刀已消失`, '#d9c8ff', 1.2);
+    }
     if (selected.type !== "domain" && selected.type !== "melee") this.showAbilityArt(entity, selected);
     // Full-screen art outlasts the simulation freeze. Keep the gesture visible
     // after it clears without delaying damage, cooldowns, or domain activation.
@@ -647,30 +908,106 @@ export class Game3D {
     return true;
   }
 
+  meleeTarget(entity, range) {
+    const enemies = this.enemyList(entity).filter(e => !e.support);
+    const distance = e => Math.hypot(e.x-entity.x, e.y-entity.y, e.z-entity.z);
+    const locked = entity.isPlayer && this.lockEntity(entity);
+    if (locked && distance(locked) <= range) return locked;
+    return enemies.filter(e => distance(e) <= range).sort((a,b) => distance(a)-distance(b))[0]
+      || locked || enemies.find(e => !e.summon) || enemies[0];
+  }
+
   castMelee(entity, ability) {
-    const target = this.enemyList(entity).find((e) => !e.summon && e.alive);
-    if (target) entity.yaw = Math.atan2(target.x - entity.x, target.z - entity.z);
+    const target = this.meleeTarget(entity, ability.range);
+    if (target) entity.yaw = Math.atan2(target.x-entity.x, target.z-entity.z);
     beginCombatMotion(entity, ability.id, this.elapsed);
-    if (target && Math.hypot(target.x - entity.x, target.y - entity.y, target.z - entity.z) <= ability.range) {
-      this.damage(target, ability.damage, entity, ability.id);
+    this.emit('sfx', { kind: 'ability', ability: 'slash' });
+    if (!this.isBorrowedBattle()) {
+      const heavy = /heavy|Heavy|BlackFlash/.test(ability.id);
+      entity.attackStartedAt = this.elapsed;
+      entity.meleeAttack = { ability, remaining: ability.windup ?? (heavy ? .24 : .12), recovery: heavy ? .36 : .2, attackId: entity.attackSerial, yaw: entity.yaw };
+      if(entity.combatAction) entity.combatAction.playbackSpeed=COMBAT_MOTIONS[entity.combatAction.id].duration / (entity.meleeAttack.remaining+entity.meleeAttack.recovery);
+      return;
     }
+    this.resolveMelee(entity, ability, entity.attackSerial);
+  }
+
+  recordAttack(entity) {
+    entity.attackSerial = (entity.attackSerial || 0) + 1;
+    entity.battleStats ||= { attempts: 0, landed: new Set(), damage: 0, taken: 0, heals: 0 };
+    entity.battleStats.attempts++;
+  }
+
+  resolveMelee(entity, ability, attackId, attackYaw) {
+    if (ability.nullifiesInfinity) entity.spearGuardTimer = 0.45;
+    const target = this.meleeTarget(entity, ability.range);
+    if (target && attackYaw === undefined) entity.yaw = Math.atan2(target.x - entity.x, target.z - entity.z);
+    if (this.practice && this.trainingTask?.id==='dodge' && target?.isPlayer &&
+      Math.hypot(target.x-entity.x,target.z-entity.z)>ability.range && this.elapsed-(target.lastDashAt??-Infinity)<.7) this.training.dodged++;
+    const facing = target && (attackYaw === undefined ||
+      ((target.x-entity.x)*Math.sin(attackYaw)+(target.z-entity.z)*Math.cos(attackYaw))/(Math.hypot(target.x-entity.x,target.z-entity.z)||1) >= .2);
+    if (target && facing && Math.hypot(target.x - entity.x, target.y - entity.y, target.z - entity.z) <= ability.range) {
+      const landed = this.damage(target, ability.damage, entity, ability.id, attackId);
+      if (landed && ability.id === "divergentFist" && !entity.cursedEnergyConfiscated) {
+        this.soulDelays ||= [];
+        this.soulDelays.push({ source: entity, target, remaining: .28, attackId });
+      }
+      if (ability.id === "yujiBlackFlash") entity.blackFlashUntil = 0;
+    } else this.confirmAttack(entity,'miss');
     this.burst(entity.x, entity.y + CHEST, entity.z, ability.color, 10, 3);
-    this.emit("sfx", { kind: "ability", ability: "slash" });
   }
 
   tryBasicAttack(entity) {
+    if (this.timeStop > 0) return false;
+    if (this.hitStop > 0 && this.isBorrowedBattle()) return false;
+    if (entity && this.inVoidStun(entity)) return false;
+    if (this.raid?.trial > 0 || entity?.raidCast || (entity?.charId === 'higuruma' && entity.guardTimer > 0)) return false;
+    if (entity && this.borrowedSkillLocked(entity)) return false;
     if (!entity?.alive || entity.stun > 0 || this.state !== "playing" || (entity.basicCooldown || 0) > 0) return false;
+    if (!this.isBorrowedBattle() && (this.hitStop > 0 || entity.meleeAttack || entity.meleeRecovery > 0)) {
+      entity.queuedInput = { index: 'basic', expires: this.elapsed + .25 };
+      return false;
+    }
     entity.basicCooldown = 0.65;
+    this.recordAttack(entity);
     this.castMelee(entity, { id: "basicAttack", damage: 6, range: 3.2, color: entity.color });
     return true;
   }
 
   canUseSimpleDomain(entity) {
+    if (this.isBorrowedBattle()) return false;
     return Boolean(entity && !entity.summon && SIMPLE_DOMAIN.characters.includes(entity.charId));
   }
 
+  castAttraction(entity, ability) {
+    const dir = this.fireDir(entity);
+    const target = this.enemyList(entity).find((e) => e.alive && !e.summon);
+    const distance = target ? Math.min(ability.range, Math.hypot(target.x - entity.x, target.z - entity.z)) : 15;
+    const center = { x: entity.x + dir.x * distance, y: entity.y + CHEST + (dir.y || 0) * distance, z: entity.z + dir.z * distance };
+    this.burst(center.x, center.y, center.z, ability.color, 65, 5);
+    this.sceneHits.push({ x: center.x, z: center.z, radius: ability.radius });
+    // A stationary Blue makes the attraction center visible in the orb renderer.
+    this.projectiles.push({ ownerId: entity.id, team: entity.team, abilityId: ability.id,
+      shape: "orb", ...center, vx: 0, vy: 0, vz: 0, radius: 1.1, damage: 0, power: 1,
+      knock: 0, life: 0.6, maxLife: 0.6, color: ability.color, core: "#ffffff", alive: true, visualOnly: true });
+    for (const enemy of this.enemyList(entity)) {
+      const dist = Math.hypot(enemy.x - center.x, enemy.y + CHEST - center.y, enemy.z - center.z);
+      if (dist > ability.radius) continue;
+      if (enemy.spearGuardTimer > 0 && dist <= 2.1) continue;
+      const dx = center.x - enemy.x, dz = center.z - enemy.z;
+      const len = Math.hypot(dx, dz) || 1;
+      if (this.damage(enemy, ability.damage, entity, ability.id)) {
+        enemy.vx += dx / len * 12; enemy.vz += dz / len * 12;
+      }
+    }
+    this.emit("sfx", { kind: "ability", ability: "blue" });
+  }
+
   trySimpleDomain(entity) {
+    if (this.timeStop > 0 || this.hitStop > 0) return false;
+    if (this.raid?.trial > 0 || entity?.cursedEnergyConfiscated) return false;
     if (!this.canUseSimpleDomain(entity) || !entity.alive || this.state !== "playing" || entity.stun > 0) return false;
+    if (this.inVoidStun(entity) && this.domains.some(d => d.alive && d.type === 'void' && d.tickSerial > 0 && !this.sureHitContested(d, entity))) return false;
     if (entity.simpleDomainTimer > 0) return false;
     const infinite = this.practice && this.practiceInfinite;
     if (!infinite && entity.simpleDomainCooldown > 0) { this.emit("sfx", { kind: "empty" }); return false; }
@@ -683,11 +1020,17 @@ export class Game3D {
   }
 
   castGuard(entity, ability) {
-    entity.guardTimer = 4;
+    if (ability.id === 'wickerBasket') entity.wickerBasketTimer = 4;
+    entity.guardTimer = ability.id === "bodyGuard" ? 1.2 : 4;
+    entity.guardKind = ability.id;
     this.announce(`${entity.name} · ${ability.label}`, ability.color, 1);
   }
 
   castHeal(entity, ability) {
+    entity.abilityUses ||= {};
+    entity.abilityUses[ability.id] = (entity.abilityUses[ability.id] || 0) + 1;
+    entity.battleStats ||= { attempts: 0, landed: new Set(), damage: 0, taken: 0, heals: 0 };
+    entity.battleStats.heals++;
     entity.hp = clamp(entity.hp + ability.heal, 0, entity.maxHp);
     this.damageTexts.push({ x: entity.x, y: entity.y + 2, z: entity.z, text: `+${ability.heal}`, color: "#8dffd4", life: 0.8, maxLife: 0.8 });
   }
@@ -698,10 +1041,12 @@ export class Game3D {
   }
 
   inVoidStun(entity) {
+    if (this.isBorrowedBattle()) return false;
     if (entity.simpleDomainTimer > 0) return false;
     return this.domains.some((d) => {
-      if (!d.alive || d.type !== "void" || d.team === entity.team) return false;
-      if (d.life <= d.maxLife * 0.45) return false;
+      if (!d.alive || d.type !== "void" || d.ownerId === entity.id || CHARACTERS[entity.charId]?.cursedEnergy === 0 || this.sureHitContested(d, entity) || entity.wickerBasketTimer > 0) return false;
+      const owner = this.entities.find(e => e.id === d.ownerId);
+      if (owner && Math.hypot(entity.x-owner.x, entity.y-owner.y, entity.z-owner.z) <= 2.1) return false;
       const dx = entity.x - d.x;
       const dy = (entity.y + CHEST) - d.y;
       const dz = entity.z - d.z;
@@ -731,11 +1076,17 @@ export class Game3D {
   }
 
   tryDash(entity, dirX, dirY = 0, dirZ = 0) {
+    if (this.timeStop > 0 || this.hitStop > 0) return false;
+    if (entity && this.inVoidStun(entity)) return false;
+    if (this.raid?.trial > 0 || entity?.raidCast) return false;
+    if (entity && this.borrowedSkillLocked(entity)) return false;
     if (!entity?.alive || entity.stun > 0 || this.state !== "playing") return false;
     if (entity.dashCooldown > 0) return false;
     const cfg = CHARACTERS[entity.charId].dash;
     let dx = dirX;
     let dy = dirY;
+    if (CHARACTERS[entity.charId]?.grounded) dy = 0;
+    if (this.groundDuel) dy = 0;
     let dz = dirZ;
     if (dx === null || dx === undefined || Math.hypot(dx, dy, dz) < 0.1) {
       const d = this.aimDir(entity);
@@ -748,6 +1099,8 @@ export class Game3D {
     dy /= len;
     dz /= len;
     entity.dashVx = dx * cfg.speed;
+    entity.lastDashAt = this.elapsed;
+    if (!this.isBorrowedBattle()) { entity.meleeAttack = null; entity.meleeRecovery = 0; entity.queuedInput = null; }
     entity.dashVy = dy * cfg.speed;
     entity.dashVz = dz * cfg.speed;
     entity.dashTimer = cfg.duration;
@@ -774,6 +1127,7 @@ export class Game3D {
       const dist = ENTITY_RADIUS + ability.radius + 0.2;
       this.projectiles.push({
         ownerId: entity.id,
+        attackId: entity.attackSerial,
         team: entity.team,
         abilityId: ability.id,
         shape: ability.shape,
@@ -804,7 +1158,8 @@ export class Game3D {
   castBeam(entity, ability, dir) {
     if (this.isStoryCombat()) this.sceneHits.push({ x: entity.x + dir.x * 16, z: entity.z + dir.z * 16, radius: 8 });
     for (const domain of this.domains) {
-      if (!domain.alive || domain.team === entity.team) continue;
+      if (this.isBorrowedBattle()) continue;
+      if (!domain.alive || domain.team === entity.team || domain.openBarrier) continue;
       const tx = domain.x - entity.x;
       const tz = domain.z - entity.z;
       const forward = tx * dir.x + tz * dir.z;
@@ -821,8 +1176,10 @@ export class Game3D {
     this.syncDomainCaptives();
     this.beams.push({
       ownerId: entity.id,
+      attackId: entity.attackSerial,
       team: entity.team,
       abilityId: ability.id,
+      shape: ability.shape,
       x: entity.x,
       y: entity.y + CHEST,
       z: entity.z,
@@ -852,7 +1209,11 @@ export class Game3D {
   }
 
   showAbilityArt(entity, ability) {
-    const spec = ABILITY_ART[ability.id];
+    const studentEra = ["gojoTeen", "gojoAwakened"].includes(entity.charId);
+    const studentScene = ability.id === "purple" ? "purple" : ["red", "awakenedHeal"].includes(ability.id) ? "awakening" : "opening";
+    const spec = studentEra && ["blue", "blueMax", "red", "purple", "awakenedHeal"].includes(ability.id)
+      ? { art: HIDDEN_INVENTORY_ART[studentScene].file, compact: true, life: 0.8 }
+      : ABILITY_ART[ability.id];
     if (!spec || (this.cutIn && this.cutIn.presentation !== "compact")) return;
     if (!entity.isPlayer && this.cutIn?.ownerPlayer) return;
     if (spec.compact) {
@@ -893,9 +1254,11 @@ export class Game3D {
   }
 
   castDomain(entity, ability) {
+    if (this.ownsDomain(entity)) return;
     if (this.isStoryCombat()) this.sceneHits.push({ x: entity.x, z: entity.z, radius: 24 });
     const opposing = this.domains.find((d) => d.alive && d.team !== entity.team);
-    if (opposing) {
+    const openClosedClash = opposing && ((ability.openBarrier && opposing.closedBarrier) || (ability.closedBarrier && opposing.openBarrier));
+    if (opposing && !this.isBorrowedBattle() && (ability.domainPower ?? 2) !== (opposing.power ?? 2)) {
       const existingOwner = this.entities.find((e) => e.id === opposing.ownerId);
       const attackPower = ability.domainPower ?? 2;
       const defensePower = opposing.power ?? 2;
@@ -935,8 +1298,15 @@ export class Game3D {
       ownerId: entity.id,
       team: entity.team,
       abilityId: ability.id,
+      sureHitTechnique: ability.id === 'authenticLove' ? 'jacobsLadder' : ability.id,
       type: ability.id,
       closedBarrier: !!ability.closedBarrier,
+      openBarrier: !!ability.openBarrier,
+      exteriorX: entity.x, exteriorY: entity.y + CHEST, exteriorZ: entity.z,
+      exteriorRadius: ability.exteriorRadius || 12,
+      barrierDamagePerSecond: ability.barrierDamagePerSecond || 0,
+      maintenanceDamageRatio: ability.maintenanceDamageRatio || 0,
+      ownerDamage: 0,
       x: ability.closedBarrier ? 0 : entity.x,
       y: ability.closedBarrier ? CHEST : entity.y + CHEST,
       z: ability.closedBarrier ? 0 : entity.z,
@@ -955,8 +1325,12 @@ export class Game3D {
       alive: true
     });
     this.syncDomainCaptives();
+    if (ability.id === 'authenticLove') { delete entity.domainKatanaIndex; entity.domainSwordUses = 0; }
     // A winning domain still opens, but must not cover the losing barrier's fracture.
-    if (opposing) return;
+    if (opposing) {
+      if (openClosedClash && !this.isBorrowedBattle()) this.announce("领域对抗 · 必中抵消，外侧斩击侵蚀结界", "#f4f1ff", 2.5);
+      return;
+    }
     this.flash = Math.max(this.flash, 0.6);
     this.screenShake = Math.max(this.screenShake, 2.2);
     this.emit("sfx", { kind: "domain", owner: entity.charId });
@@ -1037,7 +1411,7 @@ export class Game3D {
 
   updateSummon(dt) {
     for (const m of this.entities) {
-      if (!m.summon || !m.alive) continue;
+      if (!m.summon || !m.alive || m.support || m.companion) continue;
       m.life -= dt;
       if (m.life <= 0) { this.removeSummon(m); continue; }
       const target = this.entities.find((e) => e.alive && e.team !== m.team && !e.summon);
@@ -1104,38 +1478,80 @@ export class Game3D {
   }
 
   // ---- damage ----
-  damage(target, amount, source, abilityId = null) {
+  confirmAttack(entity,kind,amount=0) {
+    if (!entity) return;
+    const labels={hit:`命中 · ${amount}`,heavy:`重击 · ${amount}`,guard:`被格挡 · ${amount}`,blackFlash:`黑闪 · ${amount}`,miss:'挥空',dodge:'被闪避',blocked:'术式阻隔',practice:'命中 · 无敌陪练'};
+    const colors={hit:'#ffe39a',heavy:'#ffd06b',guard:'#9bd5ff',blackFlash:'#ff5e70',miss:'#aab5c3',dodge:'#aab5c3',blocked:'#9bd5ff',practice:'#ffe39a'};
+    entity.attackFeedback={kind,text:labels[kind],color:colors[kind],until:this.elapsed+.65};
+  }
+
+  practiceImmortal(entity) {
+    return this.practice && (entity.isPlayer ? this.practiceInvincible
+      : entity.team !== this.player()?.team && this.practiceEnemyInvincible);
+  }
+
+  damage(target, amount, source, abilityId = null, attackId = source?.attackSerial) {
+    if (this.isBorrowedBattle() && this.borrowedBattle?.phase !== "combat") return;
     // A simultaneous leftover hit must not overwrite a result already settled this frame.
     if (this.state !== "playing") return;
-    if (!target?.alive || target.invuln > 0) return;
-    if (this.practice && this.practiceInvincible && target.isPlayer) return;
-    // 训练模式：敌方默认无敌（可在练习面板里关掉），方便反复练连招
-    if (this.practice && this.practiceEnemyInvincible && target.team !== this.player()?.team) return;
+    const domainHit = this.domains.some(d => d.alive && d.ownerId === source?.id && d.abilityId === abilityId) || CHARACTERS[source?.charId]?.abilities.find((ability) => ability.id === abilityId)?.type === "domain";
+    if (!target?.alive || target.support) return;
+    if (target.invuln > 0 && !domainHit) {
+      if (target.isPlayer && target.dashTimer > 0 && this.practice) this.training.dodged++;
+      if (target.dashTimer > 0) this.confirmAttack(source,'dodge');
+      return;
+    }
+    if (raidDamageBlocked(this, target, source, abilityId)) return;
+    if (isShibuyaStory(this) && this.shibuya?.phase !== "combat") return;
+    // Practice immortality preserves valid contact and its mechanics, only preventing HP loss.
+    const practiceImmortal = this.practiceImmortal(target);
     const profile = this.getDifficultyProfile();
     const sourceAbility = source && abilityId
       ? CHARACTERS[source.charId]?.abilities.find((ability) => ability.id === abilityId)
       : null;
+    if (target.infinityTimer > 0 && source?.charId.startsWith("toji") && !sourceAbility?.nullifiesInfinity) { this.confirmAttack(source,'blocked'); return; }
+    if (sourceAbility?.nullifiesInfinity && target.charId.startsWith("gojo")) {
+      target.infinityTimer = 0;
+      target.burnout = Math.max(target.burnout, 1.5);
+      this.announce("天逆鉾 · 接触解除术式", "#c4c9d4", 1);
+    }
     // 领域是持续伤害；若每一跳都回充，会在持续时间内把领域值重新充满，导致 AI 连续展开。
-    const isDomainTick = sourceAbility?.type === "domain";
+    const isDomainTick = domainHit;
+    const borrowed = this.isBorrowedBattle();
+    const physicalHit = sourceAbility?.physical || abilityId === "basicAttack";
+    if (borrowed && target.charId === "yutaGojo" && physicalHit && !source?.amplification) {
+      this.confirmAttack(source,'blocked');
+      this.announce("无下限阻隔 · 需开启领域展延", "#bdeeff", 0.6);
+      return;
+    }
     if (isDomainTick && target.simpleDomainTimer > 0) return;
-    const aiAttacker = source && !source.isPlayer && (this.mode === "single" || this.mode === "story");
+    const aiAttacker = source && !source.isPlayer && !source.companion && (this.mode === "single" || this.mode === "story");
     const aiTarget = (this.mode === "single" || this.mode === "story") && !target.isPlayer && !target.summon;
     let dealt = amount * (aiAttacker ? profile.damageMultiplier : 1);
-    if (this.mode === "single" && aiAttacker && source.charId === "gojo" && this.singleChar === "sukuna") {
+    if (aiAttacker && this.legacyGojoAi(source)) {
       const gojoAiTuning = SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty];
       dealt *= gojoAiTuning?.damageMultiplier ?? SUKUNA_VS_GOJO_AI_HANDICAP.damage;
     }
     if (aiTarget) dealt *= profile.damageTakenMultiplier;
 
     // 黑闪：任意一方近身命中都有概率暴击（AI 也享受同样的演出）
-    let blackFlash = false;
-    if (source && source !== target && this.state === "playing") {
+    let blackFlash = abilityId === "yujiBlackFlash";
+    if (!borrowed && !isDomainTick && !isRaid(this) && source?.charId !== 'yujiShibuya' && source && !source.cursedEnergyConfiscated && abilityId !== 'sukunaSoulReprisal' && source !== target && this.state === "playing" && !source.charId.startsWith("toji") && !["gojoTeen", "gojoAwakened"].includes(source.charId)) {
       const dist = Math.hypot(source.x - target.x, source.y - target.y, source.z - target.z);
-      if (dist <= BLACK_FLASH.range && Math.random() < BLACK_FLASH.chance) blackFlash = true;
+      if ((abilityId === 'basicAttack' || sourceAbility?.canBlackFlash) && dist <= BLACK_FLASH.range && Math.random() < BLACK_FLASH.chance) blackFlash = true;
     }
-    if (blackFlash) dealt *= BLACK_FLASH.multiplier;
-    if (isDomainTick && target.guardTimer > 0) dealt *= 0.2;
-    if (this.isStoryCombat() && this.storyStage === "borrowed" && this.storyTimer <= 0 && source?.charId === "yutaGojo") dealt *= 0.65;
+    if (blackFlash && abilityId !== "yujiBlackFlash") dealt *= BLACK_FLASH.multiplier;
+    if (target.charId.startsWith("mahito") && !(CHARACTERS[source?.charId]?.soulAware && !source?.cursedEnergyConfiscated) && abilityId !== 'sukunaSoulReprisal' && !isDomainTick) dealt *= .35;
+    if (target.charId === "mahitoFinal" && !blackFlash && abilityId !== 'sukunaSoulReprisal') dealt *= .45;
+    if (source?.charId.startsWith("mahito") && CHARACTERS[target.charId]?.sukunaVessel && abilityId === "soulTouch") dealt *= .4;
+    // Ordinary guarding does not neutralize an expansion's guaranteed hit.
+    if (borrowed && target.amplification && abilityId === "blue") dealt *= 0.5;
+    const defense = guardFactor(target, physicalHit, isDomainTick);
+    dealt *= defense;
+    if (defense < 1) {
+      this.damageTexts.push({ x: target.x, y: target.y+2, z: target.z, text: '格挡', color: '#bdeeff', life: .6, maxLife: .6 });
+      if (this.practice && target.isPlayer) this.training.blocked++;
+    }
     dealt = Math.max(1, Math.round(dealt));
 
     let adapted = false;
@@ -1158,14 +1574,48 @@ export class Game3D {
       }
     }
 
-    target.hp = clamp(target.hp - dealt, 0, target.maxHp);
+    const actualDamage = practiceImmortal ? 0 : Math.min(target.hp, dealt);
+    if (!practiceImmortal) target.hp = clamp(target.hp - dealt, 0, target.maxHp);
+    target.battleStats ||= { attempts: 0, landed: new Set(), damage: 0, taken: 0, heals: 0 };
+    target.battleStats.taken += actualDamage;
+    const scorer=source?.summon ? this.entities.find(e=>e.id===source.ownerId) : source;
+    if (scorer?.battleStats) { scorer.battleStats.damage += actualDamage; if (!source.summon && !isDomainTick && attackId) scorer.battleStats.landed.add(attackId); }
+    if (!borrowed && !isDomainTick && target.meleeAttack) { target.meleeAttack = null; target.queuedInput = null; target.meleeRecovery = Math.max(target.meleeRecovery || 0, .12); }
+    recordRaidHit(this, target, source, abilityId);
+    if (target.raidCast?.ability.type === 'execution') {
+      target.raidCast = null;
+      this.announce('处刑人之剑 · 蓄势被打断', '#ff7583', 1);
+    }
+    if (!borrowed) for (const domain of this.domains) {
+      if (!domain.alive || !domain.openBarrier || domain.ownerId !== target.id) continue;
+      domain.ownerDamage += actualDamage;
+      if (domain.ownerDamage >= target.maxHp * domain.maintenanceDamageRatio || target.hp <= 0) {
+        domain.alive = false;
+        this.enterBurnout(target);
+        this.announce("宿傩受创 · 无法维持伏魔御厨子", domain.color, 1.5);
+      }
+    }
+    if (borrowed && target.pendingCast) {
+      if (target.pendingCast.ability.id === "purple") target.charge = Math.min(100, target.charge + 50);
+      target.pendingCast = null;
+      target.combatAction = null;
+      target.cooldowns[2] = Math.max(target.cooldowns[2], 3);
+      this.announce("施法被打断", "#ff7583", 1);
+    }
     if (abilityId === "cursedSpeech") {
       target.stun = Math.max(target.stun || 0, 0.75);
       target.combatAction = null;
     }
     target.hurtAt = this.elapsed;
     target.invuln = 0.06;
-    const label = blackFlash ? `-${dealt} 黑闪` : (combo ? `-${dealt} ${combo.name}` : (adapted ? `-${dealt} 适应` : `-${dealt}`));
+    const heavy=physicalHit && (/heavy|Heavy|BlackFlash/.test(abilityId||'') || dealt>=16);
+    if (!isDomainTick) {
+      this.confirmAttack(source,blackFlash?'blackFlash':defense<1?'guard':practiceImmortal?'practice':heavy?'heavy':'hit',actualDamage);
+      if (practiceImmortal && source?.attackFeedback) source.attackFeedback.text=`${blackFlash?'黑闪':defense<1?'被格挡':'命中'} · 无敌陪练`;
+      if (!blackFlash) this.emit('sfx',{kind:defense<1?'guardImpact':'impact',ultimate:heavy,attackType:abilityId});
+      if (physicalHit && !borrowed && defense===1) this.hitStop=Math.max(this.hitStop,heavy?.055:.025);
+    }
+    const label = practiceImmortal ? (blackFlash?'黑闪 · 无敌':defense<1?'格挡 · 无敌':'命中 · 无敌') : blackFlash ? `-${dealt} 黑闪` : (combo ? `-${dealt} ${combo.name}` : (adapted ? `-${dealt} 适应` : `-${dealt}`));
     this.damageTexts.push({
       x: target.x, y: target.y + 2.0, z: target.z,
       text: label,
@@ -1175,6 +1625,7 @@ export class Game3D {
     this.burst(target.x, target.y + CHEST, target.z, "#ffd0d8", 14, 5);
     this.screenShake = Math.max(this.screenShake, blackFlash ? 2.0 : 0.35);
     if (blackFlash) {
+      if (this.practice && source?.isPlayer) this.training.blackFlash++;
       this.blackFlashCount = (this.blackFlashCount || 0) + 1;
       this.announce("黑闪", "#ff334b", 1.05);
       this.emit("sfx", { kind: "blackFlash" });
@@ -1192,10 +1643,10 @@ export class Game3D {
     if (source && !isDomainTick) {
       const beforeC = source.charge;
       const beforeD = source.domainCharge;
-      source.charge = clamp(source.charge + 20, 0, 100);
+      source.charge = clamp(source.charge + (borrowed ? (abilityId === "blue" ? 10 : 18) : 20), 0, 100);
       source.domainCharge = clamp(source.domainCharge + 14, 0, 100);
-      if (beforeC < 100 && source.charge >= 100) this.announce("奥义已就绪", "#ffd24a", 1.0);
-      if (beforeD < 100 && source.domainCharge >= 100) this.announce("领域已就绪", "#b05cff", 1.0);
+      if (beforeC < 100 && source.charge >= 100 && CHARACTERS[source.charId]?.abilities.some(a => a.needsCharge)) this.announce("奥义已就绪", "#ffd24a", 1.0);
+      if (beforeD < 100 && source.domainCharge >= 100 && CHARACTERS[source.charId]?.abilities.some((a) => a.needsDomain)) this.announce("领域已就绪", "#b05cff", 1.0);
       target.domainCharge = clamp(target.domainCharge + 9, 0, 100);
     }
     const lowKey = `${target.charId}_low`;
@@ -1205,13 +1656,18 @@ export class Game3D {
         || (target.charId === "gojo" ? "还没结束呢。" : "这样才有意思。");
       this.queueDialogue(target.charId, line, 2.3, 1);
     }
-    if (target.hp <= 0) this.kill(target);
+    if (target.hp <= 0) {
+      if (this._meleeDeaths) this._meleeDeaths.add(target);
+      else this.kill(target);
+    }
+    return true;
   }
 
   kill(target) {
     if (this.state !== "playing") return;
     if (!target.alive) return;
     target.alive = false;
+    if (target.dummy) this.dummyRespawn = 2.5;
     this.burst(target.x, target.y + CHEST, target.z, target.aura, 70, 12);
     for (let i = 0; i < 16; i += 1) {
       this.particles.push({
@@ -1229,7 +1685,7 @@ export class Game3D {
     this.announce(`${target.name} 退场`, target.color, 1.4);
     this.emit("sfx", { kind: "defeat" });
     const alive = this.entities.filter((e) => e.alive && !e.summon);
-    if (this.practice) return;
+    if (this.practice || this._settlingMelee) return;
     if (alive.length <= 1) {
       this.winner = alive[0] || null;
       this.finishEnd();
@@ -1239,6 +1695,13 @@ export class Game3D {
   finishEnd() {
     if (this.state === "ended") return;
     this.state = "ended";
+    const player = this.player(), stats = player?.battleStats;
+    this.resultStats = { seconds: this.elapsed, damage: stats?.damage || 0, taken: stats?.taken || 0,
+      accuracy: stats?.attempts ? Math.round(stats.landed.size / stats.attempts * 100) : 0,
+      noHeal: !(stats?.heals > 0), won: this.winner === player };
+    this.resultStats.challengeComplete = this.resultStats.won &&
+      (this.challenge === 'noHeal' ? this.resultStats.noHeal : this.challenge === 'lowDamage' ? this.resultStats.taken <= 25 : false);
+    this.resultStats.record = saveBattleRecord(this, this.resultStats);
     // 结算后不再推进领域生命周期；主动清理，避免五条悟倒地时无量空处停在最后一帧。
     this.projectiles = [];
     this.beams = [];
@@ -1249,7 +1712,7 @@ export class Game3D {
     for (const entity of this.entities) entity.simpleDomainTimer = 0;
     this.emit("sfx", { kind: "win" });
     const winnerId = this.winner?.charId || "gojo";
-    const line = this.storyDialogueLine(winnerId, "ending")
+    const line = !this.winner ? "双方同时倒下 · 平局。" : this.mode === "story" ? (this.winner?.isPlayer ? "击败对手 · 剧情挑战完成。" : "挑战失败 · 再次迎战。") : this.storyDialogueLine(winnerId, "ending")
       || (this.winner?.charId === "gojo" ? "这场胜负，已经定了。" : "到此为止。");
     this.queueDialogue(winnerId, line, 2.5, 4);
   }
@@ -1283,32 +1746,35 @@ export class Game3D {
       const sx = p.x - px0;
       const sy = p.y - py0;
       const sz = p.z - pz0;
-      const segLen2 = sx * sx + sy * sy + sz * sz || 1;
+      const contacts = [];
       for (const e of this.entities) {
         if (!e.alive || e.team === p.team) continue;
-        const ex = e.x;
-        const ey = e.y + CHEST;
-        const ez = e.z;
-        let t = ((ex - px0) * sx + (ey - py0) * sy + (ez - pz0) * sz) / segLen2;
-        t = clamp(t, 0, 1);
-        const cx = px0 + sx * t;
-        const cy = py0 + sy * t;
-        const cz = pz0 + sz * t;
-        const dx = ex - cx;
-        const dy = ey - cy;
-        const dz = ez - cz;
-        if (dx * dx + dy * dy + dz * dz < (p.radius + ENTITY_RADIUS) ** 2) {
+        const spear = e.spearGuardTimer > 0;
+        if (p.visualOnly && !spear) continue;
+        const t = sphereContactTime(projectileStart(p), p, { x:e.x, y:e.y+CHEST, z:e.z }, p.radius + (spear ? 1 : ENTITY_RADIUS));
+        if (t !== null) contacts.push({ e, t, spear });
+      }
+      contacts.sort((a,b) => a.t-b.t || a.e.id.localeCompare(b.e.id));
+      for (const { e, t, spear } of contacts) {
+          const cx = px0 + sx*t, cy = py0 + sy*t, cz = pz0 + sz*t;
+          if (spear) {
+            p.alive = false;
+            this.burst(cx, cy, cz, "#c4c9d4", 14, 3);
+            this.announce("天逆鉾 · 接触消除术式", "#c4c9d4", 0.8);
+            break;
+          }
           const len = Math.hypot(p.vx, p.vy || 0, p.vz) || 1;
-          const kb = (this.mode === "single" && !e.isPlayer && !e.summon) ? DIFFICULTY[this.difficulty].knockbackTakenMultiplier : 1;
-          e.vx += (p.vx / len) * p.knock * kb;
-          e.vz += (p.vz / len) * p.knock * kb;
+          const kb = (this.isBorrowedBattle() && e.amplification && p.abilityId === "blue") ? 0.25
+            : (this.mode === "single" && !e.isPlayer && !e.summon) ? DIFFICULTY[this.difficulty].knockbackTakenMultiplier : 1;
           const owner = this.entities.find((x) => x.id === p.ownerId);
-          this.damage(e, p.damage, owner, p.abilityId);
-          if (this.isStoryCombat()) this.sceneHits.push({ x: p.x, z: p.z, radius: 6 });
-          this.burst(p.x, p.y, p.z, p.color, 16, 5.5);
+          if (this.damage(e, p.damage, owner, p.abilityId, p.attackId)) {
+            e.vx += (p.vx / len) * p.knock * kb;
+            e.vz += (p.vz / len) * p.knock * kb;
+          }
+          if (this.isStoryCombat()) this.sceneHits.push({ x: cx, z: cz, radius: 6 });
+          this.burst(cx, cy, cz, p.color, 16, 5.5);
           p.alive = false;
           break;
-        }
       }
     }
     this.projectiles = this.projectiles.filter((p) => p.alive);
@@ -1324,12 +1790,13 @@ export class Game3D {
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const dz = b.z - a.z;
-        const dist = Math.hypot(dx, dy, dz) || 1;
+        const dist = Math.hypot(dx, dy, dz);
         const min = ENTITY_RADIUS * 2;
         if (dist >= min) continue;
-        const nx = dx / dist;
-        const ny = dy / dist;
-        const nz = dz / dist;
+        // Identical positions still need a deterministic horizontal separation.
+        const nx = dist > 1e-8 ? dx / dist : (a.id < b.id ? 1 : -1);
+        const ny = dist > 1e-8 ? dy / dist : 0;
+        const nz = dist > 1e-8 ? dz / dist : 0;
         const overlap = min - dist;
         a.x -= nx * overlap * 0.5;
         a.y -= ny * overlap * 0.5;
@@ -1352,21 +1819,32 @@ export class Game3D {
   }
 
   resolveProjectileClashes() {
-    for (let i = 0; i < this.projectiles.length; i += 1) {
+    const pairs = [];
+    for (let i = 0; i < this.projectiles.length; i++) {
       const a = this.projectiles[i];
-      if (!a.alive) continue;
-      for (let j = i + 1; j < this.projectiles.length; j += 1) {
+      for (let j = i + 1; j < this.projectiles.length; j++) {
         const b = this.projectiles[j];
-        if (!b.alive || a.team === b.team) continue;
-        const range = (a.radius + b.radius) * 1.35;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dz = b.z - a.z;
-        if (dx * dx + dy * dy + dz * dz > range * range) continue;
-
-        const ix = (a.x + b.x) * 0.5;
-        const iy = (a.y + b.y) * 0.5;
-        const iz = (a.z + b.z) * 0.5;
+        if (!a.alive || !b.alive || a.team === b.team || a.visualOnly || b.visualOnly) continue;
+        const t = projectileClashTime(a, b);
+        if (t !== null) pairs.push({ a, b, t });
+      }
+    }
+    pairs.sort((a, b) => a.t - b.t);
+    for (const { a, b } of pairs) {
+        if (!a.alive || !b.alive) continue;
+        const t = projectileClashTime(a, b);
+        if (t === null) continue;
+        // A projectile consumed by a nearer fighter cannot clash farther along its path.
+        const hitsFirst = (p) => this.entities.some((e) => {
+          if (!e.alive || e.team === p.team) return false;
+          const hit = sphereContactTime(projectileStart(p), p, { x:e.x, y:e.y+CHEST, z:e.z }, p.radius + (e.spearGuardTimer > 0 ? 1 : ENTITY_RADIUS));
+          return hit !== null && hit <= t;
+        });
+        if (hitsFirst(a) || hitsFirst(b)) continue;
+        const a0 = projectileStart(a), b0 = projectileStart(b);
+        const ix = (a0.x + (a.x-a0.x)*t + b0.x + (b.x-b0.x)*t) * .5;
+        const iy = (a0.y + (a.y-a0.y)*t + b0.y + (b.y-b0.y)*t) * .5;
+        const iz = (a0.z + (a.z-a0.z)*t + b0.z + (b.z-b0.z)*t) * .5;
         const equalPower = a.power === b.power;
         this.burst(ix, iy, iz, a.color, equalPower ? 28 : 18, equalPower ? 8 : 6.5);
         this.burst(ix, iy, iz, b.color, equalPower ? 28 : 18, equalPower ? 8 : 6.5);
@@ -1407,8 +1885,6 @@ export class Game3D {
             this.queueDialogue("gojo", "你才是挑战者。", 2.7, 3);
           }
         }
-        break;
-      }
     }
   }
 
@@ -1433,9 +1909,10 @@ export class Game3D {
         if (perp <= b.width * 0.5 + ENTITY_RADIUS) {
           b.hit.add(e.id);
           const owner = this.entities.find((x) => x.id === b.ownerId);
-          e.vx += dirx * b.knock;
-          e.vz += dirz * b.knock;
-          this.damage(e, b.damage, owner, b.abilityId);
+          if (this.damage(e, b.damage, owner, b.abilityId, b.attackId)) {
+            e.vx += dirx * b.knock;
+            e.vz += dirz * b.knock;
+          }
         }
       }
       if (b.life <= 0) b.alive = false;
@@ -1446,6 +1923,29 @@ export class Game3D {
   updateDomains(dt) {
     for (const fracture of this.domainBreaks) fracture.age += dt;
     this.domainBreaks = this.domainBreaks.filter((fracture) => fracture.age < fracture.duration);
+    if (this.isBorrowedBattle() && this.borrowedBattle?.phase === "combat" && this.storyTimer > 0) {
+      for (const domain of this.domains) domain.life = this.storyTimer;
+      return;
+    }
+    // The physical exterior is separate from a closed domain's expanded
+    // interior. An open domain can slash that shell from the real world.
+    for (const open of this.domains) {
+      if (!open.alive || !open.openBarrier) continue;
+      for (const closed of this.domains) {
+        if (!closed.alive || !closed.closedBarrier || closed.team === open.team) continue;
+        const distance = Math.hypot(closed.exteriorX - open.x, closed.exteriorY - open.y, closed.exteriorZ - open.z);
+        if (distance - closed.exteriorRadius >= open.radius) continue;
+        const exposed = clamp((open.radius - distance + closed.exteriorRadius) / (2 * closed.exteriorRadius), 0, 1);
+        closed.hp -= open.barrierDamagePerSecond * exposed * Math.min(dt, Math.max(0, open.life));
+        if (closed.hp <= 0) {
+          closed.alive = false;
+          this.recordDomainBreak(closed);
+          this.enterBurnout(this.entities.find((entity) => entity.id === closed.ownerId));
+          this.announce("外侧斩击 · 封闭结界崩塌", open.color, 1.5);
+        }
+      }
+    }
+    this.syncDomainCaptives();
     for (const d of this.domains) {
       if (!d.alive) continue;
       d.life -= dt;
@@ -1454,14 +1954,21 @@ export class Game3D {
         d.tickTimer = d.tick;
         d.tickSerial = (d.tickSerial || 0) + 1;
         d.visualTargets = [];
+        if (d.openBarrier) this.sceneHits.push({ x: d.x, z: d.z, radius: d.radius });
         const owner = this.entities.find((x) => x.id === d.ownerId);
         for (const e of this.entities) {
-          if (!e.alive || e.team === d.team) continue;
+          if (!e.alive || (d.type === 'void' ? e.id === d.ownerId : e.team === d.team)) continue;
+          if (d.closedBarrier && CHARACTERS[e.charId]?.cursedEnergy === 0) continue;
+          if (this.sureHitContested(d, e)) continue;
           const dx = e.x - d.x;
           const dy = (e.y + CHEST) - d.y;
           const dz = e.z - d.z;
           if (dx * dx + dy * dy + dz * dz > d.radius * d.radius) continue;
-          d.visualTargets.push({ x: e.x, y: e.y, z: e.z, blocked: e.simpleDomainTimer > 0 });
+          const touchImmune = d.type === 'void' && owner && Math.hypot(e.x-owner.x, e.y-owner.y, e.z-owner.z) <= 2.1;
+          const basket = e.wickerBasketTimer > 0;
+          d.visualTargets.push({ x: e.x, y: e.y, z: e.z, blocked: e.simpleDomainTimer > 0 || basket || touchImmune,
+            slashKind: d.openBarrier ? CHARACTERS[e.charId]?.cursedEnergy === 0 ? "dismantle" : "cleave" : null });
+          if (touchImmune || basket) continue;
           if (e.simpleDomainTimer > 0) {
             // Neutralize this sure-hit, including the tick that erodes the last
             // layer. Ordinary attacks still go through the normal damage path.
@@ -1472,6 +1979,25 @@ export class Game3D {
               this.announce(`${e.name} · 简易领域被压碎`, SIMPLE_DOMAIN.color, 1);
             }
             continue;
+          }
+          if (d.type === 'void') {
+            e.informationExposure = (e.informationExposure || 0) + d.tick;
+            e.vx = e.vy = e.vz = 0; e.dashTimer = 0; e.pendingCast = null; e.raidCast = null;
+            e.meleeAttack = null; e.meleeRecovery = 0; e.queuedInput = null;
+            continue;
+          }
+          if (d.type === 'authenticLove') e.techniqueExtinguishedUntil = this.elapsed + .6;
+          if (d.type === 'mahitoDomain' && (CHARACTERS[e.charId]?.sukunaVessel || e.charId.startsWith('sukuna'))) {
+            d.alive = false;
+            this.damage(owner, 35, e, 'sukunaSoulReprisal');
+            this.enterBurnout(owner);
+            this.announce('触及宿傩的灵魂 · 宿傩反击 · 真人领域崩塌', '#ff7583', 2);
+            break;
+          }
+          if (d.type === 'mahitoDomain' && !this.practiceImmortal(e)) {
+            e.soulTransfigured = true;
+            e.maxHp = Math.max(1, e.maxHp - 4);
+            e.hp = Math.min(e.hp, e.maxHp);
           }
           this.damage(e, d.damage, owner, d.abilityId);
         }
@@ -1486,6 +2012,18 @@ export class Game3D {
   }
 
   // ---- effects ----
+  sureHitContested(domain, entity) {
+    return this.domains.some((other) => {
+      if (!other.alive || other.team === domain.team || other.power !== domain.power) return false;
+      if (domain.closedBarrier && other.closedBarrier) return Math.hypot(entity.x-domain.x, entity.y+CHEST-domain.y, entity.z-domain.z) <= domain.radius && Math.hypot(entity.x-other.x, entity.y+CHEST-other.y, entity.z-other.z) <= other.radius;
+      const open = domain.openBarrier ? domain : other.openBarrier ? other : null;
+      const closed = domain.closedBarrier ? domain : other.closedBarrier ? other : null;
+      if (!open || !closed) return false;
+      const overlap = Math.hypot(closed.exteriorX - open.x, closed.exteriorY - open.y, closed.exteriorZ - open.z) < open.radius + closed.exteriorRadius;
+      return overlap && Math.hypot(entity.x - closed.x, entity.y + CHEST - closed.y, entity.z - closed.z) <= closed.radius;
+    });
+  }
+
   burst(x, y, z, color, amount, speed, dir = null) {
     for (let i = 0; i < amount; i += 1) {
       const a = dir ? Math.atan2(dir.z, dir.x) + Math.PI + rand(-1.1, 1.1) : Math.random() * TAU;
@@ -1512,26 +2050,51 @@ export class Game3D {
   // ---- entity update ----
   updateEntity(e, dt) {
     if (!e.alive) return;
+    if (!this.isBorrowedBattle()) {
+      if (e.meleeAttack) {
+        e.meleeAttack.remaining -= dt;
+        if (e.meleeAttack.remaining <= 0) {
+          const attack = e.meleeAttack; e.meleeAttack = null;
+          if (this._meleeContacts) this._meleeContacts.push({ entity: e, attack });
+          else this.resolveMelee(e, attack.ability, attack.attackId, attack.yaw);
+          e.meleeRecovery = attack.recovery;
+        }
+      } else e.meleeRecovery = Math.max(0, (e.meleeRecovery || 0)-dt);
+      if (e.queuedInput && e.queuedInput.expires < this.elapsed) e.queuedInput = null;
+      if (e.queuedInput && !e.meleeAttack && !e.meleeRecovery) {
+        const input = e.queuedInput; e.queuedInput = null;
+        const started=input.index === 'basic' ? this.tryBasicAttack(e) : this.tryCast(e, input.index);
+        if (!started) e.queuedInput=input;
+      }
+    }
+    this.updateBorrowedCast(e, dt);
     const fromX = e.x;
     const fromZ = e.z;
     e.burnout = Math.max(0, (e.burnout || 0) - dt);
     e.guardTimer = Math.max(0, (e.guardTimer || 0) - dt);
+    e.wickerBasketTimer = Math.max(0, (e.wickerBasketTimer || 0) - dt);
+    e.infinityTimer = Math.max(0, (e.infinityTimer || 0) - dt);
+    e.spearGuardTimer = Math.max(0, (e.spearGuardTimer || 0) - dt);
+    e.flyheadTimer = Math.max(0, (e.flyheadTimer || 0) - dt);
+    if (e.flyheadTimer > 0) this.burst(e.x, e.y + CHEST, e.z, "#393141", 3, 4);
     e.simpleDomainTimer = Math.max(0, (e.simpleDomainTimer || 0) - dt);
     e.simpleDomainCooldown = Math.max(0, (e.simpleDomainCooldown || 0) - dt);
     e.basicCooldown = Math.max(0, (e.basicCooldown || 0) - dt);
     e.stun = Math.max(0, (e.stun || 0) - dt);
     let slowFactor = 1;
     for (const d of this.domains) {
-      if (!d.alive || d.ownerId === e.id || d.team === e.team || e.simpleDomainTimer > 0) continue;
+      if (this.isBorrowedBattle() || !d.alive || d.openBarrier || this.sureHitContested(d, e) || d.ownerId === e.id || d.team === e.team || e.simpleDomainTimer > 0) continue;
       const dx = e.x - d.x;
       const dy = (e.y + CHEST) - d.y;
       const dz = e.z - d.z;
       if (dx * dx + dy * dy + dz * dz <= d.radius * d.radius) {
-        slowFactor = Math.min(slowFactor, d.type === "void" ? 0.25 : 0.5);
+        if (d.type === 'void' && this.inVoidStun(e)) slowFactor = 0;
       }
     }
 
-    const speed = e.speed * slowFactor * (e.stun > 0 ? 0 : 1) * (e.sprinting && e.dashTimer <= 0 ? SPRINT.multiplier : 1);
+    if (this.inVoidStun(e)) { e.vx = e.vy = e.vz = 0; e.dashTimer = 0; slowFactor = 0; }
+    const difficultySpeed = this.mode === "story" && !e.isPlayer && !e.summon ? this.getDifficultyProfile().speed : 1;
+    const speed = e.speed * difficultySpeed * slowFactor * (e.stun > 0 || e.pendingCast || e.raidCast || e.recovery > 0 ? 0 : e.meleeAttack ? .35 : 1) * (e.sprinting && e.dashTimer <= 0 ? SPRINT.multiplier : 1);
     if (e.dashTimer > 0) {
       e.dashTimer -= dt;
       e.x += e.dashVx * dt;
@@ -1549,7 +2112,8 @@ export class Game3D {
     e.x += (e.moveInput.x * speed + e.vx) * dt;
     e.z += (e.moveInput.z * speed + e.vz) * dt;
 
-    const vt = e.moveInput.y || 0;
+    const vt = e.pendingCast || e.recovery > 0 || e.stun > 0 ? 0 : e.moveInput.y || 0;
+    if (e.pendingCast) e.vy = 0;
     e.vy = lerp(e.vy, vt * FLIGHT.speed, Math.min(1, dt * 16));
     e.y += e.vy * dt;
     if (e.y < 0) { e.y = 0; e.vy = Math.max(0, e.vy); }
@@ -1559,7 +2123,8 @@ export class Game3D {
     const toZ = e.z;
     this.resolveWorldMovement(e, fromX, fromZ, toX, toZ);
 
-    e.moving = Math.hypot(e.moveInput.x, e.moveInput.z) > 0.05;
+    e.moving = (!this.isBorrowedBattle() || (!e.pendingCast && e.recovery <= 0 && e.stun <= 0))
+      && Math.hypot(e.moveInput.x, e.moveInput.z) > 0.05;
 
     const damp = Math.pow(0.0001, dt);
     e.vx *= damp;
@@ -1572,9 +2137,9 @@ export class Game3D {
     }
     e.invuln = Math.max(0, e.invuln - dt);
     if (e.dashCooldown > 0) e.dashCooldown = Math.max(0, e.dashCooldown - dt);
-    if (this.practice) { e.charge = 100; e.domainCharge = 100; }
+    if (this.practice && this.practiceInfinite) { e.charge = 100; e.domainCharge = 100; }
 
-    const dir = this.fireDir(e);
+    const dir = e.pendingCast?.dir || (e.meleeAttack ? {x:Math.sin(e.meleeAttack.yaw),y:0,z:Math.cos(e.meleeAttack.yaw)} : this.fireDir(e));
     const targetYaw = Math.atan2(dir.x, dir.z);
     let d = targetYaw - e.yaw;
     while (d > Math.PI) d -= TAU;
@@ -1582,10 +2147,50 @@ export class Game3D {
     e.yaw += d * Math.min(1, dt * 18);
   }
 
+  updateBorrowedAI(dt) {
+    const ai = this.entities.find(e => !e.isPlayer && e.alive && !e.summon);
+    const target = this.entities.find(e => e.isPlayer && e.alive && !e.summon);
+    if (!ai || !target || this.borrowedBattle?.phase !== "combat") return;
+    if (ai.stun > 0 || ai.pendingCast || ai.recovery > 0 || ai.rushImpact > 0) { this.setMove(ai, 0, 0, 0); return; }
+    const dx = target.x - ai.x, dz = target.z - ai.z, dy = target.y - ai.y;
+    const flat = Math.hypot(dx, dz) || 1;
+    const dist = Math.hypot(dx, dz, dy);
+    this.setAim(ai, target.x, target.z);
+    const sukuna = ai.charId === "sukunaStory2";
+    const needMelee = ai.charge < 100;
+    const desired = sukuna || needMelee ? 2.5 : 7;
+    const toward = dist > desired + 0.5 ? 1 : dist < desired - 0.5 ? -1 : 0;
+    this.setMove(ai, dx / flat * toward, dz / flat * toward, clamp(dy * 0.5, -1, 1));
+    ai.sprinting = dist > 9;
+    if (sukuna) {
+      const incoming = this.projectiles.some(p => p.team !== ai.team && Math.hypot(p.x - ai.x, p.z - ai.z) < 8);
+      const needsAmp = dist < 5 || incoming || Boolean(target.pendingCast);
+      if (needsAmp && !ai.amplification && ai.amplificationEnergy >= 25) this.tryCast(ai, 3);
+      else if (!needsAmp && ai.amplification) this.tryCast(ai, 3);
+    }
+    ai.aiCastCd = (ai.aiCastCd || 0) - dt;
+    if (ai.aiCastCd > 0) return;
+    const profile = this.getDifficultyProfile();
+    ai.aiCastCd = rand(profile.reactionMin, profile.reactionMax);
+    if (sukuna) {
+      if (target.pendingCast && dist < 9 && ai.cooldowns[2] <= 0 && ai.dashCooldown <= 0) this.tryCast(ai, 2);
+      else if (dist <= 3.2) this.tryCast(ai, ai.cooldowns[1] <= 0 ? 1 : 0);
+      else if (dist < 9 && ai.cooldowns[2] <= 0 && ai.dashCooldown <= 0) this.tryCast(ai, 2);
+    } else {
+      if (ai.charge >= 100 && this.recorderReady()) this.tryCast(ai, 3);
+      else if (ai.charge >= 100 && (dist >= 6 || target.stun > 0)) this.tryCast(ai, 2);
+      else if (dist <= 3.2 && needMelee) this.tryCast(ai, 1);
+      else this.tryCast(ai, 0);
+    }
+  }
+
   updateAI(dt) {
+    if (isRaid(this)) { updateRaidAI(this, dt); return; }
+    if (this.isBorrowedBattle()) { this.updateBorrowedAI(dt); return; }
     const ai = this.entities.find((e) => !e.isPlayer && e.alive && !e.dummy);
     const target = this.entities.find((e) => e.isPlayer && e.alive);
     if (!ai || !target) return;
+    if (reactToThreat(this, ai, target, dt)) return;
     if (this.canUseSimpleDomain(ai) && ai.simpleDomainCooldown <= 0 && ai.simpleDomainTimer <= 0 && this.domains.some((d) => d.alive && d.team !== ai.team && Math.hypot(ai.x - d.x, ai.y + CHEST - d.y, ai.z - d.z) <= d.radius)) this.trySimpleDomain(ai);
     if (ai.burnout > 0) {
       if (ai.hp > ai.maxHp * 0.4 && ai.burnout > 2 && target.hp > 20) this.tryForceRestore(ai);
@@ -1603,6 +2208,9 @@ export class Game3D {
     const dist = Math.hypot(dx, dz) || 1;
     const nx = dx / dist;
     const nz = dz / dist;
+    const attackDistance = Math.hypot(dx, dz, target.y-ai.y);
+    // Mahito's ordinary fists can produce Black Flash; transfiguration cannot.
+    if (ai.charId.startsWith('mahito') && attackDistance < 3.2 && (ai.basicCooldown || 0) <= 0 && Math.random() < .15) this.tryBasicAttack(ai);
 
     ai.aiTimer -= dt;
     if (ai.aiTimer <= 0) {
@@ -1613,8 +2221,8 @@ export class Game3D {
     let mx = 0;
     let mz = 0;
     const storySukuna = this.isStorySukuna(ai);
-    const closeCombat = storySukuna || ai.charId === "yuta" || ai.burnout > 0;
-    const engageDistance = storySukuna ? 3.1 : closeCombat ? 5 : 17;
+    const closeCombat = storySukuna || ai.charId.startsWith("toji") || CHARACTERS[ai.charId].abilities[0]?.type === 'melee' || ai.burnout > 0;
+    const engageDistance = closeCombat ? 3.1 : 17;
     const retreatDistance = storySukuna ? 1.8 : closeCombat ? 2.8 : 9;
     if (dist > engageDistance) { mx = nx; mz = nz; }
     else if (dist < retreatDistance) { mx = -nx; mz = -nz; }
@@ -1625,7 +2233,7 @@ export class Game3D {
 
     // the AI picks its own altitude and flies there on its own schedule
     let my = 0;
-    if (storySukuna) {
+    if (closeCombat) {
       // Story Sukuna keeps his feet aligned with his opponent so his attacks
       // stay in melee range instead of drifting into a ranged aerial pattern.
       ai.aiAlt = clamp(target.y, 0, FLIGHT.maxAlt);
@@ -1647,7 +2255,12 @@ export class Game3D {
     if (Math.abs(dyAlt) > 1.2) my = clamp(dyAlt * 0.4, -0.95, 0.95);
 
     ai.sprinting = (dist > 18 || Math.abs(target.y - ai.y) > 8) && ai.dashTimer <= 0;
-    this.setMove(ai, (mx / ml) * profile.speed, (mz / ml) * profile.speed, my);
+    const inputSpeed = this.mode === "story" ? 1 : profile.speed;
+    this.setMove(ai, (mx / ml) * inputSpeed, (mz / ml) * inputSpeed, my);
+    if (dist > engageDistance) {
+      const direction = chaseDirection(this, ai, target, dt);
+      this.setMove(ai, direction.x*inputSpeed, direction.z*inputSpeed, my);
+    }
 
     // chase dash to close the gap (its own decision, on a timer)
     ai.aiDashTimer = (ai.aiDashTimer ?? 1.5) - dt;
@@ -1675,7 +2288,7 @@ export class Game3D {
     ai.aiCastCd -= dt;
     if (ai.aiCastCd <= 0) {
       const waited = this.elapsed - ai.aiWaitStarted;
-      const isPacedGojoAi = this.mode === "single" && ai.charId === "gojo" && this.singleChar === "sukuna";
+      const isPacedGojoAi = this.legacyGojoAi(ai);
       const gojoAiTuning = isPacedGojoAi
         ? SUKUNA_VS_GOJO_AI_HANDICAP.aiTuning[this.difficulty]
         : null;
@@ -1683,7 +2296,7 @@ export class Game3D {
         gojoAiTuning?.blueForcedShotDelayMultiplier ?? 1
       );
       if (alignment > rand(profile.aimMin, profile.aimMax) || waited > forcedShotDelay) {
-        const idx = this.pickAiAbility(ai, dist);
+        const idx = this.pickAiAbility(ai, attackDistance);
         if (idx >= 0) {
           if (this.tryCast(ai, idx)) {
             ai.aiWaitStarted = this.elapsed;
@@ -1709,7 +2322,13 @@ export class Game3D {
   aiAbilityReady(ai, idx) {
     const ability = CHARACTERS[ai.charId].abilities[idx];
     if (!ability) return false;
-    if (ai.burnout > 0 && !ability.physical) return false;
+    if (['domain','soulDomain'].includes(ability.type) && this.ownsDomain(ai)) return false;
+    if (this.inVoidStun(ai)) return false;
+    if (this.borrowedSkillLocked(ai, ability)) return false;
+    if (shibuyaAbilityLocked(this, ai, ability)) return false;
+    if (raidAbilityLocked(this, ai, ability)) return false;
+    if (ai.burnout > 0 && ability.requiresTechnique) return false;
+    if (!this.isBorrowedBattle() && (ai.meleeAttack || ai.meleeRecovery > 0)) return false;
     if (ability.needsDomain && (ai.domainLocked || (this.isStoryCombat() && this.storyStage === "borrowed" && this.storyTimer <= 0 && ai.charId === "yutaGojo"))) return false;
     if (ai.cooldowns[idx] > 0) return false;
     if (ability.needsCharge && ai.charge < 100) return false;
@@ -1721,6 +2340,27 @@ export class Game3D {
     const abilities = CHARACTERS[ai.charId].abilities;
     const combos = CHARACTERS[ai.charId].combos || [];
     const ready = (idx) => this.aiAbilityReady(ai, idx);
+    if (['higuruma', 'kashimo', 'sukunaRaid', 'yujiCulling'].includes(ai.charId)) {
+      const useful = abilities.map((a, i) => ({ a, i })).filter(({ a, i }) => ready(i) &&
+        (['melee', 'execution'].includes(a.type) ? dist <= a.range : a.type === 'heal' ? ai.hp < ai.maxHp*.6 : a.type === 'guard' ? this.domains.some(d => d.alive && d.team !== ai.team) : a.type !== 'appeal'));
+      return (useful.find(({a}) => a.type === 'sentencing' || a.type === 'execution') || useful[Math.floor(Math.random()*useful.length)])?.i ?? -1;
+    }
+
+    if (["yujiShibuya", "mahito", "mahitoFinal"].includes(ai.charId)) {
+      const useful = abilities.map((a, i) => ({ a, i })).filter(({ a, i }) => ready(i) &&
+        (a.type === "melee" ? dist <= a.range : a.type === "guard" ? dist < 5 : a.type === "orb" ? dist < 20 : a.type === "soulDomain" ? dist < 12 : false));
+      const blackFlash = useful.find(({ a }) => a.id === "yujiBlackFlash");
+      return blackFlash ? blackFlash.i : useful.length ? useful[Math.floor(Math.random() * useful.length)].i : -1;
+    }
+    if (ai.charId.startsWith("toji") || ai.charId.startsWith("gojoTeen") || ai.charId === "gojoAwakened") {
+      const useful = abilities.map((a, i) => ({ a, i })).filter(({ a, i }) => ready(i) &&
+        (a.type === "melee" || a.type === "chain" ? dist <= a.range :
+          a.type === "heal" ? ai.hp < ai.maxHp * 0.65 :
+            a.type === "infinity" ? dist < 8 && !(ai.infinityTimer > 0) : true));
+      const purple = useful.find(({ a }) => a.id === "purple");
+      if (purple) return purple.i;
+      return useful.length ? useful[Math.floor(Math.random() * useful.length)].i : -1;
+    }
 
     const healIndex = abilities.findIndex((a) => a.type === "heal");
     if (healIndex >= 0 && ai.hp < ai.maxHp * 0.55 && ready(healIndex)) return healIndex;
@@ -1765,7 +2405,7 @@ export class Game3D {
     if (ready(1) && (abilities[1]?.type === "summon" || dist < 30) && Math.random() < 0.65) return 1;
 
     // 6) basic
-    if (ready(0)) return 0;
+    if (ready(0) && (abilities[0].type !== "melee" || dist <= abilities[0].range)) return 0;
     return -1;
   }
 
@@ -1780,24 +2420,37 @@ export class Game3D {
   }
 
   update(dt) {
+    if (this.state === "storyTransition") return;
     this.updateDialogue(dt);
     if (this.state !== "playing") { this.updateEffects(dt); return; }
-    this.elapsed += dt;
-    if (this.isStoryCombat() && this.storyStage === "borrowed" && this.storyTimer > 0) {
-      this.storyTimer = Math.max(0, this.storyTimer - dt);
-      if (this.storyTimer === 0) this.announce("五分钟已过 · 乙骨术式减弱", "#b7e9ff", 2.2);
-    }
     if (this.hitStop > 0) {
-      // Gameplay is frozen here, so hold attack progress with it.
-      for (const entity of this.entities) {
-        if (entity.combatAction) entity.combatAction.startedAt += dt;
-      }
+      // Simulation time, every attack timer and every combat window freeze together.
       this.hitStop = Math.max(0, this.hitStop - dt);
       this.updateEffects(dt * 0.3);
       return;
     }
+    this.elapsed += dt;
+    this.updateTraining();
+    if (updateRaid(this, dt)) { this.updateEffects(dt); return; }
+    if (updateShibuya(this, dt)) return;
+    // All attacks reaching contact in this step resolve before damage can cancel a peer's strike.
+    this._meleeContacts = [];
     for (const e of this.entities) this.updateEntity(e, dt);
-    if (this.mode === "single" || this.mode === "story") this.updateAI(dt);
+    const contacts = this._meleeContacts;
+    this._meleeContacts = null;
+    this._meleeDeaths = new Set();
+    for (const {entity, attack} of contacts) this.resolveMelee(entity, attack.ability, attack.attackId, attack.yaw);
+    const deaths = this._meleeDeaths;
+    this._meleeDeaths = null;
+    this._settlingMelee = true;
+    for (const entity of deaths) this.kill(entity);
+    this._settlingMelee = false;
+    if (deaths.size && !this.practice && this.state === 'playing') {
+      const alive = this.entities.filter(e => e.alive && !e.summon);
+      if (alive.length <= 1) { this.winner = alive[0] || null; this.finishEnd(); }
+    }
+    if (this.state !== 'playing') return;
+    if (this.mode === "single" || this.mode === "story" || isRaid(this)) this.updateAI(dt);
     this.updateSummon(dt);
     if (this.practice && this.practiceDummy && !this.entities.some((e) => e.dummy && e.alive)) {
       this.dummyRespawn = (this.dummyRespawn || 0) - dt;
@@ -1812,16 +2465,34 @@ export class Game3D {
     this.resolveWorldOverlaps();
     // Collision separation can push a fighter below the floor after its own
     // movement step has clamped altitude. Keep the camera above the arena.
-    for (const e of this.entities) e.y = clamp(e.y, 0, FLIGHT.maxAlt);
+    for (const e of this.entities) e.y = this.groundDuel || CHARACTERS[e.charId]?.grounded ? 0
+      : clamp(e.y, 0, this.isBorrowedBattle() ? BORROWED_BATTLE.maxAltitude : FLIGHT.maxAlt);
     if (this.mode === "single" && DIFFICULTY[this.difficulty].gojoRegen) {
       // the reverse cursed technique belongs to whoever is playing Gojo
       const gojo = this.entities.find((e) => e.alive && !e.summon && e.charId === "gojo");
       if (gojo && gojo.hp < gojo.maxHp) {
         gojo.hp = clamp(gojo.hp + GOJO_REGEN_PER_SECOND * dt, 0, gojo.maxHp);
+        if (dt > 0) {
+          gojo.battleStats ||= { attempts: 0, landed: new Set(), damage: 0, taken: 0, heals: 0 };
+          gojo.battleStats.heals++;
+        }
       }
     }
     this.updateProjectiles(dt);
     this.updateBeams(dt);
+    if (this.state !== "playing") return;
+    if (this.isBorrowedBattle() && this.borrowedBattle?.phase === "combat") {
+      this.storyTimer = Math.max(0, this.storyTimer - dt);
+      if (this.storyTimer === 0 && this.domains.length) {
+        for (const domain of this.domains) {
+          this.recordDomainBreak(domain);
+          this.enterBurnout(this.entities.find(e => e.id === domain.ownerId));
+        }
+        this.domains = [];
+        this.syncDomainCaptives();
+        this.announce("领域交锋结束 · 继续战斗，击败对手即可获胜", "#b7e9ff", 3);
+      }
+    }
     this.updateDomains(dt);
     this.updateEffects(dt);
   }

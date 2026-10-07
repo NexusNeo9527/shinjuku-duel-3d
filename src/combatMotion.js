@@ -37,8 +37,27 @@ export const COMBAT_MOTIONS = {
     [.28, pose([-1, 0, .2], [-.15, 0, 0], [-1, 0, -.2], [-.15, 0, 0], [.25, 0, 0])], [1, ready]])
 };
 
+COMBAT_MOTIONS.gavel = COMBAT_MOTIONS.katana;
+
 export function beginCombatMotion(entity, abilityId, time) {
   let id = abilityId;
+  if (['kashimoPunch', 'yujiSoulPunch'].includes(id)) id = 'punch';
+  if (['yujiBodyPunch', 'yujiBodyHeavy'].includes(id)) id = 'punch';
+  if (['gavelExtend', 'gavelHeavy'].includes(id)) id = 'gavel';
+  if (id === 'cullingExecution') id = 'katana';
+  if (id === 'appealCourt') id = 'wickerBasket';
+  if (id === 'executionerSword') id = 'katana';
+  if (['amberSound', 'amberRay', 'kashimoDischarge', 'kamutoke'].includes(id)) id = 'red';
+  if (['sentencing', 'higurumaAmplification'].includes(id)) id = 'wickerBasket';
+  if (id === 'worldDismantle') id = 'shrine';
+  if (["yujiPunch", "divergentFist", "yujiBlackFlash", "soulHeavy", "soulRush"].includes(id)) id = "punch";
+  if (["soulTouch", "soulBlade"].includes(id)) id = "cleave";
+  if (["mahitoDomain", "todoSupport"].includes(id)) id = "shrine";
+  if (["bodyJab", "bodyHeavy", "bodyRush"].includes(id)) id = "punch";
+  if (id === "bodyGuard" || id === "amplification") id = "wickerBasket";
+  if (["tojiBlade", "invertedSpear", "chainSpear"].includes(id)) id = abilityId === "tojiBlade" ? "katana" : "cleave";
+  if (id === "blueMax") id = "blue";
+  if (id === "flyheads" || id === "infinity") id = "wickerBasket";
   if (id.endsWith('Heal')) id = 'heal';
   if (id === 'basicAttack' || id === 'mahoragaContact') {
     id = entity.charId === 'yuta' ? 'katana' : entity.charId === 'rika' ? 'rikaStrike'
@@ -54,7 +73,7 @@ const smooth = x => x * x * (3 - 2 * x);
 export function sampleCombatMotion(action, time) {
   const motion = action && COMBAT_MOTIONS[action.id];
   if (!motion) return null;
-  const age = time - action.startedAt;
+  const age = (time - action.startedAt) * (action.playbackSpeed || 1);
   if (age < 0 || age >= motion.duration) return null;
   const t = age / motion.duration;
   let i = 1;

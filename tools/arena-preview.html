@@ -10,18 +10,23 @@ body{margin:0;height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr) a
 <script type="module">
 import { Renderer3D } from '../src/three/Renderer3D.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { loadMahitoDomain, loadCourtroom } from '../src/three/models.js';
+for(const [value,label] of Object.entries({hiddenInventory:'怀玉 · 高专',hiddenInventoryRematch:'怀玉 · 觉醒再战',shibuyaClash:'涩谷 · 共斗',shibuyaFinal:'涩谷 · 最终战',mahito:'真人 · 自闭圆顿裹',cullingTrial:'虎杖对日车 · 剧场',kashimoDuel:'鹿紫云对宿傩 · 新宿',higurumaRaid:'日车共斗 · 新宿',court:'日车 · 诛伏赐死'}))document.querySelector('#stage').add(new Option(label,value));
 const canvas=document.querySelector('#view'), view=new Renderer3D(canvas);
 const controls=new OrbitControls(view.camera,canvas);controls.maxDistance=360;controls.minDistance=3;controls.maxPolarAngle=Math.PI*.49;
 function overview(){view.camera.position.set(100,160,120);controls.target.set(0,6,0);controls.update();}
 function resize(){const rect=canvas.parentElement.getBoundingClientRect();view.resize(rect.width,rect.height);}
 new ResizeObserver(resize).observe(canvas.parentElement);resize();overview();
-let request=0;
-async function select(){const ticket=++request;const stage=document.querySelector('#stage').value;document.querySelector('#status').textContent='正在加载…';await view.setStoryStage(stage==='love'?'yuta':stage);if(ticket!==request)return;
+let request=0, soul=null, court=null;
+async function select(){const ticket=++request;const stage=document.querySelector('#stage').value;document.querySelector('#status').textContent='正在加载…';if(soul)soul.visible=false;if(court)court.visible=false;await view.setStoryStage(stage==='love'?'yuta':stage==='mahito'?'shibuyaClash':stage==='court'?'cullingTrial':stage);if(ticket!==request)return;
 view.storyLoveOpen=stage==='love';
 for(const o of view.storyDomainProps)o.visible=view.storyLoveOpen;
 for(const o of view.storyExteriorProps)o.visible=!view.storyLoveOpen;
 view.collisionBoxes=view.collectStoryCollisionBoxes(view.storyScene,view.storyLoveOpen);
 view.setArenaAtmosphere(view.storyStage==='opening');
+if(stage==='mahito'){if(!soul){const asset=await loadMahitoDomain();if(!asset){document.querySelector('#status').textContent='领域加载失败';return;}soul=asset.clone(true);view.scene.add(soul);}if(ticket!==request)return;soul.visible=true;view.storyScene.visible=false;view.camera.position.set(0,4,9);controls.target.set(0,6,-8);controls.update();}
+if(stage==='court'){if(!court){const asset=await loadCourtroom();if(!asset){document.querySelector('#status').textContent='领域加载失败';return;}court=asset.clone(true);view.scene.add(court);}if(ticket!==request)return;court.visible=true;view.storyScene.visible=false;view.camera.position.set(0,5,12);controls.target.set(0,3.7,-3);controls.update();}
+if(stage==='cullingTrial'){view.camera.position.set(0,5,32);controls.target.set(0,5,-45);controls.update();}
 document.querySelector('#status').textContent=`已加载 · ${view.getWorldCollisionBoxes().length} 处建筑碰撞`;}
 document.querySelector('#stage').addEventListener('change',select);
 document.querySelector('#ground').addEventListener('click',()=>{view.camera.position.set(0,3,25);controls.target.set(0,2,-35);controls.update();});

@@ -1,0 +1,192 @@
+{
+  "environment": "Edge headless / ANGLE SwiftShader; mobile viewport 844x390, DPR 1.3, no shadows, no postprocessing; not device FPS",
+  "errors": [],
+  "costs": [
+    {
+      "name": "mahito-domain",
+      "views": [
+        {
+          "before": {
+            "calls": 6,
+            "triangles": 73680
+          },
+          "after": {
+            "calls": 6,
+            "triangles": 73680
+          },
+          "meanMaxChannelDelta": 0,
+          "changedPixelsAbove3": 0
+        }
+      ],
+      "glError": 0
+    },
+    {
+      "name": "hidden-inventory",
+      "views": [
+        {
+          "before": {
+            "calls": 13,
+            "triangles": 60432
+          },
+          "after": {
+            "calls": 13,
+            "triangles": 60432
+          },
+          "meanMaxChannelDelta": 0,
+          "changedPixelsAbove3": 0
+        },
+        {
+          "before": {
+            "calls": 13,
+            "triangles": 60432
+          },
+          "after": {
+            "calls": 13,
+            "triangles": 60432
+          },
+          "meanMaxChannelDelta": 0,
+          "changedPixelsAbove3": 0
+        },
+        {
+          "before": {
+            "calls": 13,
+            "triangles": 60432
+          },
+          "after": {
+            "calls": 13,
+            "triangles": 60432
+          },
+          "meanMaxChannelDelta": 0,
+          "changedPixelsAbove3": 0
+        }
+      ],
+      "glError": 0
+    },
+    {
+      "name": "hidden-inventory-rematch",
+      "views": [
+        {
+          "before": {
+            "calls": 42,
+            "triangles": 10104
+          },
+          "after": {
+            "calls": 27,
+            "triangles": 10104
+          },
+          "meanMaxChannelDelta": 0.00020496998268543042,
+          "changedPixelsAbove3": 1
+        },
+        {
+          "before": {
+            "calls": 25,
+            "triangles": 9900
+          },
+          "after": {
+            "calls": 18,
+            "triangles": 9900
+          },
+          "meanMaxChannelDelta": 0,
+          "changedPixelsAbove3": 0
+        },
+        {
+          "before": {
+            "calls": 42,
+            "triangles": 10104
+          },
+          "after": {
+            "calls": 27,
+            "triangles": 10104
+          },
+          "meanMaxChannelDelta": 0.00020676796498968856,
+          "changedPixelsAbove3": 1
+        }
+      ],
+      "glError": 0
+    },
+    {
+      "name": "shibuya-clash",
+      "views": [
+        {
+          "before": {
+            "calls": 65,
+            "triangles": 14604
+          },
+          "after": {
+            "calls": 35,
+            "triangles": 14604
+          },
+          "meanMaxChannelDelta": 0,
+          "changedPixelsAbove3": 0
+        },
+        {
+          "before": {
+            "calls": 38,
+            "triangles": 14280
+          },
+          "after": {
+            "calls": 26,
+            "triangles": 14424
+          },
+          "meanMaxChannelDelta": 0.00008450516830013359,
+          "changedPixelsAbove3": 1
+        },
+        {
+          "before": {
+            "calls": 65,
+            "triangles": 14604
+          },
+          "after": {
+            "calls": 35,
+            "triangles": 14604
+          },
+          "meanMaxChannelDelta": 0,
+          "changedPixelsAbove3": 0
+        }
+      ],
+      "glError": 0
+    },
+    {
+      "name": "shibuya-final",
+      "views": [
+        {
+          "before": {
+            "calls": 110,
+            "triangles": 13828
+          },
+          "after": {
+            "calls": 37,
+            "triangles": 13828
+          },
+          "meanMaxChannelDelta": 0.0004710713637156383,
+          "changedPixelsAbove3": 4
+        },
+        {
+          "before": {
+            "calls": 59,
+            "triangles": 13216
+          },
+          "after": {
+            "calls": 26,
+            "triangles": 13516
+          },
+          "meanMaxChannelDelta": 0,
+          "changedPixelsAbove3": 0
+        },
+        {
+          "before": {
+            "calls": 110,
+            "triangles": 13828
+          },
+          "after": {
+            "calls": 37,
+            "triangles": 13828
+          },
+          "meanMaxChannelDelta": 0,
+          "changedPixelsAbove3": 0
+        }
+      ],
+      "glError": 0
+    }
+  ]
+}

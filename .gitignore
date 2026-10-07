@@ -21,6 +21,7 @@ Thumbs.db
 # local test scripts
 *.mjs
 !tools/verify-story.mjs
+!tools/verify-*.mjs
 
 # Python asset tooling cache
 __pycache__/

@@ -2,12 +2,64 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { articulateHands, installCombatAnimation } from "./combatRig.js";
 import { buildArenaDistrict } from "./arenaDistrict.js";
+import { buildHiddenArena, buildHiddenFighter } from "./hiddenInventory.js";
 
+import { buildShibuyaFighter, buildShibuyaArena } from "./shibuya.js";
+import { buildRaidFighter, buildRaidArena, buildCullingTheater } from './shinjukuRaid.js';
+const RAID_MODELS = ['kashimo', 'higuruma', 'yujiRaid', 'sukunaRaid'];
+const SHIBUYA_MODELS = ["yujiShibuya", "mahito", "mahitoFinal", "todoShibuya", "todoInjured"];
 const loader = new GLTFLoader();
 const rawGltfPromises = new Map();
 const storyScenePromises = new Map();
 let domainShrinePromise = null;
 let unlimitedVoidPromise = null;
+let mahitoDomainPromise = null;
+let courtroomPromise = null;
+
+export function loadCourtroom() {
+  if (!courtroomPromise) {
+    const url = `${import.meta.env.BASE_URL}models/deadly-sentencing.glb`;
+    courtroomPromise = loadRawGltf(url).then(({ scene }) => {
+      scene.traverse(o => {
+        if (!o.isMesh) return;
+        o.material.side = THREE.DoubleSide;
+        o.material.fog = false;
+        o.castShadow = false;
+        o.receiveShadow = false;
+        if (o.name.startsWith('domain_shell')) o.material = new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide });
+      });
+      return scene;
+    }).catch(error => {
+      courtroomPromise = null;
+      rawGltfPromises.delete(url);
+      console.warn('Unable to load Deadly Sentencing', error);
+      return null;
+    });
+  }
+  return courtroomPromise;
+}
+
+export function loadMahitoDomain() {
+  if (!mahitoDomainPromise) {
+    const url = `${import.meta.env.BASE_URL}models/mahito-domain.glb`;
+    mahitoDomainPromise = loadRawGltf(url).then(({ scene }) => {
+      scene.traverse(o => {
+        if (!o.isMesh) return;
+        o.material.side = THREE.DoubleSide;
+        o.material.fog = false;
+        o.castShadow = false;
+        o.receiveShadow = false;
+      });
+      return scene;
+    }).catch(error => {
+      mahitoDomainPromise = null;
+      rawGltfPromises.delete(url);
+      console.warn('Unable to load Mahito domain', error);
+      return null;
+    });
+  }
+  return mahitoDomainPromise;
+}
 
 export function loadUnlimitedVoid() {
   if (!unlimitedVoidPromise) {
@@ -35,6 +87,15 @@ export function loadUnlimitedVoid() {
 }
 
 export const FIGHTER_STYLE = {
+  yujiShibuya: { aura: 0xff867e, aura2: 0xdc514e },
+  mahito: { aura: 0xb5a3d8, aura2: 0x776589 },
+  mahitoFinal: { aura: 0xb5a3d8, aura2: 0x776589 },
+  todoShibuya: { aura: 0xe6c780, aura2: 0xbd994d },
+  todoInjured: { aura: 0xe6c780, aura2: 0xbd994d },
+  gojoTeen: { aura: 0x44d9ff, aura2: 0x266fff },
+  gojoAwakened: { aura: 0x44d9ff, aura2: 0x266fff },
+  toji: { aura: 0xb6caac, aura2: 0x6d8368 },
+  tojiRematch: { aura: 0xb6caac, aura2: 0x6d8368 },
   gojo: { aura: 0x44d9ff, aura2: 0x266fff },
   sukuna: { aura: 0xff4e64, aura2: 0x9a1732 },
   mahoraga: { aura: 0xe4c866, aura2: 0x8e7938 },
@@ -306,7 +367,22 @@ function buildCharacter(id) {
   return root;
 }
 
+function normalizedHiddenFighter(id, centered = false) {
+    const model = RAID_MODELS.includes(id) ? buildRaidFighter(id) : SHIBUYA_MODELS.includes(id) ? buildShibuyaFighter(id) : buildHiddenFighter(id);
+    const bounds = new THREE.Box3().setFromObject(model);
+    const scale = 86 / bounds.getSize(new THREE.Vector3()).y;
+    const center = bounds.getCenter(new THREE.Vector3());
+    model.scale.setScalar(scale);
+    model.position.set(-center.x * scale, -bounds.min.y * scale - (centered ? 43 : 0), -center.z * scale);
+    const wrapper = new THREE.Group();
+    wrapper.add(model);
+    wrapper.userData.animate = model.userData.animate;
+    wrapper.userData.assetId = id;
+    return wrapper;
+}
+
 export function buildPlaceholder(id) {
+  if (RAID_MODELS.includes(id) || SHIBUYA_MODELS.includes(id) || ["gojoTeen", "gojoAwakened", "toji", "tojiRematch"].includes(id)) return normalizedHiddenFighter(id, true);
   return buildCharacter(id);
 }
 
@@ -316,7 +392,8 @@ function loadRawGltf(path) {
 }
 
 export async function loadGltf(id) {
-  const base = import.meta.env.BASE_URL;
+  if (RAID_MODELS.includes(id) || SHIBUYA_MODELS.includes(id) || ["gojoTeen", "gojoAwakened", "toji", "tojiRematch"].includes(id)) return normalizedHiddenFighter(id);
+  const base = import.meta.env?.BASE_URL ?? '/';
   const paths = {
     gojo: `${base}models/gojo.glb`,
     sukuna: `${base}models/sukuna.glb`,
@@ -405,6 +482,24 @@ export function loadDomainShrine() {
   return domainShrinePromise;
 }
 export function loadStoryScene(stage) {
+  const latest = { hiddenInventory: 'hidden-inventory', hiddenInventoryRematch: 'hidden-inventory-rematch', shibuyaClash: 'shibuya-clash', shibuyaFinal: 'shibuya-final', cullingTrial: 'culling-theater', kashimoDuel: 'shinjuku-lightning-ruins', higurumaRaid: 'shinjuku-trial-ruins' };
+  if (latest[stage]) {
+    if (!storyScenePromises.has(stage)) {
+      const url = `${import.meta.env.BASE_URL}models/${latest[stage]}.glb`;
+      storyScenePromises.set(stage, loadRawGltf(url).then(({ scene }) => {
+        scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        return scene;
+      }).catch(error => {
+        storyScenePromises.delete(stage);
+        rawGltfPromises.delete(url);
+        console.warn(`Unable to load arena ${stage}; using procedural fallback`, error);
+        if (stage === 'cullingTrial') return buildCullingTheater();
+        if (['kashimoDuel', 'higurumaRaid'].includes(stage)) return buildRaidArena(stage);
+        return stage.startsWith('shibuya') ? buildShibuyaArena(stage) : buildHiddenArena(stage);
+      }));
+    }
+    return storyScenePromises.get(stage);
+  }
   if (!["opening", "yuta", "borrowed"].includes(stage)) return null;
   if (!storyScenePromises.has(stage)) {
     const filename = stage === "opening" ? "shinjuku-opening" : `story_${stage}`;

@@ -257,6 +257,8 @@ body.story-title-active .brand-text strong { max-width: 48vw; overflow: hidden; 
 /* ability tiles */
 .ability-bar { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; gap: 9px; pointer-events: none; }
 .battle-status { position: absolute; top: 126px; left: 50%; transform: translateX(-50%); max-width: min(88vw, 760px); padding: 7px 14px; border: 1px solid rgba(200, 177, 255, .5); border-radius: 12px; background: rgba(8, 10, 22, .82); color: #eee1ff; font-size: 12px; font-weight: 700; text-align: center; pointer-events: none; z-index: 5; }
+.battle-status.borrowed-battle-status { top: auto; bottom: 98px; width: min(88vw, 760px); box-sizing: border-box; }
+body.touch-mode .battle-status.borrowed-battle-status { bottom: 186px; font-size: 11px; }
 .ability-slot {
   position: relative; width: 68px; height: 68px; border-radius: 14px; overflow: hidden;
   background: linear-gradient(160deg, var(--slot-a), var(--slot-b));
@@ -501,6 +503,49 @@ body.dual-touch #btnSwitch { display: none !important; }
   body.dual-touch .vt-btn { width: 46px; height: 40px; }
   body.dual-touch .touch-btn.small { min-width: 46px; height: 34px; }
 }
+
+.illustrated-story-card { overflow: hidden; }
+.story-card-art {
+  display: block; width: 100%; height: 105px; object-fit: cover; object-position: center 35%;
+  border-radius: 9px; margin-bottom: 12px; filter: saturate(.9);
+}
+.story-transition {
+  position: absolute; inset: 0; z-index: 120;
+  display: grid; grid-template-rows: minmax(0, 1fr) auto;
+  background: #060a12; overflow: auto; color: #edf6ff;
+  animation: story-transition-enter .45s ease-out;
+}
+.story-transition-image {
+  width: 100%; height: 100%; min-height: 0; object-fit: contain;
+  display: block; align-self: center;
+}
+.story-transition-caption {
+  width: min(100%, 960px); margin: 0 auto; padding: 20px clamp(18px, 4vw, 40px) 26px;
+  box-sizing: border-box; background: linear-gradient(180deg, #060a12, #0c1725);
+}
+.story-transition-caption .kicker { color: #81c9e2; font-size: 10px; letter-spacing: .2em; }
+.story-transition-caption h2 { font-size: clamp(24px, 4vw, 38px); margin: 8px 0 10px; line-height: 1.2; }
+.story-transition-caption p { max-width: 76ch; margin: 0 0 16px; color: #c4d4e5; line-height: 1.65; font-size: 14px; }
+.story-transition-caption button {
+  min-height: 44px; padding: 10px 22px; background: #9ce3f4; border: 0;
+  border-radius: 8px; color: #062130; font-weight: 750; cursor: pointer;
+}
+.story-transition-caption button:focus-visible { outline: 2px solid white; outline-offset: 4px; }
+.story-transition-hint { display: inline-block; margin: 10px 0 0 14px; font-size: 11px; color: #839bad; }
+@keyframes story-transition-enter { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 560px) {
+  .story-transition-caption { padding: 16px 18px 20px; }
+  .story-transition-caption p { font-size: 13px; }
+  .story-transition-hint { display: block; margin-left: 0; }
+  .story-card-art { height: 80px; }
+}
+@media (max-height: 480px) and (orientation: landscape) {
+  .story-transition { grid-template-columns: minmax(0, 1.2fr) minmax(240px, .8fr); grid-template-rows: 1fr; }
+  .story-transition-caption { align-self: center; padding: 16px; }
+  .story-transition-caption h2 { font-size: 23px; }
+  .story-transition-caption p { font-size: 12px; margin-bottom: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .story-transition { animation: none; } }
 
 /* manga cut-in (Gojo 茈) */
 .cut-in {
@@ -866,7 +911,9 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
   .practice-panel {
     left: auto; right: max(8px, env(safe-area-inset-right)); top: 66px;
     width: 176px; padding: 6px 8px;
+    max-height: calc(100% - 78px); overflow-y: auto; overscroll-behavior: contain;
   }
+  body.touch-mode .practice-panel { max-height: clamp(80px, calc(100% - 210px), 270px); }
   .practice-panel .pp-head { margin-bottom: 5px; padding-bottom: 4px; font-size: 9px; }
   .practice-panel .pp-row { font-size: 9px; margin-bottom: 4px; gap: 5px; }
   .practice-panel .pp-hint { display: none; }
@@ -888,7 +935,11 @@ body.dual-hud.touch-mode .split-panel { bottom: 150px; }
   .look-hint { display: none; }
   .hint { display: none; }
   /* practice panel stacks under the operator card */
-  .practice-panel { left: auto; right: 8px; top: 248px; width: 200px; padding: 8px 10px; }
+  .practice-panel {
+    left: auto; right: 8px; top: 248px; width: 200px; padding: 8px 10px;
+    max-height: clamp(80px, calc(100% - 380px), 220px);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
   /* dual: panels go under the versus header, tiles wrap instead of overflowing.
      must out-specify `body.dual-hud.touch-mode .split-panel { bottom: … }` */
   body.dual-hud.touch-mode .split-panel { top: 90px; bottom: auto; width: calc(50% - 12px); gap: 4px; }
@@ -1144,3 +1195,40 @@ body.theme-yuta {
   .home-start, .mode-card, .story-play-mode, .text-button { transition: none; }
   .home-start:hover, .mode-card:hover { transform: none; }
 }
+
+/* Independent free-combat selections. */
+.free-roster { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 16px; margin-top: 24px; }
+.free-roster label { display: block; margin-bottom: 8px; font-size: 14px; color: var(--text); }
+.free-roster select { width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: #101a2a; color: var(--text); font: inherit; }
+.free-roster select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.free-versus { align-self: center; margin-top: 26px; color: var(--accent); font-weight: 700; }
+.free-matchup { color: var(--text) !important; margin: 16px 0 !important; }
+@media (max-width: 560px) { .free-roster { grid-template-columns: 1fr; gap: 12px; } .free-versus { display: none; } }
+
+/* Shibuya fighters keep their own colors in the shared HUD. */
+.char-yuji, .char-mahito, .char-todo { color: var(--char-color); }
+.bar-fill.char-yuji, .bar-fill.char-mahito { background: var(--char-color); box-shadow: 0 0 12px -2px var(--char-color); }
+.duel-line.char-yuji, .duel-line.char-mahito, .duel-line.char-todo { border-color: var(--char-color); }
+.duel-line.char-yuji .dl-sigil, .duel-line.char-mahito .dl-sigil, .duel-line.char-todo .dl-sigil { color: var(--char-color); background: #201d2c; }
+.shibuya-story-card { background: linear-gradient(145deg, #302030, #141324); border-color: #77566e; }
+body.story-title-active .brand { flex: 1; min-width: 0; overflow: hidden; }
+body.story-title-active .brand-text { min-width: 0; }
+body.story-title-active .brand-text strong,
+body.story-title-active .brand-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.story-title-active .topbar-actions { flex-shrink: 0; }
+@media (max-width: 600px) {
+  body.story-title-active #bgmBtn { min-width: 0; max-width: 85px; overflow: hidden; text-overflow: ellipsis; }
+  body.story-title-active #soundBtn { min-width: 44px; padding: 0 7px; }
+}
+/* Nonviolent hearings remain usable with mouse, keyboard focus, and touch. */
+.court-hearing{position:absolute;z-index:24;left:50%;top:32%;transform:translateX(-50%);width:min(480px,calc(100% - 32px));padding:16px 20px;color:#eee5d7;background:rgba(13,12,11,.94);border:1px solid #b69254;border-radius:10px;text-align:center;pointer-events:auto;box-sizing:border-box}
+.court-hearing p{font-size:13px;line-height:1.6;margin:10px 0}
+.court-hearing>div{display:flex;justify-content:center;gap:12px}
+.court-hearing button{min-height:44px;min-width:76px;padding:8px 16px;background:#332b20;color:#f4ddb5;border:1px solid #c29b58;border-radius:6px;cursor:pointer}
+.court-hearing button:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.battle-hint{position:absolute;top:22%;left:50%;transform:translateX(-50%);max-width:85%;padding:7px 12px;background:rgba(12,18,26,.85);color:#ffe8ab;border:1px solid #bca66e;border-radius:6px;font-size:13px;pointer-events:none;text-align:center;z-index:12}
+.attack-feedback{position:absolute;left:50%;top:36%;transform:translateX(-50%);z-index:13;pointer-events:none;display:flex;gap:16px;font-size:15px;font-weight:700;text-align:center;text-shadow:0 2px 5px #000;background:rgba(9,15,22,.7);padding:6px 12px;border-radius:5px;white-space:pre-line}
+@media(max-height:480px){.attack-feedback{top:35%;font-size:12px;padding:4px 9px}}
+.pp-training{display:flex;gap:6px;flex-wrap:wrap;padding:8px 0}.pp-training small{display:block;width:100%;font-size:11px;opacity:.7}.pp-training button{padding:5px 7px;border:1px solid #768392;border-radius:4px;background:#253245;color:#eee;font:inherit}
+.result-stats{white-space:pre-line;font-size:13px;line-height:1.8;color:#c8d5e7}.challenge-choice{display:block;margin:14px 0;font-size:14px}.challenge-choice select{padding:7px;background:#243043;color:#eee;border:1px solid #77879a;border-radius:4px}
+@media(max-height:480px){.battle-hint{top:19%;font-size:11px;padding:4px 8px}.pp-training{padding:3px 0}.pp-training small{display:none}}
