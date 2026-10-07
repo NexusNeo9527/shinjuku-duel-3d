@@ -171,7 +171,6 @@ const ui = new UI3D(game, {
   onRestart: () => startGame(game.mode, game.difficulty),
   onPracticeChar: (c) => {
     game.setPracticeChar(c);
-    if (game.modeFamily === "free") game.freePlayerChar = game.practiceChar;
     applyTheme(game.practiceChar);
     startGame("practice", "normal");
   },

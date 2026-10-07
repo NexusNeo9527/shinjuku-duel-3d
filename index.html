@@ -182,15 +182,9 @@
           <span>练习终端</span><span class="pp-chevron" aria-hidden="true">−</span>
         </button>
         <div id="practicePanelContent" class="pp-content">
-        <div class="pp-row pp-character-row"><span>角色</span>
-          <div class="pp-btns">
-            <button data-pchar="gojo" type="button">五条悟</button>
-            <button data-pchar="sukuna" type="button">宿傩</button>
-            <button data-pchar="yuta" type="button">乙骨忧太</button>
-            <button data-pchar="sukunaStory1" type="button">四手宿傩</button>
-            <button data-pchar="yutaGojo" type="button">乙骨·五条之身</button>
-            <button data-pchar="sukunaStory2" type="button">完全体宿傩</button>
-          </div>
+        <div class="pp-row pp-character-row">
+          <label for="practiceCharacter">角色 · 各时期</label>
+          <select id="practiceCharacter" aria-label="练习角色"></select>
         </div>
         <div class="pp-row"><span>无限术式</span><button data-ptoggle="infinite" class="pp-toggle" type="button">开</button></div>
         <div class="pp-row"><span>无敌</span><button data-ptoggle="invincible" class="pp-toggle" type="button">开</button></div>
@@ -221,7 +215,7 @@
               <button id="openSettingsBtn" class="text-button" type="button">设置</button>
             </div>
           </div>
-          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.9</div>
+          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.10</div>
         </div>
       </div>
 

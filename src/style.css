@@ -334,8 +334,8 @@ body.touch-mode .battle-status.borrowed-battle-status { bottom: 186px; font-size
 .pp-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; gap: 8px; }
 .pp-btns { display: flex; gap: 5px; }
 .pp-character-row { align-items: flex-start; flex-direction: column; gap: 5px; }
-.pp-character-row .pp-btns { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.pp-character-row button { width: 100%; padding: 4px 5px; white-space: nowrap; }
+.pp-character-row select { width: 100%; min-width: 0; padding: 6px 4px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--chip); color: var(--text); font: inherit; }
+.pp-character-row select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .practice-panel button { border-radius: 7px; border: 1px solid var(--line-strong); background: var(--chip); color: var(--text); font-size: 11px; padding: 4px 9px; cursor: pointer; }
 .practice-panel button.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 10px -3px var(--accent); }
 .practice-panel .pp-toggle { min-width: 44px; }

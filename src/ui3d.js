@@ -2,7 +2,7 @@ import { shibuyaAbilityLocked } from "./shibuyaBattle.js";
 import { raidAbilityLocked, respondToCourt } from './shinjukuRaid.js';
 import { RESPONSE_LABELS } from './judgeman.js';
 import { fighterSigil } from "./shibuyaConfig.js";
-import { CHARACTERS, FREE_BATTLE_CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, SIMPLE_DOMAIN } from "./config3d.js";
+import { CHARACTERS, FREE_BATTLE_CHARACTERS, PRACTICE_CHARACTERS, practiceCharacterLabel, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, SIMPLE_DOMAIN } from "./config3d.js";
 import { STORY_DIALOGUE, STORY_VICTORY_LINES } from "./storyDialogue.js";
 import { HIDDEN_INVENTORY_ART } from "./hiddenInventoryArt.js";
 import { battleHint } from './battleQuality.js';
@@ -161,7 +161,7 @@ export class UI3D {
       practicePanel: document.querySelector("#practicePanel"),
       practicePanelToggle: document.querySelector("#practicePanelToggle"),
       splitUI: document.querySelector("#splitUI"),
-      practiceChars: [...document.querySelectorAll("[data-pchar]")],
+      practiceCharacter: document.querySelector("#practiceCharacter"),
       singleCharBtns: [...document.querySelectorAll("[data-single-char]")],
       practiceToggles: [...document.querySelectorAll("[data-ptoggle]")],
       themeChips: [...document.querySelectorAll("[data-theme]")],
@@ -175,6 +175,12 @@ export class UI3D {
         select.appendChild(option);
       });
       select.addEventListener("change", () => handlers.onFreeCharacter(side, select.value));
+    }
+    for (const id of PRACTICE_CHARACTERS) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = practiceCharacterLabel(id);
+      this.dom.practiceCharacter.appendChild(option);
     }
     this.courtPanel = document.createElement('section');
     this.courtPanel.className = 'court-hearing hidden';
@@ -230,7 +236,7 @@ export class UI3D {
     this.dom.restartBtn.addEventListener("click", () => h.onRestart());
     this.dom.pauseHomeBtn.addEventListener("click", () => h.onHome());
     this.dom.soundBtn.addEventListener("click", () => h.onSound(this.dom.soundBtn));
-    this.dom.practiceChars.forEach((b) => b.addEventListener("click", () => h.onPracticeChar(b.dataset.pchar)));
+    this.dom.practiceCharacter.addEventListener("change", () => h.onPracticeChar(this.dom.practiceCharacter.value));
     for (const button of document.querySelectorAll('[data-training]')) button.addEventListener('click',()=>h.onTraining(button.dataset.training));
     this.dom.practicePanelToggle.addEventListener("click", () => {
       const collapsed = this.dom.practicePanel.classList.toggle("collapsed");
@@ -803,9 +809,7 @@ export class UI3D {
   }
 
   updatePracticePanel(game) {
-    for (const b of this.dom.practiceChars) {
-      b.classList.toggle("active", b.dataset.pchar === game.practiceChar);
-    }
+    this.dom.practiceCharacter.value = game.practiceChar;
     for (const b of this.dom.practiceToggles) {
       const key = b.dataset.ptoggle;
       const on = practiceFlag(game, key);

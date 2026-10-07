@@ -298,6 +298,11 @@ CHARACTERS.yutaGojoFree = {
   abilities: CHARACTERS.yutaGojo.abilities.map((ability) => ({ ...ability }))
 };
 export const FREE_BATTLE_CHARACTERS = ["gojo", "sukuna", "yuta", "yutaGojoFree", "gojoTeen", "gojoAwakened", "toji", "tojiRematch", "yujiShibuya", "mahito", "mahitoFinal", "higuruma", "higurumaCulling", "todoShibuya", "todoInjured", "yujiCulling", "yujiRaid", "kashimo", "sukunaRaid"];
+export const PRACTICE_CHARACTERS = [...FREE_BATTLE_CHARACTERS, "sukunaStory1", "yutaGojo", "sukunaStory2"];
+export const practiceCharacterLabel = (id) => ({ sukunaStory1: "四手宿傩 · 乙骨战", sukunaStory2: "完全体宿傩 · 领域交锋" }[id] || CHARACTERS[id].name) + ({
+  toji: " · 蝇头", tojiRematch: " · 万里锁",
+  yutaGojoFree: " · 自由战斗", yutaGojo: " · 领域交锋"
+}[id] || "");
 
 // Chapters 262–263: amplification and body blows contest a channeled Purple.
 // Timing, stamina and arena dimensions below are gameplay adaptations.

@@ -1,4 +1,4 @@
-import { CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, YUTA_STORY_DIFFICULTY_OVERRIDES, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, PLAYER_HP_SETTINGS, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
+import { CHARACTERS, PRACTICE_CHARACTERS, STORY_STAGES, COPY_TECHNIQUES, DIFFICULTY, YUTA_STORY_DIFFICULTY_OVERRIDES, ARENA, FLIGHT, SPRINT, BLACK_FLASH, GOJO_REGEN_PER_SECOND, PLAYER_HP_SETTINGS, SUKUNA_VS_GOJO_AI_HANDICAP, clamp, lerp, rand, TAU } from "./config3d.js";
 import { STORY_DIALOGUE } from "./storyDialogue.js";
 import { HIDDEN_INVENTORY_ART } from "./hiddenInventoryArt.js";
 import { beginCombatMotion, COMBAT_MOTIONS } from "./combatMotion.js";
@@ -13,7 +13,7 @@ import { sphereContactTime, projectileStart, projectileClashTime } from './comba
 const ENTITY_RADIUS = 0.7;
 const ENTITY_HEIGHT = 2;
 const CHEST = 1.0;
-const PRACTICE_CHAR_IDS = new Set(Object.keys(CHARACTERS));
+const PRACTICE_CHAR_IDS = new Set(PRACTICE_CHARACTERS);
 const PRACTICE_DUMMIES = {
   gojo: "sukuna",
   sukuna: "gojo",
