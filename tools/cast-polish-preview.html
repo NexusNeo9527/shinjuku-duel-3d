@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>其他角色 · 连续蒙皮精修对照</title>
+<style>body{margin:0;background:#202936;color:#e8edf4;font:14px system-ui}header{padding:12px;display:flex;gap:10px;align-items:center}select,button{padding:9px;background:#344255;color:inherit;border:1px solid #71809a;border-radius:6px}b{margin-right:auto}#view{height:calc(100vh - 114px)}footer{padding:10px}#labels{position:absolute;top:74px;left:0;width:100%;display:flex;justify-content:space-around;pointer-events:none}</style>
+<header><b>其他角色 · 精修对照</b><select id="character" aria-label="角色"></select><select id="motion" aria-label="动作"><option value="idle">站立</option><option value="walk">行走</option><option value="guard">防御</option><option value="attack">攻击</option></select><select id="angle" aria-label="视角"><option value="0">正面</option><option value="0.65">三分之四</option><option value="1.57">侧面</option></select><button id="detail">脸部特写</button></header>
+<div id="labels"><span>原模型</span><span>本轮 · 连续蒙皮</span></div><div id="view"></div><footer id="status">加载中</footer>
+<script type="module">
+import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {loadGltf,RECENT_MODEL_IDS} from '/src/three/models.js';import {applyCharacterCelStyle} from '/src/three/celCharacters.js';
+const labels={gojoTeen:'少年五条',gojoAwakened:'觉醒五条',yujiShibuya:'涩谷虎杖',yujiCulling:'回游虎杖',yujiRaid:'新宿虎杖',mahito:'真人',mahitoFinal:'遍杀即灵体',todoShibuya:'东堂',todoInjured:'断腕东堂',higuruma:'新宿日车',higurumaCulling:'回游日车',kashimo:'鹿紫云',sukunaRaid:'四臂宿傩'};
+const select=document.querySelector('#character'),motion=document.querySelector('#motion'),angle=document.querySelector('#angle');
+for(const id of RECENT_MODEL_IDS.filter(id=>!id.startsWith('toji'))){const o=document.createElement('option');o.value=id;o.textContent=labels[id];select.append(o)}
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));document.querySelector('#view').append(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color('#25303d');scene.add(new THREE.HemisphereLight(0xffffff,0x556677,2));const key=new THREE.DirectionalLight(0xffffff,2);key.position.set(-80,120,150);scene.add(key);
+const camera=new THREE.PerspectiveCamera(32,1,.1,1000),loader=new GLTFLoader();let before,after,close=false;
+function view(){camera.position.set(0,close?76:47,close?97:235);camera.lookAt(0,close?76:43,0);if(before)before.rotation.y=Number(angle.value);if(after)after.rotation.y=Number(angle.value)}
+function resize(){const box=document.querySelector('#view');renderer.setSize(box.clientWidth,box.clientHeight);camera.aspect=box.clientWidth/box.clientHeight;camera.updateProjectionMatrix()}resize();window.onresize=resize;
+let loadGeneration=0;
+async function show(){const generation=++loadGeneration;document.querySelector('#status').textContent='加载中';if(before)scene.remove(before);if(after)scene.remove(after);
+ const id=select.value;const candidate=await loadGltf(id);const raw=(await loader.loadAsync('/art/cast-polish/before/'+id+'.glb')).scene;
+ if(generation!==loadGeneration)return;after=candidate;
+ const box=new THREE.Box3().setFromObject(raw),center=box.getCenter(new THREE.Vector3()),s=86/box.getSize(new THREE.Vector3()).y;raw.scale.setScalar(s);raw.position.set(-center.x*s,-box.min.y*s,-center.z*s);raw.traverse(o=>{if(o.userData.runtime_hidden)o.visible=false});applyCharacterCelStyle(raw);
+ before=new THREE.Group();before.add(raw);before.position.x=-22;after.position.x=22;scene.add(before,after);view();
+ requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelector('#status').textContent=id+' · ready'));
+}
+select.onchange=show;angle.onchange=view;document.querySelector('#detail').onclick=()=>{close=!close;document.querySelector('#detail').textContent=close?'全身对照':'脸部特写';view()};
+function frame(ms){requestAnimationFrame(frame);if(after){const t=ms/1000;after.userData.animate(t,motion.value==='walk'?1:0,motion.value==='attack'?{id:'punch',startedAt:t-t%1,duration:1}:null,motion.value==='guard')}renderer.render(scene,camera)}requestAnimationFrame(frame);await show();
+</script></html>

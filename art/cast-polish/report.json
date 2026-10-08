@@ -1,0 +1,54 @@
+{
+  "gojoTeen": {
+    "bones": 11,
+    "bytes": 996580
+  },
+  "gojoAwakened": {
+    "bones": 11,
+    "bytes": 947304
+  },
+  "yujiShibuya": {
+    "bones": 11,
+    "bytes": 1020828
+  },
+  "mahito": {
+    "bones": 11,
+    "bytes": 958448
+  },
+  "mahitoFinal": {
+    "bones": 11,
+    "bytes": 617468
+  },
+  "todoShibuya": {
+    "bones": 11,
+    "bytes": 1131592
+  },
+  "todoInjured": {
+    "bones": 11,
+    "bytes": 1126472
+  },
+  "kashimo": {
+    "bones": 11,
+    "bytes": 961124
+  },
+  "higuruma": {
+    "bones": 11,
+    "bytes": 892660
+  },
+  "yujiRaid": {
+    "bones": 11,
+    "bytes": 1059508
+  },
+  "sukunaRaid": {
+    "bones": 15,
+    "bytes": 1905124
+  },
+  "yujiCulling": {
+    "bones": 11,
+    "bytes": 1020848
+  },
+  "higurumaCulling": {
+    "bones": 11,
+    "bytes": 939956
+  }
+}

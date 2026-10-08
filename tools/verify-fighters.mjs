@@ -68,6 +68,36 @@ for (const id of RECENT_MODEL_IDS) {
   let source;
   model.traverse(o => { if (o.userData.character_id === id) source = o; });
   assert(source, `${id} must use its exported Blender source`);
+  if (source.userData.anatomical_rig) {
+    for (const jointName of ['foreL', 'shinL']) {
+      const joint = model.getObjectByName(jointName);
+      assert(joint?.isBone, `${id} ${jointName} is a deform bone`);
+      const samples = [];
+      model.traverse(mesh => {
+        if (!mesh.isSkinnedMesh || mesh.userData.isCharacterOutline) return;
+        const boneIndex = mesh.skeleton.bones.indexOf(joint);
+        const indices = mesh.geometry.attributes.skinIndex, weights = mesh.geometry.attributes.skinWeight;
+        for (let v = 0; v < indices.count; v++) {
+          for (let j = 0; j < 4; j++) {
+            const w = weights.getComponent(v,j);
+            if (indices.getComponent(v,j) === boneIndex && w > .15 && w < .85) samples.push({mesh, v});
+          }
+        }
+      });
+      assert(samples.length, `${id} ${jointName} has blended seam vertices`);
+      wrapper.updateMatrixWorld(true);
+      for (const sample of samples) {
+        sample.mesh.skeleton.update();
+        sample.initial = sample.mesh.getVertexPosition(sample.v, new Vector3()).clone();
+      }
+      const rotation = joint.quaternion.clone();joint.rotateX(.75);wrapper.updateMatrixWorld(true);
+      for (const sample of samples) sample.mesh.skeleton.update();
+      assert(samples.some(sample => sample.mesh.getVertexPosition(sample.v,new Vector3()).distanceTo(sample.initial) > .001),
+        `${id} ${jointName} bends the continuous surface`);
+      joint.quaternion.copy(rotation);wrapper.updateMatrixWorld(true);
+      for (const sample of samples) sample.mesh.skeleton.update();
+    }
+  }
   const box = new Box3().setFromObject(model);
   assert(Math.abs(box.min.y) < .001, `${id} must be grounded`);
   assert(Math.abs(box.getSize(new Vector3()).y - 86) < .001, `${id} normalized height`);
