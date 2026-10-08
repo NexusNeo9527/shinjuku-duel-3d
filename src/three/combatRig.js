@@ -109,6 +109,23 @@ export function articulateHands(model, charId, parts) {
   return hands;
 }
 
+export function skinnedHandControls(root, parts) {
+  const hands = {}, axis = new THREE.Vector3(1, 0, 0), curlRotation = new THREE.Quaternion();
+  for (const side of ['L', 'R']) {
+    const fingers = Object.entries(parts).filter(([name]) =>
+      new RegExp(`^finger[1-5]-[1-3][._]?${side}$`).test(name));
+    hands[side] = (type = side === 'R' ? 'fist' : 'relaxed', weight = 1) => {
+      const curl = type === 'open' ? 0 : type === 'relaxed' ? .12 : type === 'seal' ? .25 : .86;
+      for (const [name, part] of fingers) {
+        const thumb = name.startsWith('finger1-');
+        curlRotation.setFromAxisAngle(axis, -(thumb ? .55 : 1.2) * curl * weight);
+        part.node.quaternion.copy(part.rest).multiply(curlRotation);
+      }
+    };
+  }
+  return hands;
+}
+
 export function installCombatAnimation(root, parts, hands = {}) {
   const locomotion = root.userData.animate;
   const rotation = new THREE.Euler();

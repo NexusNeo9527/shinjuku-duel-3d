@@ -42,6 +42,30 @@ assert.equal(student.team, "gojo");
 assert.equal(assassin.team, "sukuna");
 assert.deepEqual(CHARACTERS.gojoTeen.abilities.map(a => a.id), ["blue", "blueMax", "infinity", "fallingBlossom"]);
 assert.equal(first.canUseSimpleDomain(student), false);
+// The production loader now uses Blender GLBs. Supply local asset transport in Node.
+const assetRequest = globalThis.Request;
+const assetFetch = globalThis.fetch;
+const assetDocument = globalThis.document;
+globalThis.ProgressEvent ??= class { constructor(type, values) { Object.assign(this, { type }, values); } };
+globalThis.Request = class extends assetRequest {
+  constructor(url, options) { super(new URL(url, 'http://local.test'), options); }
+};
+globalThis.self ??= globalThis;
+globalThis.fetch = async request => {
+  const url = typeof request === 'string' ? request : request.url;
+  if (/^(blob:|data:)/.test(url)) return assetFetch(request);
+  return new Response(readFileSync(new URL('../public' + new URL(url).pathname, import.meta.url)));
+};
+// Decode dimensions for loader checks; the browser validates actual texture pixels.
+globalThis.createImageBitmap = async blob => {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  assert.equal(bytes[0], 137);
+  const header = new DataView(bytes.buffer);
+  return { width: header.getUint32(16), height: header.getUint32(20), close() {} };
+};
+globalThis.document = { createElement: () => ({ getContext: () => ({
+  createRadialGradient: () => ({ addColorStop() {} }), fillRect() {},
+}) }) };
 for (const id of ["gojoTeen", "gojoAwakened", "toji", "tojiRematch"]) {
   assert.equal(CHARACTERS[id].abilities.some(a => a.needsDomain || a.id === "mahoraga"), false);
 }
@@ -145,6 +169,9 @@ for (const id of ["gojoTeen", "gojoAwakened", "toji", "tojiRematch"]) {
   const bounds = new THREE.Box3().setFromObject(model);
   assert.ok(bounds.getSize(new THREE.Vector3()).y > 70);
 }
+globalThis.Request = assetRequest;
+globalThis.fetch = assetFetch;
+globalThis.document = assetDocument;
 for (const stage of ["hiddenInventory", "hiddenInventoryRematch"]) {
   const arena = buildHiddenArena(stage);
   let colliders = 0;

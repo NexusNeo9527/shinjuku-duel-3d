@@ -1,13 +1,17 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { articulateHands, installCombatAnimation } from "./combatRig.js";
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
+import { articulateHands, installCombatAnimation, skinnedHandControls } from "./combatRig.js";
 import { buildArenaDistrict } from "./arenaDistrict.js";
+import { applyCharacterCelStyle } from './celCharacters.js';
 import { buildHiddenArena, buildHiddenFighter } from "./hiddenInventory.js";
 
 import { buildShibuyaFighter, buildShibuyaArena } from "./shibuya.js";
 import { buildRaidFighter, buildRaidArena, buildCullingTheater } from './shinjukuRaid.js';
 const RAID_MODELS = ['kashimo', 'higuruma', 'yujiRaid', 'sukunaRaid'];
 const SHIBUYA_MODELS = ["yujiShibuya", "mahito", "mahitoFinal", "todoShibuya", "todoInjured"];
+export const RECENT_MODEL_IDS = [...RAID_MODELS, ...SHIBUYA_MODELS,
+  'gojoTeen', 'gojoAwakened', 'toji', 'tojiRematch', 'yujiCulling', 'higurumaCulling'];
 const loader = new GLTFLoader();
 const rawGltfPromises = new Map();
 const storyScenePromises = new Map();
@@ -87,6 +91,12 @@ export function loadUnlimitedVoid() {
 }
 
 export const FIGHTER_STYLE = {
+  kashimo: { aura: 0x91eeee, aura2: 0x378185 },
+  higuruma: { aura: 0xe0c58d, aura2: 0x76624c },
+  higurumaCulling: { aura: 0xe0c58d, aura2: 0x76624c },
+  yujiRaid: { aura: 0xff867e, aura2: 0xdc514e },
+  yujiCulling: { aura: 0xff867e, aura2: 0xdc514e },
+  sukunaRaid: { aura: 0xff4e64, aura2: 0x9a1732 },
   yujiShibuya: { aura: 0xff867e, aura2: 0xdc514e },
   mahito: { aura: 0xb5a3d8, aura2: 0x776589 },
   mahitoFinal: { aura: 0xb5a3d8, aura2: 0x776589 },
@@ -403,7 +413,7 @@ export function buildPlaceholder(id) {
     root.userData.animate = (_dt, time) => { tail.rotation.z = Math.sin(time * 3) * .25; };
     return root;
   }
-  if (RAID_MODELS.includes(id) || SHIBUYA_MODELS.includes(id) || ["gojoTeen", "gojoAwakened", "toji", "tojiRematch"].includes(id)) return normalizedHiddenFighter(id, true);
+  if (RECENT_MODEL_IDS.includes(id)) return normalizedHiddenFighter(id === 'yujiCulling' ? 'yujiShibuya' : id === 'higurumaCulling' ? 'higuruma' : id, true);
   return buildCharacter(id);
 }
 
@@ -414,9 +424,9 @@ function loadRawGltf(path) {
 
 export async function loadGltf(id) {
   if (id === 'agito') return null;
-  if (RAID_MODELS.includes(id) || SHIBUYA_MODELS.includes(id) || ["gojoTeen", "gojoAwakened", "toji", "tojiRematch"].includes(id)) return normalizedHiddenFighter(id);
   const base = import.meta.env?.BASE_URL ?? '/';
   const paths = {
+    ...Object.fromEntries(RECENT_MODEL_IDS.map(id => [id, `${base}models/${id}.glb`])),
     gojo: `${base}models/gojo.glb`,
     sukuna: `${base}models/sukuna.glb`,
     mahoraga: `${base}models/mahoraga.glb`,
@@ -428,14 +438,22 @@ export async function loadGltf(id) {
   };
   try {
     const gltf = await loadRawGltf(paths[id]);
-    const model = gltf.scene.clone(true);
+    const model = cloneSkeleton(gltf.scene);
+    model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const scale = 86 / (size.y || 1);
     model.scale.setScalar(scale);
     const center = box.getCenter(new THREE.Vector3());
     model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
-    model.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    model.traverse((o) => {
+      if (o.isMesh) o.castShadow = true;
+      // Blender suffixes names shared across the editable lineup. Equipment and
+      // articulated nodes must retain the names addressed by the renderer.
+      if (RECENT_MODEL_IDS.includes(id) && !o.isMesh && !o.isBone) o.name = o.name.replace(/[_\.]?\d+$/, '');
+      if (o.isSkinnedMesh) o.frustumCulled = false;
+      if (o.userData.runtime_hidden) o.visible = false;
+    });
     const wrapper = new THREE.Group();
     wrapper.add(model);
     const aura = auraFor(FIGHTER_STYLE[id], 1);
@@ -446,7 +464,8 @@ export async function loadGltf(id) {
     const parts = {};
     model.traverse((o) => {
       const name = o.name.replace(/[_\.]?\d+$/, "");
-      if (/^(hips|torso|head|arm[LR]|fore[LR]|armLower[LR]|foreLower[LR]|leg[LR]|shin[LR]|wheel)$/.test(name)) {
+      if (/^(hips|torso|head|arm[LR]|fore[LR]|armLower[LR]|foreLower[LR]|leg[LR]|shin[LR]|wheel)$/.test(name) ||
+          (o.isBone && /^finger[1-5]-[1-3][._]?[LR]$/.test(o.name))) {
         parts[name] = { node: o, rest: o.quaternion.clone() };
       }
     });
@@ -474,11 +493,29 @@ export async function loadGltf(id) {
       rotate('wheel', t * 1.2, zAxis);
     };
     wrapper.userData.assetId = id;
-    const hands = articulateHands(model, id, parts);
+    // Keep the period-specific hands, stump dressing and forearm armor intact.
+    const hands = parts.armR?.node.isBone ? skinnedHandControls(model, parts)
+      : RECENT_MODEL_IDS.includes(id) ? {} : articulateHands(model, id, parts);
+    if (RECENT_MODEL_IDS.includes(id)) applyCharacterCelStyle(model);
     installCombatAnimation(wrapper, parts, hands);
+    if (id.startsWith('toji')) {
+      const animate = wrapper.userData.animate;
+      const spear = model.getObjectByName('inverted_spear_of_heaven');
+      const knife = model.getObjectByName('toji_knife');
+      const chain = model.getObjectByName('thousand_mile_chain');
+      wrapper.userData.animate = (...args) => {
+        animate(...args);
+        const useKnife = args[2]?.id === 'katana';
+        if (spear) spear.visible = !useKnife;
+        if (knife) knife.visible = useKnife;
+        if (chain) chain.visible = id === 'tojiRematch' && !useKnife;
+      };
+    }
+    wrapper.updateMatrixWorld(true);
     return wrapper;
   } catch (error) {
     console.warn(`Unable to load fighter model: ${id}`, error);
+    rawGltfPromises.delete(paths[id]);
     return null;
   }
 }

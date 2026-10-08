@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene, loadDomainShrine, loadUnlimitedVoid, loadMahitoDomain, loadCourtroom } from "./models.js";
+import { cloneCharacterMaterial } from './celCharacters.js';
+import { buildPlaceholder, getGlowTexture, loadGltf, loadStoryScene, loadDomainShrine, loadUnlimitedVoid, loadMahitoDomain, loadCourtroom, RECENT_MODEL_IDS } from "./models.js";
 import { buildCourtroom } from './shinjukuRaid.js';
 import { decideVerdict } from '../judgeman.js';
 import { Post } from "./Post.js";
@@ -212,7 +213,7 @@ export class Renderer3D {
       { label: "真人 · 自闭圆顿裹", load: () => this.mahitoDomainAsset },
       { label: "日车 · 诛伏赐死", load: () => this.courtroomAsset },
       ...['hiddenInventory', 'hiddenInventoryRematch', 'shibuyaClash', 'shibuyaFinal', 'cullingTrial', 'kashimoDuel', 'higurumaRaid'].map(stage => ({ label: `战场 · ${stage}`, stage, load: () => loadStoryScene(stage) })),
-      ...['kashimo', 'higuruma', 'yujiRaid', 'sukunaRaid'].map(id => ({ label: `角色 · ${id}`, load: () => loadGltf(id) })),
+      ...RECENT_MODEL_IDS.map(id => ({ label: `角色 · ${id}`, load: () => loadGltf(id) })),
       ...mediaTasks
     ];
     const failed = [];
@@ -728,7 +729,7 @@ export class Renderer3D {
       // damage flash so hitting one side does not flash both models.
       model.traverse((object) => {
         if (object.isMesh && object.material) object.material = Array.isArray(object.material)
-          ? object.material.map((material) => material.clone()) : object.material.clone();
+          ? object.material.map(cloneCharacterMaterial) : cloneCharacterMaterial(object.material);
       });
       entry.inner.clear();
       const stature = key === "mahoraga" ? 1.45 : key === "rika" ? 1.55
@@ -776,6 +777,8 @@ export class Renderer3D {
       entry.group.visible = true;
       const kamutoke = entry.model.getObjectByName('kamutoke_weapon');
       if (kamutoke) kamutoke.visible = Boolean(e.kamutoke);
+      const amber = entry.model.getObjectByName('amber_transformation');
+      if (amber) amber.visible = Boolean(e.amberActivated);
       const sword = entry.model.getObjectByName('executioner_weapon');
       const gavel = entry.model.getObjectByName('gavel_weapon');
       const gavelSwing = e.combatAction?.id === 'gavel' && game.elapsed - e.combatAction.startedAt < .7;

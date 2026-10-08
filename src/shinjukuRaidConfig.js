@@ -41,8 +41,8 @@ export const RAID_CHARACTERS = {
     move('bodyGuard', '四臂体术 · 防守', 'guard', { physical: true, cooldown: 7, color: '#ff7583' })
   ])
 };
-RAID_CHARACTERS.yujiCulling.assetId = 'yujiRaid';
-RAID_CHARACTERS.higurumaCulling.assetId = 'higuruma';
+RAID_CHARACTERS.yujiCulling.assetId = 'yujiCulling';
+RAID_CHARACTERS.higurumaCulling.assetId = 'higurumaCulling';
 export const RAID_STAGES = {
   cullingTrial: { label: '死灭回游 · 虎杖对日车', ally: 'yujiCulling', enemy: 'higurumaCulling', canon: true, raid: true, culling: true, allyOnly: true,
     intro: '东京第一结界的剧场内，虎杖请日车使用100分添加规则。交涉失败，日车展开诛伏赐死；第一审没收虎杖的咒力，虎杖依靠肉体迎战法槌。',
