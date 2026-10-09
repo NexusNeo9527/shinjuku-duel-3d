@@ -1309,3 +1309,8 @@ body.story-title-active .topbar-actions { flex-shrink: 0; }
 body.touch-mode.touch-layout-editing .touch-right { gap: 4px; }
 body.touch-mode.touch-layout-editing .touch-slot { gap: 4px; }
 body.touch-mode.touch-layout-editing .touch-btn.small { min-width: 32px; height: 30px; padding: 0 4px; font-size: 9px; }
+/* Browser chrome can leave less than 240px for a landscape duel. Keep the
+   auxiliary row compact so both pads fit above the reserved bottom area. */
+body.dual-touch.touch-compact .touch-slot { gap: 4px; }
+body.dual-touch.touch-compact .touch-btn.small { flex: 0 0 auto; min-width: 48px; height: 28px; padding: 0 4px; font-size: 9px; }
+body.dual-touch.touch-compact .vt-btn { width: 40px; height: 32px; }

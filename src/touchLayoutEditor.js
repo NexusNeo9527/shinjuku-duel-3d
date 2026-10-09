@@ -20,9 +20,15 @@ export class TouchLayoutEditor {
       touch.root.addEventListener(type, event => this.pointer(event), true);
     }
     window.addEventListener('resize', () => {
-      this.drag = null;
+      this.endDrag();
       $('touchEditorDirection').textContent = touchLayoutOrientation() === 'portrait' ? '竖屏 · 拖动按钮' : '横屏 · 拖动按钮';
     });
+    touch.root.addEventListener('lostpointercapture', event => {
+      if (this.drag?.id === event.pointerId) this.endDrag();
+    });
+    window.addEventListener('blur', () => this.endDrag());
+    window.addEventListener('pagehide', () => this.endDrag());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.endDrag(); });
     window.addEventListener('keydown', event => {
       if (this.touch.editing && event.code === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); this.finish(); }
     }, true);
@@ -73,7 +79,7 @@ export class TouchLayoutEditor {
   }
 
   reset() {
-    this.drag = null;
+    this.endDrag();
     this.settings.touchButtonPositions = normalizeTouchButtonPositions();
     this.settings.touchMovePosition = { ...DEFAULT_TOUCH_MOVE_POSITION };
     this.update();
@@ -95,13 +101,21 @@ export class TouchLayoutEditor {
 
   finish() {
     if (!this.touch.editing) return;
-    this.drag = null;
+    this.endDrag();
     this.touch.reset();
     Object.assign(this.game, this.previous, { state: 'settings' });
     this.touch.editing = false;
     document.body.classList.remove('touch-layout-editing');
     this.persist('当前布局已保存。可继续存入方案，或返回游戏使用。');
     document.getElementById('editTouchLayout').focus();
+  }
+
+  endDrag() {
+    if (!this.drag) return;
+    const { id, changed } = this.drag;
+    this.drag = null;
+    try { this.touch.root.releasePointerCapture(id); } catch (_) { /* already released */ }
+    if (changed) this.persist('当前布局已保存。');
   }
 
   pointer(event) {
@@ -114,19 +128,20 @@ export class TouchLayoutEditor {
       const button = event.target.closest('.touch-right button');
       if (!button) return;
       const rect = button.getBoundingClientRect();
-      this.drag = { id: event.pointerId, key: touchButtonKey(button), dx: rect.left + rect.width / 2 - event.clientX, dy: rect.top + rect.height / 2 - event.clientY };
+      this.drag = { id: event.pointerId, key: touchButtonKey(button), orientation: touchLayoutOrientation(), dx: rect.left + rect.width / 2 - event.clientX, dy: rect.top + rect.height / 2 - event.clientY };
       try { root.setPointerCapture(event.pointerId); } catch (_) { /* synthetic pointer */ }
     } else if (this.drag?.id === event.pointerId) {
       if (event.type === 'pointermove') {
         const rect = root.getBoundingClientRect();
-        this.settings.touchButtonPositions[touchLayoutOrientation()][this.drag.key] = {
+        if (this.drag.orientation !== touchLayoutOrientation()) { this.endDrag(); return; }
+        this.settings.touchButtonPositions[this.drag.orientation][this.drag.key] = {
           x: Math.max(0, Math.min(1, (event.clientX + this.drag.dx - rect.left) / rect.width)),
           y: Math.max(0, Math.min(1, (event.clientY + this.drag.dy - rect.top) / rect.height))
         };
+        this.drag.changed = true;
         this.update();
       } else {
-        this.drag = null;
-        this.persist('当前布局已保存。');
+        this.endDrag();
       }
     }
   }

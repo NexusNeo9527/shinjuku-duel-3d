@@ -63,3 +63,26 @@ export function fitTouchButton(desired, width, height, bounds, obstacles) {
   }
   return best;
 }
+
+export function fitTouchButtons(tiles, bounds, obstacles = []) {
+  const tryFit = (order, pack) => {
+    const occupied = [...obstacles], result = new Map();
+    for (const tile of order) {
+      const center = fitTouchButton(pack ? { x: bounds.left, y: bounds.top } : tile.desired, tile.width, tile.height, bounds, occupied);
+      if (!center) return null;
+      result.set(tile, center);
+      occupied.push({ left: center.x - tile.width / 2, right: center.x + tile.width / 2,
+        top: center.y - tile.height / 2, bottom: center.y + tile.height / 2 });
+    }
+    return result;
+  };
+  const preferred = tryFit(tiles, false);
+  if (preferred) return preferred;
+  // A greedy placement can fragment the free space. Repack the entire player
+  // pad instead of returning a button to an already occupied default location.
+  for (const score of [t => t.width * t.height, t => t.width, t => t.height]) {
+    const packed = tryFit([...tiles].sort((a, b) => score(b) - score(a)), true);
+    if (packed) return packed;
+  }
+  return null;
+}

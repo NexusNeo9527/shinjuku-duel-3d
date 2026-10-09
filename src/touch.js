@@ -2,7 +2,7 @@ import { shibuyaAbilityLocked } from "./shibuyaBattle.js";
 import { raidAbilityLocked } from './shinjukuRaid.js';
 import { CHARACTERS, COPY_TECHNIQUES } from "./config3d.js";
 import { ICONS } from "./ui3d.js";
-import { fitTouchButton, normalizeTouchButtonPositions, touchButtonKey, touchLayoutOrientation } from './touchLayout.js';
+import { fitTouchButtons, normalizeTouchButtonPositions, touchButtonKey, touchLayoutOrientation } from './touchLayout.js';
 
 const STICK_RADIUS = 56;
 const LOOK_SENS = 0.005;
@@ -260,6 +260,7 @@ export class TouchControls {
   updateLayout() {
     const rootRect = this.root.getBoundingClientRect();
     if (!this.enabled || !rootRect.height) return;
+    document.body.classList.toggle('touch-compact', this.dual && rootRect.height < 240);
     const cluster = this.pad1.abilityBar.parentElement;
     const controlsTop = cluster.getBoundingClientRect().top - rootRect.top;
     const panelTop = Math.max(8, Math.min(244, Math.max(66, controlsTop - 140), controlsTop - 44));
@@ -305,19 +306,23 @@ export class TouchControls {
     // Keep untouched buttons near their original positions, then fit edited
     // buttons around them. This also repairs a default row extending offscreen.
     const ordered = [...visible].sort((a, b) => Number(Boolean(positions[touchButtonKey(a)])) - Number(Boolean(positions[touchButtonKey(b)])));
-    for (const b of ordered) {
-      const position = positions[touchButtonKey(b)];
-      const r = rect(b), w = r.right - r.left, h = r.bottom - r.top;
-      const p2 = Boolean(b.closest('.p2'));
+    for (const p2 of this.dual ? [false, true] : [false]) {
       const bounds = { left: this.dual && p2 ? rootRect.width / 2 + 6 : 6,
         right: this.dual && !p2 ? rootRect.width / 2 - 6 : rootRect.width - 6,
         top: 6, bottom: rootRect.height - (this.editing ? 6 : matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and (max-width: 720px)').matches ? 62 : 6) };
-      const desired = position ? { x: this.dual ? (p2 ? 1 - position.x / 2 : position.x / 2) * rootRect.width : position.x * rootRect.width,
-        y: position.y * rootRect.height } : { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
-      const placed = fitTouchButton(desired, w, h, bounds, obstacles);
-      const center = placed || { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
-      b.style.transform = `translate(${center.x - (r.left + r.right) / 2}px, ${center.y - (r.top + r.bottom) / 2}px)`;
-      obstacles.push({ left: center.x - w / 2, right: center.x + w / 2, top: center.y - h / 2, bottom: center.y + h / 2 });
+      const tiles = ordered.filter(b => Boolean(b.closest('.p2')) === p2).map(button => {
+        const r = rect(button), position = positions[touchButtonKey(button)];
+        const origin = { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
+        return { button, origin, width: r.right - r.left, height: r.bottom - r.top,
+          desired: position ? { x: this.dual ? (p2 ? 1 - position.x / 2 : position.x / 2) * rootRect.width : position.x * rootRect.width,
+            y: position.y * rootRect.height } : origin };
+      });
+      const fitted = fitTouchButtons(tiles, bounds, obstacles);
+      if (!fitted) continue;
+      for (const tile of tiles) {
+        const center = fitted.get(tile);
+        tile.button.style.transform = `translate(${center.x - tile.origin.x}px, ${center.y - tile.origin.y}px)`;
+      }
     }
   }
 
