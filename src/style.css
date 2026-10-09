@@ -98,6 +98,21 @@ body.story-title-active .brand-text strong { max-width: 48vw; overflow: hidden; 
 .overlay h1.story-home-title { font-size: clamp(20px, 5vw, 40px); letter-spacing: 0; white-space: nowrap; }
 .overlay h1.borrowed-home-title { font-size: clamp(18px, 4.3vw, 36px); }
 .topbar-actions { display: flex; gap: 8px; }
+.touch-editor-toolbar { display: none; width: 100%; align-items: center; justify-content: space-between; gap: 8px; }
+.touch-editor-toolbar > div { display: flex; gap: 6px; }
+body.touch-layout-editing .topbar > .brand, body.touch-layout-editing .topbar > .topbar-actions { display: none; }
+body.touch-layout-editing .touch-editor-toolbar { display: flex; }
+body.touch-layout-editing .touch-editor-toolbar button { min-height: 44px; }
+.touch-profile-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+.touch-profile-fields label { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; }
+.touch-profile-fields select, .touch-profile-fields input { width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; border: 1px solid #ffffff35; border-radius: 8px; padding: 8px; background: #182331; color: white; font: inherit; font-size: 16px; }
+.touch-profile-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.touch-profile-actions button:disabled { opacity: .4; cursor: default; }
+body.touch-layout-editing .touch-right { bottom: 8px !important; gap: 4px; }
+body.touch-layout-editing .touch-slot { gap: 4px; }
+body.touch-layout-editing .touch-btn.small { min-width: 32px; height: 30px; padding: 0 4px; font-size: 9px; }
+body.touch-layout-editing .touch-right button { cursor: grab; touch-action: none; outline: 1px dashed #83d9ff; }
+body.touch-layout-editing .hud, body.touch-layout-editing .rotate-tip, body.touch-layout-editing .controls-hint { visibility: hidden; }
 .ghost-button {
   width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
   border: 1px solid var(--line-strong); background: var(--chip);
@@ -1289,3 +1304,8 @@ body.story-title-active .topbar-actions { flex-shrink: 0; }
 @media(max-height:480px){.battle-hint{top:19%;font-size:11px;padding:4px 8px}.pp-training{padding:3px 0}.pp-training small{display:none}}
 
 .skill-page-button { pointer-events: auto; cursor: pointer; color: #bdeeff; background: #111d2e; border: 1px solid #386079; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 11px; }
+
+/* The editor displays every optional action, including ones hidden in combat. */
+body.touch-mode.touch-layout-editing .touch-right { gap: 4px; }
+body.touch-mode.touch-layout-editing .touch-slot { gap: 4px; }
+body.touch-mode.touch-layout-editing .touch-btn.small { min-width: 32px; height: 30px; padding: 0 4px; font-size: 9px; }

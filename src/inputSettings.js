@@ -1,4 +1,5 @@
 import { PLAYER_HP_SETTINGS } from "./config3d.js";
+import { normalizeTouchButtonPositions, normalizeTouchLayoutProfiles } from './touchLayout.js';
 
 const STORAGE_KEY = "sd3d.input.settings.v1";
 
@@ -71,6 +72,8 @@ export function loadInputSettings() {
     return {
       bindings,
       playerMaxHp: clampPlayerMaxHp(saved.playerMaxHp),
+      touchButtonPositions: normalizeTouchButtonPositions(saved.touchButtonPositions),
+      touchLayoutProfiles: normalizeTouchLayoutProfiles(saved.touchLayoutProfiles),
       touchMovePosition: pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)
         ? clampTouchMovePosition(pos)
         : { ...DEFAULT_TOUCH_MOVE_POSITION }
@@ -79,6 +82,8 @@ export function loadInputSettings() {
     return {
       bindings: Object.fromEntries(BINDINGS.map((binding) => [binding.id, binding.defaultCode])),
       playerMaxHp: PLAYER_HP_SETTINGS.default,
+      touchButtonPositions: normalizeTouchButtonPositions(),
+      touchLayoutProfiles: normalizeTouchLayoutProfiles(),
       touchMovePosition: { ...DEFAULT_TOUCH_MOVE_POSITION }
     };
   }
@@ -92,7 +97,7 @@ export function clampPlayerMaxHp(value) {
 }
 
 export function saveInputSettings(settings) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch (_) { /* storage unavailable */ }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); return true; } catch (_) { return false; }
 }
 
 export function clampTouchMovePosition(position) {

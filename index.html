@@ -23,6 +23,7 @@
       </div>
     </section>
     <header class="topbar">
+      <div class="touch-editor-toolbar"><span id="touchEditorDirection">拖动按钮</span><div><button id="resetTouchLayoutEditor" class="ghost-button" type="button">默认</button><button id="finishTouchLayout" class="ghost-button" type="button">完成</button></div></div>
       <div class="brand">
         <span class="brand-mark">✦</span>
         <div class="brand-text">
@@ -220,7 +221,7 @@
               <button id="openSettingsBtn" class="text-button" type="button">设置</button>
             </div>
           </div>
-          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.14</div>
+          <div class="build-version" aria-label="当前游戏版本">版本 v0.2.15</div>
         </div>
       </div>
 
@@ -344,6 +345,13 @@
           <section class="settings-section health-settings">
             <div class="settings-section-head"><div><h3>玩家角色血量</h3><p>设置开局血量与生命上限；本地双人双方共用，电脑角色仍使用原血量规则</p></div><output id="playerMaxHpValue" for="playerMaxHp">100 HP</output></div>
             <input id="playerMaxHp" type="range" min="25" max="500" step="25" value="100" aria-label="玩家角色最大血量" />
+          </section>
+          <section class="settings-section touch-button-settings">
+            <div class="settings-section-head"><div><h3>触屏按钮布局</h3><p>拖动技能与辅助按钮调整位置。横屏、竖屏分别保存，换角色或技能页后沿用；条件按钮仅在对应战斗中出现。</p></div></div>
+            <button id="editTouchLayout" class="settings-quiet-button" type="button">拖动编辑按钮位置</button>
+            <div class="touch-profile-fields"><label>保存方案<select id="touchProfile" aria-label="选择触屏布局方案"></select></label><label>方案名称<input id="touchProfileName" maxlength="24" aria-label="触屏布局方案名称" /></label></div>
+            <div class="touch-profile-actions"><button id="saveTouchProfile" class="settings-quiet-button" type="button">保存到此方案</button><button id="applyTouchProfile" class="settings-quiet-button" type="button">应用方案</button><button id="resetTouchLayout" class="settings-quiet-button" type="button">恢复默认布局</button></div>
+            <p id="touchLayoutStatus" class="settings-status" role="status" aria-live="polite">当前调整自动保存在本机。可另存5个方案（含摇杆位置），恢复默认会保留方案。</p>
           </section>
           <section class="settings-section key-settings">
             <div class="settings-section-head"><div><h3>键位设置</h3><p>点击按键后按下新的键位，Esc 取消</p></div></div>

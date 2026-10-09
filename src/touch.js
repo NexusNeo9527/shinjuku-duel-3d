@@ -2,6 +2,7 @@ import { shibuyaAbilityLocked } from "./shibuyaBattle.js";
 import { raidAbilityLocked } from './shinjukuRaid.js';
 import { CHARACTERS, COPY_TECHNIQUES } from "./config3d.js";
 import { ICONS } from "./ui3d.js";
+import { fitTouchButton, normalizeTouchButtonPositions, touchButtonKey, touchLayoutOrientation } from './touchLayout.js';
 
 const STICK_RADIUS = 56;
 const LOOK_SENS = 0.005;
@@ -201,6 +202,8 @@ class TouchPad {
     }
     for (let i = 0; i < this.slots.length; i += 1) {
       const s = this.slots[i];
+      const label = s.el.querySelector('b');
+      if (game.state !== 'touchLayout' && label.textContent !== s.ability.label) label.textContent = s.ability.label;
       s.el.classList.toggle('hidden', Math.floor(i / 5) !== (player.skillPage || 0));
       const cd = player.cooldowns[i] || 0;
       s.cd.style.setProperty("--cd", String(Math.min(1, cd / (s.ability.cooldown || 1))));
@@ -220,7 +223,7 @@ class TouchPad {
 }
 
 export class TouchControls {
-  constructor({ game, renderer, onCast, onDash, movePosition }) {
+  constructor({ game, renderer, onCast, onDash, movePosition, buttonPositions }) {
     this.game = game;
     this.renderer = renderer;
     this.onCast = onCast;
@@ -228,6 +231,9 @@ export class TouchControls {
     this.enabled = false;
     this.dual = false;
     this.movePosition = movePosition || { x: 0.2, y: 0.76 };
+    this.buttonPositions = normalizeTouchButtonPositions(buttonPositions);
+    this.editing = false;
+    this.layoutSignature = '';
     this.root = document.querySelector("#touchUI");
     this.pad1 = new TouchPad({
       root: this.root,
@@ -248,6 +254,7 @@ export class TouchControls {
     this.layoutObserver = new ResizeObserver(() => this.updateLayout());
     this.layoutObserver.observe(this.root);
     this.layoutObserver.observe(this.pad1.abilityBar.parentElement);
+    this.layoutObserver.observe(document.querySelector('#practicePanel'));
   }
 
   updateLayout() {
@@ -258,6 +265,60 @@ export class TouchControls {
     const panelTop = Math.max(8, Math.min(244, Math.max(66, controlsTop - 140), controlsTop - 44));
     this.root.parentElement.style.setProperty('--touch-practice-top', `${panelTop}px`);
     this.root.parentElement.style.setProperty('--touch-practice-height', `${Math.max(36, controlsTop - panelTop - 8)}px`);
+    this.applyButtonPositions(rootRect);
+  }
+
+  setButtonPositions(positions) {
+    this.buttonPositions = normalizeTouchButtonPositions(positions);
+    this.layoutSignature = '';
+    this.updateLayout();
+  }
+
+  refreshLayout() {
+    if (!this.enabled) return;
+    const buttons = [...this.root.querySelectorAll('.touch-right button')];
+    if (this.editing) {
+      for (const b of buttons) {
+        if (!/^ab\d+$/.test(b.dataset.slot || '')) b.classList.remove('hidden');
+        else if (Number(b.dataset.slot.slice(2)) < 5) {
+          const label = b.querySelector('b'), text = `技能 ${Number(b.dataset.slot.slice(2)) + 1}`;
+          if (label.textContent !== text) label.textContent = text;
+        }
+      }
+    }
+    const signature = `${this.dual}:${this.editing}:` + buttons.map(b => `${b.dataset.slot || 'page'}:${b.classList.contains('hidden')}:${b.style.display}`).join('|');
+    if (signature !== this.layoutSignature) {
+      this.layoutSignature = signature;
+      this.updateLayout();
+    }
+  }
+
+  applyButtonPositions(rootRect) {
+    const buttons = [...this.root.querySelectorAll('.touch-right button')];
+    for (const b of buttons) b.style.transform = '';
+    const positions = this.buttonPositions[touchLayoutOrientation()];
+    const visible = buttons.filter(b => b.getClientRects().length);
+    const rect = b => { const r = b.getBoundingClientRect(); return { left: r.left - rootRect.left, right: r.right - rootRect.left, top: r.top - rootRect.top, bottom: r.bottom - rootRect.top }; };
+    const obstacles = [];
+    const panel = document.querySelector('#practicePanel');
+    if (panel?.getClientRects().length) obstacles.push(rect(panel));
+    // Keep untouched buttons near their original positions, then fit edited
+    // buttons around them. This also repairs a default row extending offscreen.
+    const ordered = [...visible].sort((a, b) => Number(Boolean(positions[touchButtonKey(a)])) - Number(Boolean(positions[touchButtonKey(b)])));
+    for (const b of ordered) {
+      const position = positions[touchButtonKey(b)];
+      const r = rect(b), w = r.right - r.left, h = r.bottom - r.top;
+      const p2 = Boolean(b.closest('.p2'));
+      const bounds = { left: this.dual && p2 ? rootRect.width / 2 + 6 : 6,
+        right: this.dual && !p2 ? rootRect.width / 2 - 6 : rootRect.width - 6,
+        top: 6, bottom: rootRect.height - (this.editing ? 6 : matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and (max-width: 720px)').matches ? 62 : 6) };
+      const desired = position ? { x: this.dual ? (p2 ? 1 - position.x / 2 : position.x / 2) * rootRect.width : position.x * rootRect.width,
+        y: position.y * rootRect.height } : { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
+      const placed = fitTouchButton(desired, w, h, bounds, obstacles);
+      const center = placed || { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
+      b.style.transform = `translate(${center.x - (r.left + r.right) / 2}px, ${center.y - (r.top + r.bottom) / 2}px)`;
+      obstacles.push({ left: center.x - w / 2, right: center.x + w / 2, top: center.y - h / 2, bottom: center.y + h / 2 });
+    }
   }
 
   // single-player accessors (kept so the existing input code keeps working)

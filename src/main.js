@@ -4,6 +4,7 @@ import { AudioEngine } from "./audio.js";
 import { mediaPreloadTasks } from "./preloadMedia.js";
 import { UI3D } from "./ui3d.js";
 import { TouchControls } from "./touch.js";
+import { TouchLayoutEditor } from './touchLayoutEditor.js';
 import { PLAYER_HP_SETTINGS, STORY_STAGES, CHARACTERS } from "./config3d.js";
 import { BINDINGS, DEFAULT_TOUCH_MOVE_POSITION, clampPlayerMaxHp, clampTouchMovePosition, displayKey, loadInputSettings, saveInputSettings } from "./inputSettings.js";
 
@@ -328,6 +329,7 @@ const touch = new TouchControls({
   game,
   renderer,
   movePosition: inputSettings.touchMovePosition,
+  buttonPositions: inputSettings.touchButtonPositions,
   onCast: (pad, i) => {
     audio.ensure();
     const p = pad === 1 ? secondPlayer() : game.player();
@@ -595,6 +597,8 @@ document.querySelector("#resetTouchPositionBtn")?.addEventListener("click", () =
 });
 renderTouchPosition();
 
+new TouchLayoutEditor({ game, touch, settings: inputSettings, onChange: renderTouchPosition });
+
 // ---- input ----
 window.addEventListener("keydown", (event) => {
   if (event.code === "Escape") {
@@ -860,7 +864,7 @@ function applyInput() {
   const inBattle = game.state === "playing";
 
   // show the touch UI on touch-first devices, or as soon as a touch is used
-  const wantTouch = inBattle && (coarseTouch || touchUsed);
+  const wantTouch = game.state === 'touchLayout' || inBattle && (coarseTouch || touchUsed);
   if (touch.enabled !== wantTouch) touch.setEnabled(wantTouch);
   // local versus on a touch device: both players get their own pad
   touch.setDual(inBattle && game.mode === "dual" && wantTouch);
@@ -874,7 +878,7 @@ function applyInput() {
   if (btnSwitch) btnSwitch.style.display = targetBtnDisplay;
   document.body.classList.toggle("split-mode", game.mode === "dual" && inBattle && !touch.enabled);
 
-  if (p1 && inBattle) {
+  if (p1 && (inBattle || game.state === 'touchLayout')) {
     document.querySelector("#btnCopy")?.classList.toggle("hidden", p1.charId !== "yuta");
     document.querySelector("#btnRestore")?.classList.toggle("hidden", !game.canForceRestore(p1) || p1.burnout <= 0 || p1.domainLocked);
     const yaw = renderer.camYaw;
@@ -966,7 +970,7 @@ function frame(now) {
   if (game.timeStop > 0) game.timeStop = Math.max(0, game.timeStop - rawDt);
   if (game.cutIn) { game.cutIn.life -= rawDt; if (game.cutIn.life <= 0) game.cutIn = null; }
   // freeze the whole scene behind the menus / during a time-stop
-  const frozen = ["menu", "modeSelect", "guide", "settings", "gojoSelect", "storySelect", "difficulty", "paused", "storyTransition"].includes(game.state)
+  const frozen = ["menu", "modeSelect", "guide", "settings", "touchLayout", "gojoSelect", "storySelect", "difficulty", "paused", "storyTransition"].includes(game.state)
     || game.timeStop > 0 || renderer._renderUnavailable;
   const dt = frozen ? 0 : realDt;
   game.update(dt);
@@ -974,6 +978,7 @@ function frame(now) {
   renderer.sync(game, dt);
   renderer.render(dt);
   ui.update(game);
+  touch.refreshLayout();
   requestAnimationFrame(frame);
 }
 
