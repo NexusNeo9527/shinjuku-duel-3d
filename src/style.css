@@ -104,6 +104,17 @@ body.story-title-active .brand-text strong { max-width: 48vw; overflow: hidden; 
   color: var(--text); font-size: 15px; transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .ghost-button:hover { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 14px -6px var(--accent); }
+.ghost-button.on { color: var(--accent); border-color: var(--accent); }
+.fullscreen-notice {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 25;
+  max-width: calc(100% - 24px); padding: 8px 12px; border-radius: 10px;
+  color: var(--text); background: var(--panel-strong); border: 1px solid var(--line-strong);
+  font-size: 11px; text-align: center; pointer-events: none;
+}
+#fullBtn { flex-shrink: 0; touch-action: manipulation; }
+@media (pointer: coarse) {
+  #fullBtn { width: 44px; height: 44px; }
+}
 .ghost-button.wide {
   width: auto; min-width: 62px; padding: 0 10px; font-size: 11px; letter-spacing: 0.06em;
   font-family: var(--font-mono); white-space: nowrap;

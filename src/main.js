@@ -709,54 +709,120 @@ function refreshFullscreenButton() {
   fullBtn?.setAttribute("aria-pressed", String(active));
   fullBtn?.setAttribute("aria-label", active ? "退出全屏" : "全屏");
   fullBtn?.setAttribute("title", active ? "退出全屏" : "进入全屏");
+  fullBtn?.classList.toggle("on", active);
+  if (fullBtn) fullBtn.textContent = active ? "⤡" : "⛶";
 }
 function resizeAfterFullscreenChange() {
-  if (!fullscreenElement()) clearTimeout(fullscreenFallbackTimer);
+  const nativeFullscreen = Boolean(fullscreenElement());
+  if (nativeFullscreen && !fullscreenWanted) {
+    // A browser may finish an old request after the player has already exited.
+    exitNativeFullscreen()?.catch?.(() => {});
+    return;
+  }
+  if (nativeFullscreen) {
+    wasNativeFullscreen = true;
+    clearTimeout(fullscreenFallbackTimer);
+  } else if (wasNativeFullscreen) {
+    wasNativeFullscreen = false;
+    fullscreenWanted = false;
+    fullscreenAttempt += 1;
+    document.body.classList.remove("app-fullscreen");
+    clearTimeout(fullscreenFallbackTimer);
+    hideFullscreenNotice();
+  }
+  refreshFullscreenButton();
   setTimeout(() => { fitCanvas(); refreshFullscreenButton(); }, 120);
 }
 let fullscreenFallbackTimer = 0;
-function ensureFullscreenFallback() {
+let fullscreenNoticeTimer = 0;
+let fullscreenAttempt = 0;
+let fullscreenWanted = false;
+let wasNativeFullscreen = false;
+const fullscreenNotice = document.querySelector("#fullscreenNotice");
+function hideFullscreenNotice() {
+  clearTimeout(fullscreenNoticeTimer);
+  fullscreenNotice?.classList.add("hidden");
+}
+function showFullscreenNotice() {
+  if (!fullscreenNotice) return;
+  fullscreenNotice.textContent = "已铺满页面 · 浏览器地址栏可能仍保留";
+  fullscreenNotice.classList.remove("hidden");
+  clearTimeout(fullscreenNoticeTimer);
+  fullscreenNoticeTimer = setTimeout(hideFullscreenNotice, 3500);
+}
+function ensureFullscreenFallback(attempt) {
   clearTimeout(fullscreenFallbackTimer);
   fullscreenFallbackTimer = setTimeout(() => {
-    if (!fullscreenElement()) document.body.classList.add("app-fullscreen");
+    if (attempt !== fullscreenAttempt || !fullscreenWanted) return;
+    if (!fullscreenElement()) {
+      document.body.classList.add("app-fullscreen");
+      showFullscreenNotice();
+    }
     refreshFullscreenButton();
     fitCanvas();
   }, 300);
+}
+function exitNativeFullscreen() {
+  if (!fullscreenElement()) return;
+  if (document.exitFullscreen) return document.exitFullscreen();
+  if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
 }
 document.addEventListener("fullscreenchange", resizeAfterFullscreenChange);
 document.addEventListener("webkitfullscreenchange", resizeAfterFullscreenChange);
 setTimeout(fitCanvas, 250);
 
 const fullBtn = document.querySelector("#fullBtn");
-fullBtn?.addEventListener("click", async () => {
+async function toggleFullscreen() {
   const active = Boolean(fullscreenElement()) || document.body.classList.contains("app-fullscreen");
+  const attempt = ++fullscreenAttempt;
+  fullscreenWanted = !active;
+  clearTimeout(fullscreenFallbackTimer);
+  hideFullscreenNotice();
   try {
     if (!active) {
-      if (document.documentElement.requestFullscreen) {
+      // Respond during the gesture even if the native API never settles.
+      document.body.classList.add("app-fullscreen");
+      refreshFullscreenButton();
+      fitCanvas();
+      ensureFullscreenFallback(attempt);
+      if (document.fullscreenEnabled !== false && document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen({ navigationUI: "hide" });
-        ensureFullscreenFallback();
-      } else if (document.documentElement.webkitRequestFullscreen) {
-        document.documentElement.webkitRequestFullscreen();
-        ensureFullscreenFallback();
+      } else if (document.webkitFullscreenEnabled !== false && document.documentElement.webkitRequestFullscreen) {
+        await document.documentElement.webkitRequestFullscreen();
       } else {
-        // iOS Safari does not expose DOM fullscreen; keep the game edge-to-edge
-        // so the control still has a useful, reversible fallback there.
-        document.body.classList.add("app-fullscreen");
+        // Embedded browsers may not expose DOM fullscreen. Keep a reversible
+        // page layout and explain when browser chrome can remain visible.
+        showFullscreenNotice();
       }
     } else {
-      clearTimeout(fullscreenFallbackTimer);
       document.body.classList.remove("app-fullscreen");
-      if (fullscreenElement() && document.exitFullscreen) await document.exitFullscreen();
-      else if (fullscreenElement() && document.webkitExitFullscreen) document.webkitExitFullscreen();
+      refreshFullscreenButton();
+      fitCanvas();
+      await exitNativeFullscreen();
     }
   } catch (error) {
-    // A rejected native request should still leave mobile Safari-like browsers
-    // with the edge-to-edge fallback instead of making the button appear dead.
-    document.body.classList.toggle("app-fullscreen", !active);
+    if (attempt !== fullscreenAttempt) return;
+    document.body.classList.toggle("app-fullscreen", fullscreenWanted);
+    if (fullscreenWanted) showFullscreenNotice();
     console.warn("Fullscreen API unavailable; using app fullscreen fallback", error);
   }
+  if (attempt !== fullscreenAttempt) return;
+  if (fullscreenElement()) hideFullscreenNotice();
   refreshFullscreenButton();
   setTimeout(fitCanvas, 150);
+}
+let lastFullscreenTouch = -Infinity;
+fullBtn?.addEventListener("pointerup", event => {
+  if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+  event.preventDefault();
+  lastFullscreenTouch = performance.now();
+  void toggleFullscreen();
+});
+fullBtn?.addEventListener("click", event => {
+  // Keep keyboard/mouse activation, without toggling twice on touch + click.
+  const fromPointer = event.detail || ["touch", "pen"].includes(event.pointerType) || event.sourceCapabilities?.firesTouchEvents;
+  if (fromPointer && performance.now() - lastFullscreenTouch < 700) return;
+  void toggleFullscreen();
 });
 refreshFullscreenButton();
 
