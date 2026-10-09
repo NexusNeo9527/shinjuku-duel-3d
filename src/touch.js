@@ -243,6 +243,21 @@ export class TouchControls {
     });
     this.pad2 = null;
     this.bindRoot();
+    // Recompute only when the viewport or button rows change (copy, restore,
+    // skill pages). The practice terminal must end above the portrait pad.
+    this.layoutObserver = new ResizeObserver(() => this.updateLayout());
+    this.layoutObserver.observe(this.root);
+    this.layoutObserver.observe(this.pad1.abilityBar.parentElement);
+  }
+
+  updateLayout() {
+    const rootRect = this.root.getBoundingClientRect();
+    if (!this.enabled || !rootRect.height) return;
+    const cluster = this.pad1.abilityBar.parentElement;
+    const controlsTop = cluster.getBoundingClientRect().top - rootRect.top;
+    const panelTop = Math.max(8, Math.min(244, Math.max(66, controlsTop - 140), controlsTop - 44));
+    this.root.parentElement.style.setProperty('--touch-practice-top', `${panelTop}px`);
+    this.root.parentElement.style.setProperty('--touch-practice-height', `${Math.max(36, controlsTop - panelTop - 8)}px`);
   }
 
   // single-player accessors (kept so the existing input code keeps working)

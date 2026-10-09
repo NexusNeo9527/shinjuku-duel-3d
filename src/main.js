@@ -711,10 +711,13 @@ function refreshFullscreenButton() {
   fullBtn?.setAttribute("title", active ? "退出全屏" : "进入全屏");
 }
 function resizeAfterFullscreenChange() {
+  if (!fullscreenElement()) clearTimeout(fullscreenFallbackTimer);
   setTimeout(() => { fitCanvas(); refreshFullscreenButton(); }, 120);
 }
+let fullscreenFallbackTimer = 0;
 function ensureFullscreenFallback() {
-  setTimeout(() => {
+  clearTimeout(fullscreenFallbackTimer);
+  fullscreenFallbackTimer = setTimeout(() => {
     if (!fullscreenElement()) document.body.classList.add("app-fullscreen");
     refreshFullscreenButton();
     fitCanvas();
@@ -741,9 +744,10 @@ fullBtn?.addEventListener("click", async () => {
         document.body.classList.add("app-fullscreen");
       }
     } else {
-      if (document.exitFullscreen) await document.exitFullscreen();
-      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-      else document.body.classList.remove("app-fullscreen");
+      clearTimeout(fullscreenFallbackTimer);
+      document.body.classList.remove("app-fullscreen");
+      if (fullscreenElement() && document.exitFullscreen) await document.exitFullscreen();
+      else if (fullscreenElement() && document.webkitExitFullscreen) document.webkitExitFullscreen();
     }
   } catch (error) {
     // A rejected native request should still leave mobile Safari-like browsers

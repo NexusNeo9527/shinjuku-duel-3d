@@ -1027,6 +1027,48 @@ body.touch-mode .touch-btn,
 body.touch-mode .touch-ability,
 body.touch-mode .vt-btn { touch-action: none; }
 
+/* Keep phone pads inside the arena even when extra action/page rows appear. */
+@media (orientation: portrait) and (max-width: 620px),
+       (orientation: landscape) and (max-height: 560px) {
+  body.touch-mode:not(.dual-touch) .vt-stack { flex-direction: row; gap: 6px; }
+  body.touch-mode:not(.dual-touch) .touch-right { gap: 6px; }
+  body.touch-mode:not(.dual-touch) .touch-slot { gap: 6px; max-width: min(310px, calc(100vw - 20px)); }
+  body.touch-mode:not(.dual-touch) .touch-btn.small { min-width: 54px; height: 38px; font-size: 11px; }
+  body.touch-mode:not(.dual-touch) .touch-btn.lock { height: 30px; }
+}
+@media (orientation: portrait) and (max-width: 620px) {
+  body.touch-mode .vt-btn { width: 52px; height: 38px; }
+  body.touch-mode .practice-panel {
+    top: var(--touch-practice-top, 66px);
+    max-height: var(--touch-practice-height, 36px);
+  }
+  body.touch-mode .rotate-tip {
+    top: auto; bottom: 6px; transform: translateX(-50%);
+    width: max-content; max-width: calc(100% - 16px); padding: 6px 10px;
+    animation: none;
+  }
+  body.touch-mode .cut-in {
+    left: 8px; top: 66px; transform: none;
+    width: min(28vw, 110px); height: min(9vh, 60px);
+  }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  body.touch-mode:not(.dual-touch) .touch-btn.small { min-width: 48px; height: 32px; }
+  body.touch-mode:not(.dual-touch) .touch-btn.lock { height: 26px; }
+  body.touch-mode .practice-panel { right: max(326px, calc(318px + env(safe-area-inset-right))); }
+  body.touch-mode .cut-in {
+    left: max(8px, calc((100% - 326px) / 2));
+    width: min(22vw, 180px);
+  }
+}
+body.dual-touch .touch-slot { max-width: calc(50vw - 20px); }
+@media (max-width: 700px) {
+  body.dual-touch .touch-abilities { max-width: calc(50vw - 12px); }
+  body.dual-touch .touch-slot { width: calc(50vw - 12px); max-width: none; gap: 6px; }
+  body.dual-touch .touch-btn.small { min-width: 0; flex: 0 0 calc((100% - 12px) / 3); height: 34px; font-size: 9px; }
+  body.dual-touch .vt-stack { flex-direction: row; gap: 6px; }
+}
+
 /* winner illustration on the result screen */
 .result-art {
   display: block; margin: 0 auto 14px;
